@@ -1,0 +1,21 @@
+---
+description: Quy tắc chung toàn dự án — ngắn, tập trung việc, tổng kết gọn
+alwaysApply: true
+---
+
+# Quy tắc chung
+
+## Làm việc
+- Một phiên — một mục tiêu; chia milestone nếu task lớn; handoff ngắn khi đổi thread.
+- Bắt từ `frontend/AGENTS/docs/CONTEXT_INDEX.md`; chỉ mở thêm file khi thiếu dữ liệu.
+- Hợp đồng API: `docs/api/` trước khi đào sâu FE/BE. DB: grep hoặc đọc có giới hạn — không full `schema.sql` nếu không cần.
+- `frontend/` = UI/client (`frontend/.cursor/rules/`, `frontend/RULES.md`). `backend/` = server. Không sửa chéo trừ khi user hoặc contract yêu cầu.
+- Grep/search định vị trước, đọc tối thiểu file; gọi tool song song khi độc lập; không refactor ngoài scope.
+- Kiến trúc / nhiều module: plan ngắn rồi code.
+
+## Trả lời
+- Súc tích, đi thẳng việc. Cuối phiên: **tổng kết 3–5 gạch đầu dòng** (đã làm / còn / rủi ro) — không lan man.
+
+## LangChain / đa agent (khi có)
+- Agent nhỏ, tool hẹp, I/O có schema; rule nghiệp vụ ở `docs/` hoặc code — không nhồi dài vào prompt.
+- Điều phối: `frontend/AGENTS/AGENT_REGISTRY.md`, `frontend/AGENTS/FLOW_GUIDE.md`.

@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0f172a; /* Slate 900 */
+  --color-primary-hover: #1e293b; /* Slate 800 */
+  --color-primary-light: #f8fafc; /* Slate 50 */
+  
+  --color-tertiary-container: #f1f5f9; /* Slate 100 - For Notify Owner Pill */
+  --color-on-tertiary-container: #475569; /* Slate 600 - For Notify Owner Pill Text */
+  
+  --color-success: #15803d;
+  --color-success-light: #dcfce7;
+  
+  --color-alert: #b91c1c;
+  --color-alert-light: #fee2e2;
+  
+  --color-background: #ffffff;
+  --color-foreground: #0f172a;
+  --color-muted: #f8fafc;
+  --color-muted-foreground: #64748b;
+  --color-border: #e2e8f0;
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Public Sans', system-ui, -apple-system, sans-serif;
+  
+  --radius-sm: 0.25rem;
+  --radius-default: 0.5rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-full: 9999px;
+}
+
+@layer base {
+  body {
+    @apply m-0 p-0 antialiased bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-size: 14px; /* Using text-sm as base per Rules.md */
+    line-height: 1.6; /* Enhance readability per Login.md */
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em; /* Premium feel per Login.md */
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  /* Custom scrollbar for sidebar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1; /* Slate 300 */
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8; /* Slate 400 */
+  }
+}
+

@@ -1,0 +1,12 @@
+---
+description: Quy tắc UI/React cho mã nguồn mini-erp (chỉ khi làm việc trong app).
+globs:
+  - mini-erp/**/*
+alwaysApply: false
+---
+
+# Frontend Mini-ERP
+
+- Tuân thủ `RULES.md` và `RULES_BUG_FIX.md` ở root repo.
+- Ưu tiên TanStack Query cho mutation, Shadcn + Tailwind v4, touch target ≥ 44px.
+- **Context tối thiểu**: trước khi đọc thêm tài liệu, xem [`AGENTS/docs/CONTEXT_INDEX.md`](../../AGENTS/docs/CONTEXT_INDEX.md) hàng "Sửa UI / feature" hoặc "Task DEV".

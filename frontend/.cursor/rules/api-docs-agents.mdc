@@ -1,0 +1,15 @@
+---
+description: API specs, UC/DB, Agent instructions, Planner — khi sửa docs hoặc AGENTS.
+globs:
+  - docs/api/**/*
+  - docs/UC/**/*
+  - AGENTS/docs/**/*
+  - AGENTS/**/*
+alwaysApply: false
+---
+
+# API, UC, Agent docs
+
+- API: [`AGENTS/API_AGENT_INSTRUCTIONS.md`](../../AGENTS/API_AGENT_INSTRUCTIONS.md) + [`docs/api/API_PROJECT_DESIGN.md`](../../docs/api/API_PROJECT_DESIGN.md).
+- **Context tối thiểu**: [`AGENTS/docs/CONTEXT_INDEX.md`](../../AGENTS/docs/CONTEXT_INDEX.md) hàng "Thiết kế / sửa tài liệu API" hoặc "Agent Planner".
+- Tránh đọc full `schema.sql` / `Database_Specification` nếu chỉ cần vài bảng — dùng grep hoặc đọc có giới hạn.

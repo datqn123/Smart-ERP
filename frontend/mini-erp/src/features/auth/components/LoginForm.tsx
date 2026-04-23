@@ -1,0 +1,269 @@
+import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Loader2, Eye, EyeOff } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+
+const loginSchema = z.object({
+  email: z.string().email({ message: "Email không hợp lệ" }),
+  password: z.string().min(6, { message: "Mật khẩu phải ít nhất 6 ký tự" }),
+})
+
+const ownerResetRequestSchema = z.object({
+  username: z.string().min(1, { message: "Vui lòng nhập tên đăng nhập" }),
+  message: z.string().max(500).optional(),
+})
+
+type LoginFormValues = z.infer<typeof loginSchema>
+type OwnerResetRequestValues = z.infer<typeof ownerResetRequestSchema>
+
+export function LoginForm() {
+  const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [ownerResetOpen, setOwnerResetOpen] = useState(false)
+  const [ownerResetSubmitting, setOwnerResetSubmitting] = useState(false)
+  const [ownerResetSuccess, setOwnerResetSuccess] = useState(false)
+  const navigate = useNavigate()
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+  })
+
+  const ownerResetForm = useForm<OwnerResetRequestValues>({
+    resolver: zodResolver(ownerResetRequestSchema),
+    defaultValues: { username: "", message: "" },
+  })
+
+  function handleOwnerResetDialogChange(open: boolean) {
+    setOwnerResetOpen(open)
+    if (!open) {
+      setOwnerResetSuccess(false)
+      ownerResetForm.reset()
+    }
+  }
+
+  async function onSubmit(data: LoginFormValues) {
+    setIsLoading(true)
+    console.log("Login data:", data)
+    // Simulate API call for demonstration
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    setIsLoading(false)
+    navigate("/dashboard")
+  }
+
+  async function onOwnerResetSubmit(data: OwnerResetRequestValues) {
+    setOwnerResetSubmitting(true)
+    // POST /api/v1/auth/password-reset-requests — nối backend khi sẵn sàng (API_Task004 §1)
+    console.log("Password reset request (Owner flow):", data)
+    await new Promise((resolve) => setTimeout(resolve, 900))
+    setOwnerResetSubmitting(false)
+    setOwnerResetSuccess(true)
+  }
+
+  return (
+    <Card className="w-full max-w-md bg-white border-none shadow-[0px_10px_30px_rgba(43,52,55,0.06)] rounded-lg lg:rounded-xl">
+      <CardHeader className="space-y-1 pb-8">
+        <CardTitle className="text-2xl font-medium text-foreground tracking-tight" style={{ letterSpacing: "-0.02em" }}>
+          Chào mừng trở lại
+        </CardTitle>
+        <CardDescription className="text-muted-foreground font-normal leading-relaxed">
+          Hãy nhập thông tin để quản lý doanh nghiệp của bạn
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          {/* Email Field */}
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-sm font-medium text-foreground">
+              Email
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="ten@vi-du.com"
+              {...register("email")}
+              className={`h-11 bg-muted border-none transition-all duration-200 ease-in-out
+                focus-visible:ring-0 focus-visible:bg-white focus-visible:shadow-[0_0_0_2px_rgba(100,116,139,0.2)]
+                ${errors.email ? "bg-alert-light text-alert" : ""}`}
+            />
+            {errors.email && (
+              <p className="text-xs text-alert mt-1">{errors.email.message}</p>
+            )}
+          </div>
+
+          {/* Password Field */}
+          <div className="space-y-2">
+            <Label htmlFor="password" className="text-sm font-medium text-foreground">
+              Mật khẩu
+            </Label>
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                {...register("password")}
+                className={`h-11 bg-muted border-none pr-12 transition-all duration-200 ease-in-out
+                  focus-visible:ring-0 focus-visible:bg-white focus-visible:shadow-[0_0_0_2px_rgba(100,116,139,0.2)]
+                  ${errors.password ? "bg-alert-light text-alert" : ""}`}
+              />
+              {/* Show/Hide password toggle - 44px touch target */}
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-0 top-0 h-11 w-11 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors duration-200 ease-in-out"
+                aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-[18px] w-[18px]" />
+                ) : (
+                  <Eye className="h-[18px] w-[18px]" />
+                )}
+              </button>
+            </div>
+
+            {errors.password && (
+              <p className="text-xs text-alert mt-2">{errors.password.message}</p>
+            )}
+          </div>
+
+          {/* [A] Login Button - 44px height, gradient per Login.md spec */}
+          <Button
+            type="submit"
+            className="w-full h-11 bg-gradient-to-br from-primary to-primary-hover text-white font-medium rounded-[0.5rem] transition-all duration-200 ease-in-out mt-4 hover:opacity-95 active:scale-[0.98]"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              "Đăng nhập"
+            )}
+          </Button>
+
+          <p className="text-center pt-1">
+            <button
+              type="button"
+              onClick={() => setOwnerResetOpen(true)}
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Yêu cầu mật khẩu
+            </button>
+          </p>
+        </form>
+      </CardContent>
+
+      <Dialog open={ownerResetOpen} onOpenChange={handleOwnerResetDialogChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Yêu cầu mật khẩu</DialogTitle>
+            <DialogDescription>
+              Không có tự khôi phục mật khẩu qua email. <strong>Quên mật khẩu:</strong> nhập tên đăng nhập —
+              Owner xử lý xong bạn nhận mật khẩu mới qua email. <strong>Chưa có tài khoản nhân viên:</strong> liên hệ
+              Owner trực tiếp hoặc ghi rõ trong ghi chú nếu Owner đã hướng dẫn dùng form này.
+            </DialogDescription>
+          </DialogHeader>
+
+          {ownerResetSuccess ? (
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Nếu tài khoản tồn tại, yêu cầu đã được gửi tới Owner. Bạn sẽ nhận email khi Owner xử lý
+              xong.
+            </p>
+          ) : (
+            <form
+              id="owner-reset-request-form"
+              onSubmit={ownerResetForm.handleSubmit(onOwnerResetSubmit)}
+              className="space-y-4"
+            >
+              <div className="space-y-2">
+                <Label htmlFor="reset-username">Tên đăng nhập</Label>
+                <Input
+                  id="reset-username"
+                  placeholder="vd: staff01"
+                  className="h-11 bg-muted border-none"
+                  {...ownerResetForm.register("username")}
+                  aria-invalid={!!ownerResetForm.formState.errors.username}
+                />
+                {ownerResetForm.formState.errors.username && (
+                  <p className="text-xs text-alert">
+                    {ownerResetForm.formState.errors.username.message}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reset-message">Ghi chú cho Owner (tuỳ chọn)</Label>
+                <Textarea
+                  id="reset-message"
+                  placeholder="Ví dụ: Em quên mật khẩu, nhờ reset giúp."
+                  className="min-h-[88px] bg-muted border-none resize-y"
+                  {...ownerResetForm.register("message")}
+                  aria-invalid={!!ownerResetForm.formState.errors.message}
+                />
+                {ownerResetForm.formState.errors.message && (
+                  <p className="text-xs text-alert">
+                    {ownerResetForm.formState.errors.message.message}
+                  </p>
+                )}
+              </div>
+            </form>
+          )}
+
+          <DialogFooter>
+            {ownerResetSuccess ? (
+              <Button type="button" onClick={() => handleOwnerResetDialogChange(false)}>
+                Đóng
+              </Button>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleOwnerResetDialogChange(false)}
+                  disabled={ownerResetSubmitting}
+                >
+                  Huỷ
+                </Button>
+                <Button
+                  type="submit"
+                  form="owner-reset-request-form"
+                  disabled={ownerResetSubmitting}
+                  className="bg-gradient-to-br from-primary to-primary-hover"
+                >
+                  {ownerResetSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Đang gửi…
+                    </>
+                  ) : (
+                    "Gửi yêu cầu"
+                  )}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  )
+}

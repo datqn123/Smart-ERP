@@ -1,0 +1,38 @@
+---
+description: Toàn repo — giảm burn token, tăng chất lượng context, chuẩn bị LangChain / đa agent
+alwaysApply: true
+---
+
+# Task — token, context, đa agent (toàn project)
+
+## 1. Đọc tối thiểu, đúng lớp
+
+- **Bảng ánh xạ task → tài liệu**: bắt đầu từ [`frontend/AGENTS/docs/CONTEXT_INDEX.md`](frontend/AGENTS/docs/CONTEXT_INDEX.md) (hoặc tương đương nếu được di chuyển về root). Chỉ mở thêm file khi thiếu dữ liệu.
+- **Hợp đồng FE–BE**: ưu tiên `docs/api/` (catalog endpoint, payload) trước khi đọc implementation sâu ở `frontend/` hoặc `backend/`.
+- **Schema DB**: không đọc full `schema.sql` / đặc tả DB — dùng grep hoặc đọc có `offset`/`limit` đúng bảng/cột cần.
+
+## 2. Giảm burn token (thói quen mỗi phiên)
+
+- **Một phiên — một mục tiêu**; task lớn → chia milestone; xong giai đoạn → thread mới + handoff ngắn (xem template trong `frontend/AGENTS/docs/templates/`).
+- **Thu hẹp ngữ cảnh**: `@file` / `@folder` / symbol; tránh kéo cả monorepo vào chat nếu không cần.
+- **Tìm trước, đọc sau**: `grep` / codebase search để định vị, rồi `read_file` vài file liên quan; gom nhiều lệnh đọc/tìm **song song** khi độc lập.
+- **Trả lời gọn, diff tập trung**: không dump log dài; chỉ trích đoạn lỗi + file:line. Tránh refactor lan man ngoài phạm vi task.
+- **MCP / skill**: chỉ bật hoặc dùng khi task thật sự cần; không gọi công cụ “dự phòng”.
+- **Plan trước khi code** khi thay đổi kiến trúc hoặc nhiều module.
+
+## 3. Tăng context “đúng chỗ” (ranh giới repo)
+
+- **`frontend/`**: UI, client, TanStack Query, Shadcn — theo `frontend/.cursor/rules/` + `frontend/RULES.md`. Không tự sửa `backend/` trừ khi user/API contract yêu cầu.
+- **`backend/`**: API, domain, persistence. Không nhúng logic UI; không sửa `frontend/` trừ khi user yêu cầu đồng bộ client.
+- **Meta / điều phối agent** (BA, PM, Planner…): [`frontend/AGENTS/AGENT_REGISTRY.md`](frontend/AGENTS/AGENT_REGISTRY.md), [`frontend/AGENTS/FLOW_GUIDE.md`](frontend/AGENTS/FLOW_GUIDE.md).
+
+## 4. Chuẩn bị LangChain / Agent tự động (sau này)
+
+- **Tách agent theo vai trò** (retrieval, tool-calling, tóm tắt, v.v.); mỗi agent một system prompt + bộ tool **hẹp** — tránh “siêu agent” ôm hết.
+- **Tool = lớp mỏng**: HTTP tới API nội bộ đã có contract, hoặc truy vấn có tham số rõ; input/output kiểu rõ ràng (schema / Pydantic / Zod) để giảm hallucination và log dễ audit.
+- **Nghiệp vụ ở server / tài liệu**: không nhân đôi business rules dài trong prompt; trỏ tới `docs/` hoặc service đã triển khai.
+- **Đặt mã LangChain cùng vùng triển khai** (ví dụ dưới `backend/` hoặc package riêng được user chọn), có README ngắn: agent nào, tool nào, env vars — để Cursor và agent khác không phải quét mù.
+
+## 5. Nhật ký ngắn khi bắt đầu task (khuyến nghị)
+
+Một dòng: *Theo CONTEXT_INDEX, loại task = …; chỉ đọc: …; không đọc: …* — rồi thực thi; chỉ mở rộng khi bị chặn bởi thiếu dữ liệu.

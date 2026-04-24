@@ -32,10 +32,16 @@ Then …
 ```
 
 5. Ràng buộc kỹ thuật & dữ liệu (mapping field ↔ DB nếu đã biết)  
-6. Open Questions  
-7. Traceability (link brief, API doc, UC)
+6. **Dữ liệu & SQL tham chiếu** (khi use case đụng DB): phối hợp **Agent SQL** — xem [`SQL_AGENT_INSTRUCTIONS.md`](SQL_AGENT_INSTRUCTIONS.md); BA giữ owner nội dung SRS, SQL bổ sung câu truy vấn mẫu, index, ranh giới transaction và toàn vẹn.  
+7. Open Questions  
+8. Traceability (link brief, API doc, UC)
 
-## 5. Không làm
+## 5. Phối hợp Agent SQL (bắt buộc khi SRS mô tả thao tác dữ liệu)
+
+- Gọi **Agent SQL** cùng vòng Draft: SQL đối chiếu `db/migration`, đề xuất **SELECT/INSERT/UPDATE** (hoặc pseudocode), **index**, **transaction / khóa**, và **AC đo được** liên quan tồn kho/tiền/trạng thái.
+- BA **không** tự bịa tên bảng/cột; mọi thứ chưa có trong migration → **[CẦN CHỐT]** hoặc Open Questions.
+
+## 6. Không làm
 
 - Không viết mã production.
 - Không tự “chốt” thay PO khi còn Open Questions chưa được trả lời.

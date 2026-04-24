@@ -3,21 +3,26 @@ package com.example.smart_erp.auth.support;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.Optional;
 
 import javax.crypto.SecretKey;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import com.example.smart_erp.common.api.ApiErrorCode;
+import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.config.AppSecurityProperties;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
 @Service
 public class JwtTokenService {
 
-	private static final int ACCESS_TTL_MINUTES = 5;
+	private static final int ACCESS_TTL_MINUTES = 1;
 
 	private final SecretKey signingKey;
 	private final AppSecurityProperties.Jwt jwtProps;
@@ -49,5 +54,74 @@ public class JwtTokenService {
 			builder.claim("aud", jwtProps.getAudience().trim());
 		}
 		return builder.compact();
+	}
+
+	/**
+	 * Task100: access JWT còn hiệu lực cho {@code LoginSessionRegistry} (ký đúng, iss/aud khớp, {@code exp} &gt; now).
+	 */
+	public boolean isAccessTokenActiveForSessionMap(String compactJwt) {
+		return tryParseActiveAccessClaims(compactJwt).isPresent();
+	}
+
+	/**
+	 * Task002 logout — parse subject; lỗi → {@link BusinessException}{@code UNAUTHORIZED}.
+	 */
+	public int parseAccessTokenUserId(String compactJwt) {
+		final String msg401 = "Phiên đăng nhập không hợp lệ hoặc đã hết hạn";
+		Claims claims = tryParseActiveAccessClaims(compactJwt)
+				.orElseThrow(() -> new BusinessException(ApiErrorCode.UNAUTHORIZED, msg401));
+		try {
+			return Integer.parseInt(claims.getSubject());
+		}
+		catch (NumberFormatException e) {
+			throw new BusinessException(ApiErrorCode.UNAUTHORIZED, msg401);
+		}
+	}
+
+	/**
+	 * Parse + verify chữ ký + iss/aud + exp chưa qua (theo đồng hồ server).
+	 */
+	private Optional<Claims> tryParseActiveAccessClaims(String compactJwt) {
+		if (!StringUtils.hasText(compactJwt)) {
+			return Optional.empty();
+		}
+		try {
+			Claims claims = Jwts.parser().verifyWith(signingKey).build().parseSignedClaims(compactJwt).getPayload();
+			if (StringUtils.hasText(jwtProps.getIssuer())) {
+				String iss = claims.getIssuer();
+				if (iss == null || !jwtProps.getIssuer().trim().equals(iss)) {
+					return Optional.empty();
+				}
+			}
+			if (StringUtils.hasText(jwtProps.getAudience())) {
+				String expected = jwtProps.getAudience().trim();
+				Object aud = claims.get("aud");
+				if (aud == null) {
+					return Optional.empty();
+				}
+				if (aud instanceof String s) {
+					if (!expected.equals(s)) {
+						return Optional.empty();
+					}
+				}
+				else if (aud instanceof java.util.Collection<?> col) {
+					boolean ok = col.stream().anyMatch(o -> expected.equals(String.valueOf(o)));
+					if (!ok) {
+						return Optional.empty();
+					}
+				}
+				else if (!expected.equals(String.valueOf(aud))) {
+					return Optional.empty();
+				}
+			}
+			Date exp = claims.getExpiration();
+			if (exp == null || !exp.toInstant().isAfter(Instant.now())) {
+				return Optional.empty();
+			}
+			return Optional.of(claims);
+		}
+		catch (JwtException | IllegalArgumentException e) {
+			return Optional.empty();
+		}
 	}
 }

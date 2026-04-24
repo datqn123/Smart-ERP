@@ -26,6 +26,8 @@ public class AuthService {
 
 	private static final String UNAUTHORIZED_LOGIN = "Email hoặc mật khẩu không chính xác hoặc tài khoản bị khóa";
 
+	private static final String FORBIDDEN_LOGOUT_REFRESH = "Refresh token không khớp với phiên đăng nhập hiện tại";
+
 	private final UserRepository userRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final PasswordEncoder passwordEncoder;
@@ -82,5 +84,18 @@ public class AuthService {
 		LoginResult.LoginUserDto dto = new LoginResult.LoginUserDto(user.getId(), user.getUsername(), user.getFullName(),
 				user.getEmail(), roleName);
 		return new LoginResult(accessToken, refreshPlain, dto);
+	}
+
+	/**
+	 * Task002: soft revoke refresh + audit. Registry phiên gỡ ở controller sau khi transaction commit.
+	 */
+	@Transactional
+	public void logout(int userIdFromJwt, String refreshToken) {
+		Instant now = Instant.now();
+		int updated = refreshTokenRepository.softRevoke(userIdFromJwt, refreshToken, now);
+		if (updated == 0) {
+			throw new BusinessException(ApiErrorCode.FORBIDDEN, FORBIDDEN_LOGOUT_REFRESH);
+		}
+		systemLogJdbcRepository.insertAuthLogout(userIdFromJwt);
 	}
 }

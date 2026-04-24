@@ -5,6 +5,7 @@
 | Mã gọi | Vai trò | Hướng dẫn |
 | :--- | :--- | :--- |
 | `BA` | Business Analyst | [`BA_AGENT_INSTRUCTIONS.md`](BA_AGENT_INSTRUCTIONS.md) |
+| `SQL` | SQL / dữ liệu (schema, hiệu năng, toàn vẹn, Spring DB) | [`SQL_AGENT_INSTRUCTIONS.md`](SQL_AGENT_INSTRUCTIONS.md) |
 | `PM` | Project Manager | [`PM_AGENT_INSTRUCTIONS.md`](PM_AGENT_INSTRUCTIONS.md) |
 | `TECH_LEAD` | Tech Lead | [`TECH_LEAD_AGENT_INSTRUCTIONS.md`](TECH_LEAD_AGENT_INSTRUCTIONS.md) |
 | `DEVELOPER` | Developer | [`DEVELOPER_AGENT_INSTRUCTIONS.md`](DEVELOPER_AGENT_INSTRUCTIONS.md) |
@@ -16,7 +17,8 @@
 
 | Agent | Artifact |
 | :--- | :--- |
-| BA | SRS / spec kỹ thuật (`frontend/docs/srs/`, `docs/srs/` — thống nhất team) |
+| BA | SRS / spec kỹ thuật — **Spring (`smart-erp`)**: [`../docs/srs/README.md`](../docs/srs/README.md); **UI Mini-ERP**: [`../../frontend/docs/srs/README.md`](../../frontend/docs/srs/README.md) |
+| SQL | Mục **Dữ liệu & SQL tham chiếu** trong SRS (đồng soạn với BA); không thay BA làm owner file |
 | PM | `TASKS/Task*.md` + nhánh `develop` |
 | Tech Lead | `docs/adr/ADR-*.md` |
 | Developer | `backend/smart-erp/src/**` + test |

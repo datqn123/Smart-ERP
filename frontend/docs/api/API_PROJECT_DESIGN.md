@@ -301,6 +301,8 @@ Mỗi file `API_TaskXXX` phải ghi rõ **`RBAC Roles`** và điều kiện **ow
 
 ## 7. Trạng thái tài liệu API theo Task
 
+> **SRS backend không có `API_TaskXXX` tương ứng (Task ≥ 100):** [`SRS_Task100_auth-session-registry-stale-access.md`](../../../backend/docs/srs/SRS_Task100_auth-session-registry-stale-access.md) — xử lý `LoginSessionRegistry` khi access JWT hết hạn mà không refresh (Draft).
+
 | File | Trạng thái |
 | :--- | :--- |
 | [`API_Task001_login.md`](API_Task001_login.md) | Approved |

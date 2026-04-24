@@ -20,4 +20,10 @@ public class SystemLogJdbcRepository {
 				"INSERT INTO systemlogs (log_level, module, action, user_id, message) VALUES (?, ?, ?, ?, ?)",
 				"INFO", "AUTH", "LOGIN", userId, "Người dùng đăng nhập thành công");
 	}
+
+	public void insertAuthLogout(int userId) {
+		jdbcTemplate.update(
+				"INSERT INTO systemlogs (log_level, module, action, user_id, message) VALUES (?, ?, ?, ?, ?)",
+				"INFO", "AUTH", "LOGOUT", userId, "Người dùng đã đăng xuất");
+	}
 }

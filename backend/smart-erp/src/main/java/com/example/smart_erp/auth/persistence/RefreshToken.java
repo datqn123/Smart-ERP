@@ -26,6 +26,10 @@ public class RefreshToken {
 	@Column(name = "expires_at", nullable = false)
 	private Instant expiresAt;
 
+	/** Soft revoke (Task002). Null = còn hiệu lực. */
+	@Column(name = "delete_ymd")
+	private Instant deleteYmd;
+
 	public RefreshToken() {
 	}
 

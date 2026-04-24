@@ -1,6 +1,8 @@
 # docs/srs - Software Requirements Specification (SRS)
 
-Thư mục này chứa **SRS chính thức** cho từng tính năng của Mini-ERP.
+Thư mục này chứa **SRS chính thức** cho từng tính năng **UI / luồng Mini-ERP** (và tài liệu dùng chung template).
+
+**SRS triển khai Spring Boot (`smart-erp`)** — đăng nhập, đăng xuất, persistence API — nằm tại [`../../../backend/docs/srs/README.md`](../../../backend/docs/srs/README.md).
 
 ## Quy ước đặt tên
 

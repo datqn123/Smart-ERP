@@ -1,7 +1,11 @@
 package com.example.smart_erp.auth.web;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -13,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -20,6 +25,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.example.smart_erp.auth.AuthTask001Fixtures;
 import com.example.smart_erp.auth.service.AuthService;
 import com.example.smart_erp.auth.service.LoginResult;
+import com.example.smart_erp.auth.session.LoginSessionRegistry;
+import com.example.smart_erp.auth.support.JwtTokenService;
+import com.example.smart_erp.common.api.ApiErrorCode;
+import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.common.exception.GlobalExceptionHandler;
 import com.example.smart_erp.config.PermitAllWebSecurityConfiguration;
 import com.example.smart_erp.config.SecurityBeansConfiguration;
@@ -40,6 +49,12 @@ class AuthControllerWebMvcTest {
 
 	@MockitoBean
 	private AuthService authService;
+
+	@MockitoBean
+	private JwtTokenService jwtTokenService;
+
+	@MockitoBean
+	private LoginSessionRegistry loginSessionRegistry;
 
 	@Test
 	void login_trimsPaddedEmailBeforeAuthService() throws Exception {
@@ -96,5 +111,52 @@ class AuthControllerWebMvcTest {
 				.andExpect(jsonPath("$.error").value("BAD_REQUEST"))
 				.andExpect(jsonPath("$.details.email").exists())
 				.andExpect(jsonPath("$.details.password").exists());
+	}
+
+	@Test
+	void logout_success_returns200AndClearsSessionRegistry() throws Exception {
+		when(jwtTokenService.parseAccessTokenUserId("access.jwt")).thenReturn(1);
+		String bodyJson = Objects.requireNonNull(objectMapper.writeValueAsString(new LogoutRequest("refreshplain")));
+
+		mockMvc.perform(post("/api/v1/auth/logout").header(HttpHeaders.AUTHORIZATION, "Bearer access.jwt")
+				.contentType(MediaType.APPLICATION_JSON_VALUE).content(bodyJson)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data").isMap())
+				.andExpect(jsonPath("$.message").value("Đăng xuất thành công và đã hủy các phiên làm việc"));
+
+		verify(authService).logout(1, "refreshplain");
+		verify(loginSessionRegistry).clear(1);
+	}
+
+	@Test
+	void logout_returns400WhenRefreshTokenBlank() throws Exception {
+		String bodyJson = Objects.requireNonNull(objectMapper.writeValueAsString(new LogoutRequest("")));
+		mockMvc.perform(post("/api/v1/auth/logout").header(HttpHeaders.AUTHORIZATION, "Bearer access.jwt")
+				.contentType(MediaType.APPLICATION_JSON_VALUE).content(bodyJson)).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.details.refreshToken").exists());
+
+		verifyNoInteractions(jwtTokenService, loginSessionRegistry);
+	}
+
+	@Test
+	void logout_returns401WhenMissingAuthorization() throws Exception {
+		String bodyJson = Objects.requireNonNull(objectMapper.writeValueAsString(new LogoutRequest("refreshplain")));
+		mockMvc.perform(post("/api/v1/auth/logout").contentType(MediaType.APPLICATION_JSON_VALUE).content(bodyJson))
+				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
+
+		verifyNoInteractions(jwtTokenService, authService, loginSessionRegistry);
+	}
+
+	@Test
+	void logout_returns403WhenRefreshDoesNotMatch() throws Exception {
+		when(jwtTokenService.parseAccessTokenUserId("access.jwt")).thenReturn(1);
+		doThrow(new BusinessException(ApiErrorCode.FORBIDDEN, "Refresh token không khớp với phiên đăng nhập hiện tại"))
+				.when(authService).logout(1, "bad");
+
+		String bodyJson = Objects.requireNonNull(objectMapper.writeValueAsString(new LogoutRequest("bad")));
+		mockMvc.perform(post("/api/v1/auth/logout").header(HttpHeaders.AUTHORIZATION, "Bearer access.jwt")
+				.contentType(MediaType.APPLICATION_JSON_VALUE).content(bodyJson)).andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.error").value("FORBIDDEN"));
+
+		verify(loginSessionRegistry, never()).clear(anyInt());
 	}
 }

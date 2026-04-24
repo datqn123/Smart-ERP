@@ -35,11 +35,11 @@ flowchart LR
 
 | Gate | Sau agent | Điều kiện chuyển bước |
 | :--- | :--- | :--- |
-| G-BA | BA | SRS / spec kỹ thuật **Draft** đủ Given/When/Then; PO đổi trạng thái file → **Approved** (xem `BA_AGENT_INSTRUCTIONS.md`). |
+| G-BA | BA | SRS / spec kỹ thuật **Draft** đủ Given/When/Then; PO đổi trạng thái file → **Approved** (xem `BA_AGENT_INSTRUCTIONS.md`). **Nếu use case đụng DB**: SRS có mục **Dữ liệu & SQL tham chiếu** đã đồng soạn / rà với **Agent SQL** (`SQL_AGENT_INSTRUCTIONS.md`). |
 | G-PM | PM | Chuỗi task (Unit + Feature + E2E) + ID + phụ thuộc đã **merge vào `develop`** (theo `PM_AGENT_INSTRUCTIONS.md`). |
 | G-TL | Tech Lead | ADR (có mục NFR bắt buộc 5 mục) + rào chắn mã / review yêu cầu. |
 | G-DEV | Developer | TDD; `mvn verify` xanh; JaCoCo **≥ 80%** (cổng coverage) trước Ready for review. |
-| G-TST | Tester | AC đạt; E2E + smoke (theo `TESTER_AGENT_INSTRUCTIONS.md`); Postman/endpoint trong test. |
+| G-TST | Tester | AC đạt; **manual unit test** + smoke (theo `TESTER_AGENT_INSTRUCTIONS.md`); Postman / `MANUAL_UNIT_TEST_*.md`. Auto test chỉ khi ADR/Owner yêu cầu. |
 | G-CBA | Codebase Analyst | Bản brownfield 10 bước (greenfield → 7 tài liệu) bàn giao cho Doc Sync. |
 | G-DS | Doc Sync | Báo cáo drift sau sprint/PR merge; cảnh báo khi tài liệu phân tích lệch code. |
 
@@ -56,6 +56,8 @@ Vai trò: BA. Đọc @backend/AGENTS/BA_AGENT_INSTRUCTIONS.md …
 ```
 
 _(Thay `BA` bằng `PM` | `TECH_LEAD` | `DEVELOPER` | `TESTER` | `CODEBASE_ANALYST` | `DOC_SYNC`.)_
+
+**Agent SQL** (`SQL`): dùng **cùng giai đoạn BA** khi SRS cần truy vấn / migration ý tưởng — không nằm sau Tester trong chuỗi tuyến tính; xem `SQL_AGENT_INSTRUCTIONS.md`.
 
 ---
 

@@ -38,4 +38,12 @@ public class RefreshToken {
 		this.token = token;
 		this.expiresAt = expiresAt;
 	}
+
+	public Integer getUserId() {
+		return userId;
+	}
+
+	public String getToken() {
+		return token;
+	}
 }

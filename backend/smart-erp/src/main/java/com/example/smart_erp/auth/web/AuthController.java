@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.smart_erp.auth.service.AuthService;
 import com.example.smart_erp.auth.service.LoginResult;
+import com.example.smart_erp.auth.service.RefreshResult;
 import com.example.smart_erp.auth.session.LoginSessionRegistry;
 import com.example.smart_erp.auth.support.JwtTokenService;
 import com.example.smart_erp.common.api.ApiErrorCode;
@@ -29,6 +30,8 @@ public class AuthController {
 
 	private static final String UNAUTHORIZED_TOKEN_MESSAGE = "Phiên đăng nhập không hợp lệ hoặc đã hết hạn";
 
+	private static final String REFRESH_SUCCESS_MESSAGE = "Token đã được làm mới";
+
 	private final AuthService authService;
 
 	private final JwtTokenService jwtTokenService;
@@ -40,6 +43,14 @@ public class AuthController {
 		this.authService = authService;
 		this.jwtTokenService = jwtTokenService;
 		this.loginSessionRegistry = loginSessionRegistry;
+	}
+
+	@PostMapping("/refresh")
+	public ResponseEntity<ApiSuccessResponse<RefreshResponseData>> refresh(@Valid @RequestBody RefreshRequest request) {
+		RefreshResult result = authService.refresh(request.refreshToken());
+		loginSessionRegistry.register(result.userId(), result.accessToken());
+		RefreshResponseData data = new RefreshResponseData(result.accessToken(), result.refreshTokenPlain());
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, REFRESH_SUCCESS_MESSAGE));
 	}
 
 	@PostMapping("/login")

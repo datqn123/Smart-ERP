@@ -13,4 +13,5 @@ Thư mục này chứa **SRS gắn triển khai backend** (API auth, persistence
 | :--- | :--- |
 | [`SRS_Task001_login-authentication.md`](SRS_Task001_login-authentication.md) | Đăng nhập / JWT / refresh DB |
 | [`SRS_Task002_logout.md`](SRS_Task002_logout.md) | Đăng xuất / soft revoke `delete_ymd` — artifact agent: [`../task002/README.md`](../task002/README.md) |
+| [`SRS_Task003_auth_refresh.md`](SRS_Task003_auth_refresh.md) | `POST /auth/refresh` — **Approved**; access mới + session map; artifact: [`../task003/README.md`](../task003/README.md) |
 | [`SRS_Task100_auth-session-registry-stale-access.md`](SRS_Task100_auth-session-registry-stale-access.md) | HashMap phiên đơn: access hết hạn + không refresh → không chặn login oan — workflow: [`../task100/README.md`](../task100/README.md) |

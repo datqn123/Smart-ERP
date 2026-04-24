@@ -15,6 +15,7 @@ import com.example.smart_erp.auth.persistence.User;
 import com.example.smart_erp.auth.persistence.UserRepository;
 import com.example.smart_erp.auth.session.LoginBruteForceProtection;
 import com.example.smart_erp.auth.session.LoginSessionRegistry;
+import com.example.smart_erp.auth.session.RefreshAccessThrottle;
 import com.example.smart_erp.auth.support.JwtTokenService;
 import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.exception.BusinessException;
@@ -28,6 +29,8 @@ public class AuthService {
 
 	private static final String FORBIDDEN_LOGOUT_REFRESH = "Refresh token không khớp với phiên đăng nhập hiện tại";
 
+	private static final String UNAUTHORIZED_REFRESH = "Refresh token không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.";
+
 	private final UserRepository userRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final PasswordEncoder passwordEncoder;
@@ -36,10 +39,12 @@ public class AuthService {
 	private final LoginSessionRegistry loginSessionRegistry;
 	private final LoginBruteForceProtection loginBruteForceProtection;
 
+	private final RefreshAccessThrottle refreshAccessThrottle;
+
 	public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository,
 			PasswordEncoder passwordEncoder, JwtTokenService jwtTokenService,
 			SystemLogJdbcRepository systemLogJdbcRepository, LoginSessionRegistry loginSessionRegistry,
-			LoginBruteForceProtection loginBruteForceProtection) {
+			LoginBruteForceProtection loginBruteForceProtection, RefreshAccessThrottle refreshAccessThrottle) {
 		this.userRepository = userRepository;
 		this.refreshTokenRepository = refreshTokenRepository;
 		this.passwordEncoder = passwordEncoder;
@@ -47,6 +52,7 @@ public class AuthService {
 		this.systemLogJdbcRepository = systemLogJdbcRepository;
 		this.loginSessionRegistry = loginSessionRegistry;
 		this.loginBruteForceProtection = loginBruteForceProtection;
+		this.refreshAccessThrottle = refreshAccessThrottle;
 	}
 
 	@Transactional
@@ -68,6 +74,8 @@ public class AuthService {
 		}
 
 		loginBruteForceProtection.onSuccess(user.getId());
+
+		refreshAccessThrottle.clear(user.getId());
 
 		String roleName = user.getRole() != null ? user.getRole().getName() : "Unknown";
 		String accessToken = jwtTokenService.createAccessToken(user.getId(), user.getUsername(), roleName);
@@ -96,6 +104,25 @@ public class AuthService {
 		if (updated == 0) {
 			throw new BusinessException(ApiErrorCode.FORBIDDEN, FORBIDDEN_LOGOUT_REFRESH);
 		}
+		refreshAccessThrottle.clear(userIdFromJwt);
 		systemLogJdbcRepository.insertAuthLogout(userIdFromJwt);
+	}
+
+	/**
+	 * Task003: làm mới access JWT; không rotation; không SystemLogs; throttle §SRS 7.2.
+	 */
+	@Transactional(readOnly = true)
+	public RefreshResult refresh(String refreshTokenPlain) {
+		Instant now = Instant.now();
+		RefreshToken row = refreshTokenRepository.findValidByToken(refreshTokenPlain, now)
+				.orElseThrow(() -> new BusinessException(ApiErrorCode.UNAUTHORIZED, UNAUTHORIZED_REFRESH));
+		int userId = row.getUserId();
+		User user = userRepository.findActiveById(userId)
+				.orElseThrow(() -> new BusinessException(ApiErrorCode.UNAUTHORIZED, UNAUTHORIZED_REFRESH));
+		refreshAccessThrottle.assertCanIssueNewAccess(userId);
+		String roleName = user.getRole() != null ? user.getRole().getName() : "Unknown";
+		String accessToken = jwtTokenService.createAccessToken(user.getId(), user.getUsername(), roleName);
+		refreshAccessThrottle.recordIssued(userId);
+		return new RefreshResult(accessToken, refreshTokenPlain, userId);
 	}
 }

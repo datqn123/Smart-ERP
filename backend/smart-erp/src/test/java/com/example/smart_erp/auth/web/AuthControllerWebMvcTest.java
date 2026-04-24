@@ -1,5 +1,6 @@
 package com.example.smart_erp.auth.web;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doThrow;
@@ -25,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.example.smart_erp.auth.AuthTask001Fixtures;
 import com.example.smart_erp.auth.service.AuthService;
 import com.example.smart_erp.auth.service.LoginResult;
+import com.example.smart_erp.auth.service.RefreshResult;
 import com.example.smart_erp.auth.session.LoginSessionRegistry;
 import com.example.smart_erp.auth.support.JwtTokenService;
 import com.example.smart_erp.common.api.ApiErrorCode;
@@ -55,6 +57,53 @@ class AuthControllerWebMvcTest {
 
 	@MockitoBean
 	private LoginSessionRegistry loginSessionRegistry;
+
+	@Test
+	void refresh_success_returns200RegistersSessionAndEchoesRefresh() throws Exception {
+		when(authService.refresh("my-refresh")).thenReturn(new RefreshResult("new.access", "my-refresh", 1));
+		String bodyJson = Objects.requireNonNull(objectMapper.writeValueAsString(new RefreshRequest("my-refresh")));
+
+		mockMvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON_VALUE).content(bodyJson))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.accessToken").value("new.access"))
+				.andExpect(jsonPath("$.data.refreshToken").value("my-refresh"))
+				.andExpect(jsonPath("$.message").value("Token đã được làm mới"));
+
+		verify(authService).refresh("my-refresh");
+		verify(loginSessionRegistry).register(1, "new.access");
+	}
+
+	@Test
+	void refresh_returns400WhenRefreshTokenBlank() throws Exception {
+		String bodyJson = Objects.requireNonNull(objectMapper.writeValueAsString(new RefreshRequest("")));
+		mockMvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON_VALUE).content(bodyJson))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.details.refreshToken").exists());
+
+		verifyNoInteractions(authService, loginSessionRegistry);
+	}
+
+	@Test
+	void refresh_returns401WhenServiceUnauthorized() throws Exception {
+		when(authService.refresh("bad")).thenThrow(
+				new BusinessException(ApiErrorCode.UNAUTHORIZED, "Refresh token không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại."));
+		String bodyJson = Objects.requireNonNull(objectMapper.writeValueAsString(new RefreshRequest("bad")));
+
+		mockMvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON_VALUE).content(bodyJson))
+				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
+
+		verify(loginSessionRegistry, never()).register(anyInt(), any());
+	}
+
+	@Test
+	void refresh_returns429WhenThrottled() throws Exception {
+		when(authService.refresh("tok")).thenThrow(new BusinessException(ApiErrorCode.TOO_MANY_REQUESTS, "Chậm lại"));
+		String bodyJson = Objects.requireNonNull(objectMapper.writeValueAsString(new RefreshRequest("tok")));
+
+		mockMvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON_VALUE).content(bodyJson))
+				.andExpect(status().isTooManyRequests()).andExpect(jsonPath("$.error").value("TOO_MANY_REQUESTS"));
+
+		verify(loginSessionRegistry, never()).register(anyInt(), any());
+	}
 
 	@Test
 	void login_trimsPaddedEmailBeforeAuthService() throws Exception {

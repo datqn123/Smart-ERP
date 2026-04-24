@@ -17,6 +17,10 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 	@Query("select u from User u where lower(u.email) = lower(:email) and u.status = 'Active'")
 	Optional<User> findActiveByEmailIgnoreCase(@Param("email") String email);
 
+	@EntityGraph(attributePaths = "role")
+	@Query("select u from User u where u.id = :id and u.status = 'Active'")
+	Optional<User> findActiveById(@Param("id") Integer id);
+
 	@Modifying
 	@Query("update User u set u.status = 'Locked' where u.id = :id and u.status = 'Active'")
 	int lockActiveUserById(@Param("id") Integer id);

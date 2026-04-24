@@ -22,6 +22,6 @@
 | PM | `TASKS/Task*.md` + nhánh `develop` |
 | Tech Lead | `docs/adr/ADR-*.md` |
 | Developer | `backend/smart-erp/src/**` + test |
-| Tester | `src/test/**`, `backend/smart-erp/docs/postman/*.json`, smoke checklist |
+| Tester | `MANUAL_UNIT_TEST` + `TEST_PLAN` trong `docs/taskXXX/04-tester/`, **`docs/postman/TaskXXX_*` — đúng 3 file envelope** (mẫu [`smart-erp/docs/postman/Task001_login.valid.body.json`](../smart-erp/docs/postman/Task001_login.valid.body.json)), contract `*PostmanBodyContractTest` khi áp dụng, smoke checklist |
 | Codebase Analyst | `backend/AGENTS/briefs/CODEBASE_ANALYST_*.md` (+ 7 deliverable greenfield) |
 | Doc Sync | `docs/sync_reports/SYNC_REPORT_*.md` |

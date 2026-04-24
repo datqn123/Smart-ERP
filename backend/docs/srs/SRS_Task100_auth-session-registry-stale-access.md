@@ -2,7 +2,7 @@
 
 > **File**: `backend/docs/srs/SRS_Task100_auth-session-registry-stale-access.md`  
 > **Loại:** Nghiệp vụ **backend-only** — **không** có file `API_Task100_*` (index **100** theo quy ước task không map endpoint).  
-> **Liên quan:** [`SRS_Task001_login-authentication.md`](SRS_Task001_login-authentication.md) (403 chặn phiên 2; TTL access theo `JwtTokenService`), [`SRS_Task002_logout.md`](SRS_Task002_logout.md) (`clear` map), Task003 refresh (khi có).  
+> **Liên quan:** [`SRS_Task001_login-authentication.md`](SRS_Task001_login-authentication.md) (dự kiến cùng thư mục `backend/docs/srs/` khi khởi tạo), [`SRS_Task002_logout.md`](../task002/00-ba/SRS_Task002_logout.md) (`clear` map), [`SRS_Task003_auth_refresh.md`](SRS_Task003_auth_refresh.md).  
 > **Envelope:** [`../../../frontend/docs/api/API_RESPONSE_ENVELOPE.md`](../../../frontend/docs/api/API_RESPONSE_ENVELOPE.md)  
 > **Ngày:** 24/04/2026  
 > **Phiên bản:** 1.1  

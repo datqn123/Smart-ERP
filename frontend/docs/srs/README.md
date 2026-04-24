@@ -1,8 +1,8 @@
 # docs/srs - Software Requirements Specification (SRS)
 
-Thư mục này chứa **SRS chính thức** cho từng tính năng **UI / luồng Mini-ERP** (và tài liệu dùng chung template).
+Thư mục này chứa **SRS chính thức** cho từng tính năng **UI / luồng Mini-ERP** (bảng, layout, màn hình CRUD, …) và template dùng chung.
 
-**SRS triển khai Spring Boot (`smart-erp`)** — đăng nhập, đăng xuất, persistence API — nằm tại [`../../../backend/docs/srs/README.md`](../../../backend/docs/srs/README.md).
+**SRS task backend / `smart-erp`** (auth API, persistence, SQL, transaction) — **chỉ** nằm dưới [`backend/docs/`](../../../backend/docs/) (vd. [`backend/docs/srs/README.md`](../../../backend/docs/srs/README.md)). Không tạo SRS auth/Task001–004 tại `frontend/docs/srs/`.
 
 ## Quy ước đặt tên
 
@@ -14,6 +14,7 @@ Thư mục này chứa **SRS chính thức** cho từng tính năng **UI / luồ
 ## Quy trình sử dụng (dành cho Agent BA)
 
 - Agent BA nhận “yêu cầu thô” → nếu thiếu thông tin quan trọng thì hỏi tối đa **3 câu** → tạo/ghi SRS theo template.
+- **SRS từ API backend (vd. Task004):** `BA_SQL | Task=Task004 | Mode=draft` → file tại `backend/docs/srs/` — mục 6 [`backend/AGENTS/BA_AGENT_INSTRUCTIONS.md`](../../../backend/AGENTS/BA_AGENT_INSTRUCTIONS.md).
 - Không sinh `TASKS/TaskXXX.md` trong pha BA (SRS-only).
 - Không bịa DB/table/route: mọi mapping phải bám các tài liệu:
   - `RULES.md`, `FUNCTIONAL_SUMMARY.md`, `overall-project.md`, `Tech-Stack.md`

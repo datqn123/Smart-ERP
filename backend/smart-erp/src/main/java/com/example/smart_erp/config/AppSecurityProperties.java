@@ -52,6 +52,12 @@ public class AppSecurityProperties {
 		 */
 		private String audience = "";
 
+		/**
+		 * Thời gian sống access JWT (phút), tối thiểu 1. Dev/Postman: tăng qua property hoặc env
+		 * {@code JWT_ACCESS_TTL_MINUTES}; prod có thể giữ thấp.
+		 */
+		private int accessTtlMinutes = 1;
+
 		public String getSecret() {
 			return secret;
 		}
@@ -74,6 +80,14 @@ public class AppSecurityProperties {
 
 		public void setAudience(String audience) {
 			this.audience = audience != null ? audience : "";
+		}
+
+		public int getAccessTtlMinutes() {
+			return accessTtlMinutes;
+		}
+
+		public void setAccessTtlMinutes(int accessTtlMinutes) {
+			this.accessTtlMinutes = accessTtlMinutes;
 		}
 	}
 }

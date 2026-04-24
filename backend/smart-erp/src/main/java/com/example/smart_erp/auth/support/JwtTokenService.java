@@ -22,10 +22,10 @@ import io.jsonwebtoken.security.Keys;
 @Service
 public class JwtTokenService {
 
-	private static final int ACCESS_TTL_MINUTES = 1;
-
 	private final SecretKey signingKey;
 	private final AppSecurityProperties.Jwt jwtProps;
+
+	private final int accessTtlMinutes;
 
 	public JwtTokenService(AppSecurityProperties props) {
 		byte[] bytes = props.getJwt().getSecret().getBytes(StandardCharsets.UTF_8);
@@ -35,11 +35,13 @@ public class JwtTokenService {
 		}
 		this.signingKey = Keys.hmacShaKeyFor(bytes);
 		this.jwtProps = props.getJwt();
+		int ttl = props.getJwt().getAccessTtlMinutes();
+		this.accessTtlMinutes = ttl < 1 ? 1 : ttl;
 	}
 
 	public String createAccessToken(int userId, String username, String roleName) {
 		Instant now = Instant.now();
-		Instant exp = now.plusSeconds(ACCESS_TTL_MINUTES * 60L);
+		Instant exp = now.plusSeconds(accessTtlMinutes * 60L);
 		var builder = Jwts.builder()
 				.subject(String.valueOf(userId))
 				.claim("name", username)

@@ -16,6 +16,12 @@
 			"name": "app.security.jwt.secret",
 			"type": "java.lang.String",
 			"description": "Symmetric HS256 secret (UTF-8, byte length >= 32) when api-protection=jwt-api. Prefer env JWT_SECRET."
+		},
+		{
+			"name": "app.security.jwt.access-ttl-minutes",
+			"type": "java.lang.Integer",
+			"description": "Access JWT TTL in minutes (min 1). Issued at login/refresh. Env JWT_ACCESS_TTL_MINUTES overrides in application-postgres.",
+			"defaultValue": 1
 		}
 	]
 }

@@ -23,7 +23,7 @@ Với task có **ít nhất một endpoint HTTP** (auth, CRUD, …), output Test
 | 2 | `TaskXXX_<slug>.invalid.missing-<field>.body.json` | Case **400** — thiếu field bắt buộc (vd. body `{}` hoặc thiếu key). |
 | 3 | `TaskXXX_<slug>.invalid.<rule>.body.json` | Case **400** (hoặc 4xx khác đã chốt) — **khác** file (2): vd. rỗng, format sai, quá ngắn. |
 
-**Schema bắt buộc** (chốt theo mẫu [`Task001_login.valid.body.json`](../smart-erp/docs/postman/Task001_login.valid.body.json)):
+**Schema bắt buộc** (chốt theo mẫu [`Task001_login.valid.body.json`](../smart-erp/docs/postman/Task001_login.valid.body.json); endpoint có JWT: [`Task078_users_post.valid.body.json`](../smart-erp/docs/postman/Task078_users_post.valid.body.json)):
 
 ```json
 {
@@ -40,19 +40,20 @@ Với task có **ít nhất một endpoint HTTP** (auth, CRUD, …), output Test
 }
 ```
 
-- **`_description`:** tiếng Việt — mục đích file, seed / bước chuẩn bị, HTTP mong đợi.  
+- **`_description`:** tiếng Việt — **đủ để người chạy tay không cần đoán**: mã task + slug case; HTTP / mã lỗi mong đợi; **tiền đề** (profile, `APP_SECURITY_MODE`, seed Flyway, request nào chạy trước — vd. login Task001 để lấy token); **chỗ phải sửa tay** (đổi `username`/`email`/`staffCode` để tránh 409, timezone nếu liên quan); gợi ý `roleId` theo seed khi task CRUD user/role. Có thể dùng chuỗi nhiều dòng trong JSON (`\n`) để đọc dễ.  
 - **`request`:** `method`, `path` (bắt đầu `/api/…`), `url` (localhost mẫu, **phải** kết thúc bằng cùng `path`).  
-- **`headers`:** tối thiểu `Content-Type: application/json`; thêm Bearer nếu endpoint cần.  
-- **`body`:** object gửi thật lên server (Postman: copy vào tab **Body**).
+- **`headers`:** tối thiểu `Content-Type: application/json`. Endpoint **bắt buộc Bearer JWT** (Resource Server): **phải** khai báo `Authorization` trong file (giá trị placeholder dạng `Bearer <paste-accessToken-from-Task001-login-response.data.accessToken>` hoặc tương đương — ghi rõ tên field JSON nguồn), **không** chỉ nhắc token trong `_description` mà bỏ header.  
+- **`body`:** object gửi thật lên server (Postman: copy vào tab **Body** — chỉ phần object `body`, không copy cả `_description`/`request`).
 
-**Khi chạy tay:** import hoặc mở từng file → copy **`headers` + `body`** vào request Postman; chỉnh `url` theo `{{baseUrl}}` nếu env khác localhost.
+**Khi chạy tay:** import hoặc mở từng file → copy **`headers` + `body`** vào request Postman (hoặc nhập `url` từ `request.url`); chỉnh `url` theo `{{baseUrl}}` nếu env khác localhost.
 
 **Contract CI (Dev):** với task auth đã làm mẫu, có class `*PostmanBodyContractTest` trong `src/test/.../auth/api/` để **khóa** 3 file JSON không bị sửa nhầm shape (tham chiếu `Task001LoginPostmanBodyContractTest`, `Task003RefreshPostmanBodyContractTest`).
 
 ### 2.2 `MANUAL_UNIT_TEST_TaskXXX.md`
 
 - Trong artifact task: vd. [`../docs/task003/04-tester/MANUAL_UNIT_TEST_Task003.md`](../docs/task003/04-tester/MANUAL_UNIT_TEST_Task003.md).
-- Mỗi mục **U-xx** = một kịch bản + **kỳ vọng HTTP + envelope**; **luôn trỏ** tới đúng một trong **3 file** §2.1 (valid / missing / rule) khi áp dụng.
+- Mỗi mục **U-xx** = một kịch bản + **kỳ vọng HTTP + envelope**; **luôn trỏ** tới đúng một trong **3 file** §2.1 (valid / missing / rule) khi áp dụng — **tên file Postman đầy đủ** (vd. `Task078_users_post.valid.body.json`), không chỉ nói “file valid”.
+- Trong từng mục manual: ghi **rõ bước chuẩn bị** trùng với `_description` Postman (token, seed, đổi field tránh 409) để manual và JSON **một nguồn**; tránh copy payload dài — tham chiếu file + chỉ nêu điểm khác (nếu có).
 - Bổ sung case **401 / 403 / 429**… không nhét vào 3 file tĩnh được thì vẫn ghi trong manual (body inline hoặc file bổ sung **ngoài** bộ 3 — cần ghi rõ trong manual và ticket nếu thêm file thứ 4+).
 
 ### 2.3 `TEST_PLAN_TaskXXX.md`

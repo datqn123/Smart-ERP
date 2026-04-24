@@ -1,10 +1,10 @@
 # SRS — Đăng xuất hệ thống (Task002 / Authentication)
 
-> **File**: `backend/docs/srs/SRS_Task002_logout.md`  
-> **API**: [`../../../frontend/docs/api/API_Task002_logout.md`](../../../frontend/docs/api/API_Task002_logout.md)  
-> **Envelope**: [`../../../frontend/docs/api/API_RESPONSE_ENVELOPE.md`](../../../frontend/docs/api/API_RESPONSE_ENVELOPE.md)  
-> **Liên quan**: [`SRS_Task001_login-authentication.md`](SRS_Task001_login-authentication.md) (phiên đơn, refresh DB)  
-> **Chuỗi Agent (sau BA)**: [`../task002/README.md`](../task002/README.md)  
+> **File**: `backend/docs/task002/00-ba/SRS_Task002_logout.md`  
+> **API**: [`../../../../frontend/docs/api/API_Task002_logout.md`](../../../../frontend/docs/api/API_Task002_logout.md)  
+> **Envelope**: [`../../../../frontend/docs/api/API_RESPONSE_ENVELOPE.md`](../../../../frontend/docs/api/API_RESPONSE_ENVELOPE.md)  
+> **Liên quan**: [`../../srs/SRS_Task001_login-authentication.md`](../../srs/SRS_Task001_login-authentication.md) (phiên đơn, refresh DB — tạo tại `backend/docs/srs/` khi có)  
+> **Chuỗi Agent (sau BA)**: [`../../README.md`](../../README.md)  
 > **Ngày cập nhật**: 24/04/2026  
 > **Phiên bản**: 1.2  
 > **Trạng thái**: **Approved** (PO đã chốt mục §7 — 24/04/2026)

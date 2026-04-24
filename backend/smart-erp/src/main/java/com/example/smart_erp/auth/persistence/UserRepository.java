@@ -10,6 +10,10 @@ import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<User, Integer> {
 
+	boolean existsByUsername(String username);
+
+	boolean existsByEmailIgnoreCase(String email);
+
 	@Query("select count(u) from User u where lower(u.email) = lower(:email) and u.status = 'Active'")
 	long countActiveByEmailIgnoreCase(@Param("email") String email);
 
@@ -24,4 +28,8 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 	@Modifying
 	@Query("update User u set u.status = 'Locked' where u.id = :id and u.status = 'Active'")
 	int lockActiveUserById(@Param("id") Integer id);
+
+	@EntityGraph(attributePaths = "role")
+	@Query("select u from User u where u.id = :id")
+	Optional<User> findWithRoleById(@Param("id") Integer id);
 }

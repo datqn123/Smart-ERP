@@ -18,4 +18,4 @@ alwaysApply: true
 
 ## LangChain / đa agent (khi có)
 - Agent nhỏ, tool hẹp, I/O có schema; rule nghiệp vụ ở `docs/` hoặc code — không nhồi dài vào prompt.
-- Điều phối: `frontend/AGENTS/AGENT_REGISTRY.md`, `frontend/AGENTS/FLOW_GUIDE.md`.
+- Điều phối: `frontend/AGENTS/AGENT_REGISTRY.md`, `frontend/AGENTS/FLOW_GUIDE.md`, `frontend/AGENTS/WORKFLOW_RULE.md`. Backend Spring: `backend/AGENTS/WORKFLOW_RULE.md`, `backend/AGENTS/AGENT_REGISTRY.md` (alias tương thích: `BACKEND_WORKFLOW_RULE.md`, `BACKEND_AGENT_REGISTRY.md`).

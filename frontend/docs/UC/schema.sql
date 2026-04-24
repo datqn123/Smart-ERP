@@ -142,6 +142,22 @@ COMMENT ON COLUMN Users.password_hash IS 'Mật khẩu mã hóa bằng bcrypt ho
 
 CREATE INDEX idx_users_phone ON Users(phone);
 
+-- 6b. RefreshTokens (Task001 / Task003 — JWT refresh, revoke mở rộng sau)
+CREATE TABLE RefreshTokens (
+    id         SERIAL PRIMARY KEY,
+    user_id    INT NOT NULL,
+    token      VARCHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_refresh_tokens_user
+        FOREIGN KEY (user_id) REFERENCES Users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_refresh_tokens_user_id ON RefreshTokens(user_id);
+
+COMMENT ON TABLE RefreshTokens IS 'Refresh token đăng nhập (opaque). Flyway backend: V3__task001_refresh_tokens.sql (bảng refresh_tokens snake_case PostgreSQL).';
+
 -- 7. Products (Sản phẩm)
 -- UC1, UC6, UC7, UC8, UC9, UC10, UC11, UC12, UC13
 CREATE TABLE Products (
@@ -936,6 +952,7 @@ INSERT INTO Roles (name, permissions) VALUES
 ('Admin', '{"can_view_dashboard": true, "can_manage_staff": true, "can_approve": true, "can_configure_alerts": true, "can_view_finance": true, "can_manage_products": true, "can_manage_inventory": true, "can_manage_orders": true, "can_use_ai": true}');
 
 -- User Admin mặc định (password: admin123 → cần hash thực tế khi deploy)
+-- Mật khẩu dev mặc định: Admin@123 (bcrypt cập nhật bởi Flyway backend V2 khi chạy PostgreSQL).
 INSERT INTO Users (username, password_hash, full_name, email, role_id, status) VALUES
 ('admin', '$2a$10$placeholder_hash_replace_in_production', 'System Administrator', 'admin@smartinventory.vn', 1, 'Active');
 

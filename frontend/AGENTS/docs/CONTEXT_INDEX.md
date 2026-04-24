@@ -17,7 +17,7 @@
 | **Agent Planner — brief mới** | [`../PLANNER_AGENT_INSTRUCTIONS.md`](../PLANNER_AGENT_INSTRUCTIONS.md), [`templates/planner/PLANNER_BRIEF_TEMPLATE.md`](templates/planner/PLANNER_BRIEF_TEMPLATE.md) | Map UC → [`../../docs/api/API_PROJECT_DESIGN.md`](../../docs/api/API_PROJECT_DESIGN.md) §5 |
 | **Agent BA (không qua Planner)** | [`../BA_AGENT_INSTRUCTIONS.md`](../BA_AGENT_INSTRUCTIONS.md), [`../WORKFLOW_RULE.md`](../WORKFLOW_RULE.md) | Trụ tương ứng + template trong [`templates/ba/`](templates/ba/) |
 | **Agent BA từ Planner Approved** | `AGENTS/docs/planner/PLANNER_BRIEF_TaskXXX_*.md` + cột “DEV/UI” tùy trụ | Như trên |
-| **Backend Spring Boot** | [`BACKEND_SPRING_BOOT.md`](BACKEND_SPRING_BOOT.md) + `docs/api/` + `docs/UC/schema.sql` | Triển khai entity/security cụ thể |
+| **Backend Spring Boot** | [`BACKEND_SPRING_BOOT.md`](BACKEND_SPRING_BOOT.md) + `docs/api/` + `docs/UC/schema.sql` + [`backend/AGENTS/WORKFLOW_RULE.md`](../../../backend/AGENTS/WORKFLOW_RULE.md) + [`backend/AGENTS/AGENT_REGISTRY.md`](../../../backend/AGENTS/AGENT_REGISTRY.md) | Hướng dẫn từng vai: `backend/AGENTS/*_AGENT_INSTRUCTIONS.md` |
 | **PM / PM_RUN** | [`../PM_AGENT_INSTRUCTIONS.md`](../PM_AGENT_INSTRUCTIONS.md), `docs/srs/SRS_TaskXXX_*.md` đã Approved | — |
 | **Điều phối agent (meta)** | [`../AGENT_REGISTRY.md`](../AGENT_REGISTRY.md) | Chi tiết → [`../FLOW_GUIDE.md`](../FLOW_GUIDE.md) |
 

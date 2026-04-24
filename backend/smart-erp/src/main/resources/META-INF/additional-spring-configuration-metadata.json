@@ -1,0 +1,15 @@
+{
+	"properties": [
+		{
+			"name": "app.security.api-protection",
+			"type": "java.lang.String",
+			"description": "Security mode: permit-all (default, dev) or jwt-api (OAuth2 Resource Server + Bearer JWT). Maps from env APP_SECURITY_MODE in application.properties.",
+			"defaultValue": "permit-all"
+		},
+		{
+			"name": "app.security.jwt.secret",
+			"type": "java.lang.String",
+			"description": "Symmetric HS256 secret (UTF-8, byte length >= 32) when api-protection=jwt-api. Prefer env JWT_SECRET."
+		}
+	]
+}

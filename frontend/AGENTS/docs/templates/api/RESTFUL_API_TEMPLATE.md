@@ -75,6 +75,8 @@ Content-Type: application/json
 
 ## 5. Cấu trúc phản hồi (Response Specification)
 
+> **Chuẩn dự án** (field-level, phân trang, mở rộng mã `error`): [`API_RESPONSE_ENVELOPE.md`](../../../../docs/api/API_RESPONSE_ENVELOPE.md).
+
 ### 5.1 Thành công (Successful Response)
 **Code**: `200 OK` / `201 Created`
 ```json

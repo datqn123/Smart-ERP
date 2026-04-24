@@ -31,6 +31,8 @@ Hệ thống cung cấp **REST API phiên bản hóa** cho ứng dụng quản l
 
 ## 3. Envelope phản hồi và mã lỗi
 
+**Chuẩn chi tiết** (field bắt buộc/tùy chọn, phân trang trong `data`, bảng mã `error`, checklist spec): [`API_RESPONSE_ENVELOPE.md`](API_RESPONSE_ENVELOPE.md).
+
 ### 3.1 Thành công (gợi ý)
 
 ```json

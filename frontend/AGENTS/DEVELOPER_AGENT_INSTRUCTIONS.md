@@ -118,3 +118,11 @@ Khi thực hiện task sửa bug, Developer PHẢI cập nhật vào file `TASKS
 
 Điều này giúp Agent DOC_SYNC thu thập kiến thức vào `RULES_BUG_FIX.md`.
 
+---
+
+## 12. Khi làm **Spring Boot** (`backend/smart-erp`)
+
+- Đọc hướng dẫn riêng: **[`../../backend/AGENTS/DEVELOPER_AGENT_INSTRUCTIONS.md`](../../backend/AGENTS/DEVELOPER_AGENT_INSTRUCTIONS.md)** (TDD Maven/JUnit, Flyway, package modular, **quy tắc coding ưu tiên tốc độ**).
+- Lệnh: `./mvnw.cmd verify` trong `backend/smart-erp` (Windows); không dùng `npm test` cho Java.
+- Vẫn giữ **TDD + coverage gate** tương đương mục 4–5 của file này; công cụ coverage backend là **JaCoCo** (khi đã cấu hình `pom.xml`).
+

@@ -4,7 +4,7 @@
 
 ## 1. Nguồn chân lý (đọc theo thứ tự)
 
-1. **Hợp đồng API (REST)**: [`docs/api/API_PROJECT_DESIGN.md`](../../docs/api/API_PROJECT_DESIGN.md) — prefix `/api/v1`, nhóm endpoint, envelope JSON (`success`, `data`, `message`), mã lỗi §3.
+1. **Hợp đồng API (REST)**: [`docs/api/API_PROJECT_DESIGN.md`](../../docs/api/API_PROJECT_DESIGN.md) — prefix `/api/v1`, nhóm endpoint; **envelope & lỗi**: [`docs/api/API_RESPONSE_ENVELOPE.md`](../../docs/api/API_RESPONSE_ENVELOPE.md) (bắt buộc đồng bộ với `ApiSuccessResponse` / `ApiErrorResponse` / `GlobalExceptionHandler` trong `smart-erp`).
 2. **Chi tiết từng endpoint**: `docs/api/API_TaskXXX_<slug>.md` — request/response, logic DB, Zod tham chiếu FE.
 3. **Schema & nghiệp vụ**: [`docs/UC/schema.sql`](../../docs/UC/schema.sql), `Database_Specification*.md`, `Entity_Relationships.md`.
 4. **Template khi viết spec mới**: [`templates/api/RESTFUL_API_TEMPLATE.md`](templates/api/RESTFUL_API_TEMPLATE.md) (output file vẫn lưu dưới `docs/api/`).

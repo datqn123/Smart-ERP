@@ -2,7 +2,8 @@
 
 > **Đọc trước (bắt buộc)**: Quy tắc điều phối — **[`AGENTS/WORKFLOW_RULE.md`](WORKFLOW_RULE.md)**  
 > **Chi tiết từng phase**: **[`AGENTS/FLOW_GUIDE.md`](FLOW_GUIDE.md)**  
-> **Context tối thiểu / tiết kiệm token**: [`AGENTS/docs/CONTEXT_INDEX.md`](docs/CONTEXT_INDEX.md)
+> **Context tối thiểu / tiết kiệm token**: [`AGENTS/docs/CONTEXT_INDEX.md`](docs/CONTEXT_INDEX.md)  
+> **Team Spring Boot (`smart-erp`)**: [`../../backend/AGENTS/WORKFLOW_RULE.md`](../../backend/AGENTS/WORKFLOW_RULE.md) · [`../../backend/AGENTS/AGENT_REGISTRY.md`](../../backend/AGENTS/AGENT_REGISTRY.md) *(file `BACKEND_*` cùng thư mục là stub trỏ về hai file trên)*
 
 Chào mừng bạn đến với trung tâm điều phối của dự án **Mini-ERP**. Dưới đây là danh sách các Agent chuyên biệt và cách triệu hồi chúng.
 
@@ -15,12 +16,13 @@ Chào mừng bạn đến với trung tâm điều phối của dự án **Mini-
 | **Agent PM** | `PM` | `PM_AGENT_INSTRUCTIONS.md` | Tách SRS/PRD đã duyệt thành chuỗi 3 Task (UNIT → FEATURE → E2E), tự cấp phát ID và quản lý phụ thuộc. |
 | **Agent Tech Lead** | `TECH_LEAD` | `TECH_LEAD_AGENT_INSTRUCTIONS.md` | Viết ADR + duy trì guardrails + review PR; mọi ADR bắt buộc NFR (Performance/Scalability/Security/Reliability/Observability) trước khi approve. |
 | **Agent Developer** | `DEV` | `DEVELOPER_AGENT_INSTRUCTIONS.md` | Implement theo TDD nghiêm ngặt, coverage gate ≥ 80%, chạy perf scan sau khi tests pass. |
-| **Agent Codebase Analyst** | `CODEBASE_ANALYST` | `CODEBASE_ANALYST_AGENT_INSTRUCTIONS.md` | Brownfield discovery sâu 10 giai đoạn: module map, trích xuất business logic, brittle zones, đo coverage, risk register. |
+| **Agent Tester (Spring)** | `TESTER` | [`backend/AGENTS/TESTER_AGENT_INSTRUCTIONS.md`](../../backend/AGENTS/TESTER_AGENT_INSTRUCTIONS.md) | Xác thực AC, E2E, smoke trước release; unit/Postman body theo endpoint (xem file hướng dẫn). **FE-only**: vẫn dùng Playwright/Vitest theo `TASKS/Task*.md`. |
+| **Agent Codebase Analyst** | `CODEBASE_ANALYST` | `CODEBASE_ANALYST_AGENT_INSTRUCTIONS.md` | Brownfield discovery 10 giai đoạn (UI). Nhánh **Spring**: [`backend/AGENTS/CODEBASE_ANALYST_AGENT_INSTRUCTIONS.md`](../../backend/AGENTS/CODEBASE_ANALYST_AGENT_INSTRUCTIONS.md) — 7 tài liệu greenfield + đồng bộ Doc Sync. |
 | **Agent API Spec** | `API_SPEC` | `API_AGENT_INSTRUCTIONS.md` | Thiết kế tài liệu API RESTful + Token Auth dựa trên UC và Database Specification. Hoạt động theo yêu cầu thủ công. |
 | **Agent API Upgrade**| `API_UPGRADE` | `API_UPGRADE_AGENT_INSTRUCTIONS.md`| Agent con chuyên nâng cấp Agent API dựa trên feedback của Owner; giải quyết các vấn đề về SQL và bảo mật. |
 | **Agent Doc Sync** | `DOC_SYNC` | `DOC_SYNC_AGENT_INSTRUCTIONS.md` | Chạy sau sprint/PR merge để phát hiện drift giữa docs và code, bắn cảnh báo & đề xuất cập nhật. |
 | **Agent Coder** | `CODER` | *(Đang chờ tạo)* | Thực thi mã nguồn dựa trên SRS/Task, tuân thủ RULES.md. |
-| **Agent Tester** | `TESTER` | *(Đang chờ tạo)* | Viết Unit Test (Vitest) và E2E Test (Playwright). |
+| **Chuỗi Agent Spring Boot** | — | [`backend/AGENTS/AGENT_REGISTRY.md`](../../backend/AGENTS/AGENT_REGISTRY.md) | Thứ tự bắt buộc: **BA → PM → Tech Lead → Developer → Tester → Codebase Analyst → Doc Sync** — chi tiết gate trong [`backend/AGENTS/WORKFLOW_RULE.md`](../../backend/AGENTS/WORKFLOW_RULE.md). |
 
 ---
 
@@ -38,6 +40,8 @@ Chào mừng bạn đến với trung tâm điều phối của dự án **Mini-
 "Agent PM, tách SRS_Task023_xxx.md thành 3 Task (UNIT/FEATURE/E2E)"
 "Agent TECH_LEAD, viết ADR cho thay đổi kiến trúc này theo docs/adr/ADR_TEMPLATE.md"
 "Agent DEV, thực hiện Task123 theo TDD + coverage gate"
+"Agent TESTER (Spring), xác thực TaskXXX theo AC + E2E — đọc `backend/AGENTS/TESTER_AGENT_INSTRUCTIONS.md`"
+"Agent CODEBASE_ANALYST, brownfield `backend/smart-erp` — đọc `backend/AGENTS/CODEBASE_ANALYST_AGENT_INSTRUCTIONS.md`"
 "Agent PLANNER, làm intake + Q&A cho Feature: [mô tả]"
 "Agent PLANNER, brief Task023 đã Approved — handoff BA" / "— handoff API"
 ```
@@ -73,7 +77,7 @@ BA Elicitation → BA PRD → BA Prototype → BA User Story Spec
                                                    ↓
                         [Owner Approve SRS — hoặc đã Approve ở Planner khi đi luồng BA từ brief]
                                                    ↓
-                                PM_RUN_SRS_TaskXXX → DEV → DOC_SYNC
+                                PM_RUN_SRS_TaskXXX → DEV → TESTER → CODEBASE_ANALYST → DOC_SYNC
 ```
 
 **Cú pháp trigger toàn chuỗi PM** (sau khi BA đã xong):

@@ -21,6 +21,7 @@ Chào mừng bạn đến với trung tâm điều phối của dự án **Mini-
 | **Agent API Spec** | `API_SPEC` | `API_AGENT_INSTRUCTIONS.md` | Thiết kế tài liệu API RESTful + Token Auth dựa trên UC và Database Specification. Hoạt động theo yêu cầu thủ công. |
 | **Agent API Upgrade**| `API_UPGRADE` | `API_UPGRADE_AGENT_INSTRUCTIONS.md`| Agent con chuyên nâng cấp Agent API dựa trên feedback của Owner; giải quyết các vấn đề về SQL và bảo mật. |
 | **Agent Doc Sync** | `DOC_SYNC` | `DOC_SYNC_AGENT_INSTRUCTIONS.md` | Chạy sau sprint/PR merge để phát hiện drift giữa docs và code, bắn cảnh báo & đề xuất cập nhật. |
+| **Agent API Bridge** | `API_BRIDGE` | [`backend/AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md`](../../backend/AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md) + **[`docs/FE_API_CONNECTION_GUIDE.md`](docs/FE_API_CONNECTION_GUIDE.md)** (đọc **trước**) | **Một Task / một endpoint:** đọc guide nối FE → làm việc trong `mini-erp/src` (`lib/api`, `features/*/api`) — đối chiếu `docs/api/` ↔ Spring; output `docs/api/bridge/BRIDGE_*.md`; **tiết kiệm token**. |
 | **Agent Coder** | `CODER` | *(Đang chờ tạo)* | Thực thi mã nguồn dựa trên SRS/Task, tuân thủ RULES.md. |
 | **Chuỗi Agent Spring Boot** | — | [`backend/AGENTS/AGENT_REGISTRY.md`](../../backend/AGENTS/AGENT_REGISTRY.md) | Thứ tự bắt buộc: **BA → PM → Tech Lead → Developer → Tester → Codebase Analyst → Doc Sync** — chi tiết gate trong [`backend/AGENTS/WORKFLOW_RULE.md`](../../backend/AGENTS/WORKFLOW_RULE.md). |
 

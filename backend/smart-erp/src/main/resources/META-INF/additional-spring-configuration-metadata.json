@@ -1,6 +1,12 @@
 {
 	"properties": [
 		{
+			"name": "app.cors.allowed-origin-patterns",
+			"type": "java.lang.String",
+			"description": "Comma-separated CORS allowedOriginPattern values for /api/** (e.g. http://localhost:* for Vite on port 3000).",
+			"defaultValue": "http://localhost:*,http://127.0.0.1:*"
+		},
+		{
 			"name": "app.security.api-protection",
 			"type": "java.lang.String",
 			"description": "Security mode: permit-all (default, dev) or jwt-api (OAuth2 Resource Server + Bearer JWT). Maps from env APP_SECURITY_MODE in application.properties.",

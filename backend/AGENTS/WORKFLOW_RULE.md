@@ -96,6 +96,12 @@ _(Thay `BA` bằng `PM` | `TECH_LEAD` | `DEVELOPER` | `TESTER` | `CODEBASE_ANALY
 
 **Agent SQL** (`SQL`): dùng **cùng giai đoạn BA** khi SRS cần truy vấn / migration ý tưởng — không nằm sau Tester trong chuỗi tuyến tính; xem `SQL_AGENT_INSTRUCTIONS.md`.
 
+```text
+Vai trò: API_BRIDGE. Đọc @backend/AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md — Task=<TaskXXX> Path=<...> Mode=verify
+```
+
+**API_BRIDGE** ([`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md)): **ngoài chuỗi BA→…→Doc Sync** — triệu hồi **ad-hoc**. **Bắt buộc** đọc trước [`frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md`](../../frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md), sau đó chỉnh `frontend/mini-erp/src/**` theo `Mode=wire-fe` hoặc xuất `frontend/docs/api/bridge/BRIDGE_*.md`.
+
 ---
 
 ## 4. Liên kết frontend

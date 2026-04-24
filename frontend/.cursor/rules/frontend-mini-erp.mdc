@@ -9,4 +9,5 @@ alwaysApply: false
 
 - Tuân thủ `RULES.md` và `RULES_BUG_FIX.md` ở root repo.
 - Ưu tiên TanStack Query cho mutation, Shadcn + Tailwind v4, touch target ≥ 44px.
-- **Context tối thiểu**: trước khi đọc thêm tài liệu, xem [`AGENTS/docs/CONTEXT_INDEX.md`](../../AGENTS/docs/CONTEXT_INDEX.md) hàng "Sửa UI / feature" hoặc "Task DEV".
+- **Index màn hình / route / component (`features/`)** — đọc **trước** khi mở rộng thư mục: [`mini-erp/src/features/FEATURES_UI_INDEX.md`](../../mini-erp/src/features/FEATURES_UI_INDEX.md) (một file; bảng 1 theo path, bảng 2 theo feature).
+- **Context tối thiểu**: [`AGENTS/docs/CONTEXT_INDEX.md`](../../AGENTS/docs/CONTEXT_INDEX.md) hàng "Sửa UI / feature" hoặc "Task DEV".

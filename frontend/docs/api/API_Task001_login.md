@@ -6,6 +6,14 @@
 
 **Khung thiết kế dự án**: [`API_PROJECT_DESIGN.md`](API_PROJECT_DESIGN.md) §2–§3 (envelope, mã lỗi), §4.1 (Auth — `POST /auth/login`).
 
+## 0. Bộ file mẫu (JSON) — API_BRIDGE / Doc Sync
+
+| Mục | Đường dẫn |
+| :--- | :--- |
+| Index endpoint (bảng link) | [`endpoints/Task001.md`](endpoints/Task001.md) |
+| Request + response envelope (mẫu) | [`samples/Task001/`](samples/Task001/) |
+| Postman (3 file, wrapper) | `backend/smart-erp/docs/postman/Task001_login.*.body.json` |
+
 ---
 
 ## 1. Thông tin chung (Overview)

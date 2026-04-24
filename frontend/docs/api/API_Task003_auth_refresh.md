@@ -8,6 +8,14 @@
 
 **Lý do tách API**: `POST /auth/login` chỉ cấp phiên; việc gia hạn phiên lặp lại theo chu kỳ ngắn là hành vi độc lập — endpoint riêng giúp middleware, rate limit, rotation refresh token và audit tách biệt.
 
+## 0. Bộ file mẫu (JSON) — API_BRIDGE / Doc Sync
+
+| Mục | Đường dẫn |
+| :--- | :--- |
+| Index endpoint | [`endpoints/Task003.md`](endpoints/Task003.md) |
+| Request + response envelope | [`samples/Task003/`](samples/Task003/) |
+| Postman (3 file) | `backend/smart-erp/docs/postman/Task003_refresh.*.body.json` |
+
 ---
 
 ## 1. Thông tin chung (Overview)

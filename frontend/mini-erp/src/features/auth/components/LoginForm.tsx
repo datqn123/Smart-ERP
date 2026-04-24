@@ -23,10 +23,18 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Loader2, Eye, EyeOff } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import { ApiRequestError } from "@/lib/api/http"
+import { postLogin } from "@/features/auth/api/authApi"
 
 const loginSchema = z.object({
-  email: z.string().email({ message: "Email không hợp lệ" }),
-  password: z.string().min(6, { message: "Mật khẩu phải ít nhất 6 ký tự" }),
+  email: z
+    .string()
+    .min(1, { message: "Email là bắt buộc" })
+    .email({ message: "Email không hợp lệ" }),
+  password: z
+    .string()
+    .min(6, { message: "Mật khẩu phải có ít nhất 6 ký tự" })
+    .refine((s) => s.trim().length > 0, { message: "Mật khẩu là bắt buộc" }),
 })
 
 const ownerResetRequestSchema = z.object({
@@ -39,6 +47,7 @@ type OwnerResetRequestValues = z.infer<typeof ownerResetRequestSchema>
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [ownerResetOpen, setOwnerResetOpen] = useState(false)
   const [ownerResetSubmitting, setOwnerResetSubmitting] = useState(false)
@@ -48,6 +57,7 @@ export function LoginForm() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -68,11 +78,35 @@ export function LoginForm() {
 
   async function onSubmit(data: LoginFormValues) {
     setIsLoading(true)
-    console.log("Login data:", data)
-    // Simulate API call for demonstration
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setIsLoading(false)
-    navigate("/dashboard")
+    setSubmitError(null)
+    try {
+      const result = await postLogin({ email: data.email, password: data.password })
+      sessionStorage.setItem("accessToken", result.accessToken)
+      sessionStorage.setItem("refreshToken", result.refreshToken)
+      sessionStorage.setItem("user", JSON.stringify(result.user))
+      navigate("/dashboard")
+    } catch (err) {
+      if (err instanceof ApiRequestError && err.status === 400 && err.body.details) {
+        const d = err.body.details
+        if (d.email) {
+          setError("email", { message: d.email })
+        }
+        if (d.password) {
+          setError("password", { message: d.password })
+        }
+        if (!d.email && !d.password) {
+          setSubmitError(err.body.message)
+        }
+        return
+      }
+      if (err instanceof ApiRequestError) {
+        setSubmitError(err.body.message ?? err.message)
+        return
+      }
+      setSubmitError(err instanceof Error ? err.message : "Đăng nhập thất bại")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   async function onOwnerResetSubmit(data: OwnerResetRequestValues) {
@@ -148,6 +182,8 @@ export function LoginForm() {
               <p className="text-xs text-alert mt-2">{errors.password.message}</p>
             )}
           </div>
+
+          {submitError ? <p className="text-sm text-alert">{submitError}</p> : null}
 
           {/* [A] Login Button - 44px height, gradient per Login.md spec */}
           <Button

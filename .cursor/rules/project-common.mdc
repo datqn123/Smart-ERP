@@ -10,6 +10,7 @@ alwaysApply: true
 - Bắt từ `frontend/AGENTS/docs/CONTEXT_INDEX.md`; chỉ mở thêm file khi thiếu dữ liệu.
 - Hợp đồng API: `docs/api/` trước khi đào sâu FE/BE. DB: grep hoặc đọc có giới hạn — không full `schema.sql` nếu không cần.
 - `frontend/` = UI/client (`frontend/.cursor/rules/`, `frontend/RULES.md`). `backend/` = server. Không sửa chéo trừ khi user hoặc contract yêu cầu.
+- Mini-ERP UI trong `frontend/mini-erp/src/features/`: tra **một file** [`frontend/mini-erp/src/features/FEATURES_UI_INDEX.md`](../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md) (route + page + component chính) trước khi `Glob` cả `features/`.
 - Grep/search định vị trước, đọc tối thiểu file; gọi tool song song khi độc lập; không refactor ngoài scope.
 - Kiến trúc / nhiều module: plan ngắn rồi code.
 
@@ -19,3 +20,4 @@ alwaysApply: true
 ## LangChain / đa agent (khi có)
 - Agent nhỏ, tool hẹp, I/O có schema; rule nghiệp vụ ở `docs/` hoặc code — không nhồi dài vào prompt.
 - Điều phối: `frontend/AGENTS/AGENT_REGISTRY.md`, `frontend/AGENTS/FLOW_GUIDE.md`, `frontend/AGENTS/WORKFLOW_RULE.md`. Backend Spring: `backend/AGENTS/WORKFLOW_RULE.md`, `backend/AGENTS/AGENT_REGISTRY.md` (alias tương thích: `BACKEND_WORKFLOW_RULE.md`, `BACKEND_AGENT_REGISTRY.md`).
+- Đối chiếu / nối **một** API BE↔FE tối thiểu token: `API_BRIDGE` — **đọc trước** `frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md`, rồi `backend/AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md`; code FE chỉ dưới `frontend/mini-erp/src`; output `frontend/docs/api/bridge/BRIDGE_*.md`.

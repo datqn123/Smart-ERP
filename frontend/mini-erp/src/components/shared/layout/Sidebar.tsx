@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from "react"
+import { useRef, useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { 
   LayoutDashboard,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { useSidebarStore, type NavItemKey } from "@/store/sidebarStore"
 import { useAuthStore } from "@/features/auth/store/useAuthStore"
+import { logoutAndGoToLogin } from "@/features/auth/lib/sessionAuth"
 import { useUIStore } from "@/store/useUIStore"
 import { Button } from "@/components/ui/button"
 import {
@@ -121,6 +122,8 @@ export function Sidebar({ isMobile = false }: SidebarProps) {
   const { setSidebarOpen, sidebarWidth, setSidebarWidth } = useUIStore()
   const isResizing = useRef(false)
   const user = useAuthStore(state => state.user)
+  const zustandLogout = useAuthStore(state => state.logout)
+  const [loggingOut, setLoggingOut] = useState(false)
 
   // Use useMemo to prevent infinite re-renders since .filter() creates a new array reference
   const filteredNavItems = useMemo(() => {
@@ -272,18 +275,27 @@ export function Sidebar({ isMobile = false }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Footer - Logout */}
+      {/* Footer - Logout (Task002: POST /api/v1/auth/logout + clear session) */}
       <div className="border-t border-slate-200 p-3 flex-shrink-0">
         <Button
           variant="ghost"
-          onClick={() => {
-            navigate("/login")
-            if (isMobile) setSidebarOpen(false)
+          disabled={loggingOut}
+          onClick={async () => {
+            if (loggingOut) return
+            setLoggingOut(true)
+            try {
+              await logoutAndGoToLogin(navigate, () => {
+                zustandLogout()
+                if (isMobile) setSidebarOpen(false)
+              })
+            } finally {
+              setLoggingOut(false)
+            }
           }}
           className="w-full h-11 justify-start space-x-3 text-alert hover:bg-alert-light rounded-md transition-all truncate"
         >
           <LogOut className="h-[18px] w-[18px] flex-shrink-0" />
-          <span className="text-sm font-medium">Đăng xuất</span>
+          <span className="text-sm font-medium">{loggingOut ? "Đang đăng xuất…" : "Đăng xuất"}</span>
         </Button>
       </div>
     </aside>

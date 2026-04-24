@@ -1,0 +1,5 @@
+{
+  "success": false,
+  "error": "UNAUTHORIZED",
+  "message": "Email hoặc mật khẩu không chính xác hoặc tài khoản bị khóa"
+}

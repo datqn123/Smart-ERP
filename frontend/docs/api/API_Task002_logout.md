@@ -6,6 +6,14 @@
 
 **Khung thiết kế dự án**: [`API_PROJECT_DESIGN.md`](API_PROJECT_DESIGN.md) §2–§3, §4.1 (`POST /auth/logout`).
 
+## 0. Bộ file mẫu (JSON) — API_BRIDGE / Doc Sync
+
+| Mục | Đường dẫn |
+| :--- | :--- |
+| Index endpoint | [`endpoints/Task002.md`](endpoints/Task002.md) |
+| Request + response envelope | [`samples/Task002/`](samples/Task002/) |
+| Postman (3 file) | `backend/smart-erp/docs/postman/Task002_logout.*.body.json` |
+
 ---
 
 ## 1. Thông tin chung (Overview)

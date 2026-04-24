@@ -1,8 +1,9 @@
-package com.example.smart_erp.auth.persistence;
+package com.example.smart_erp.auth.support;
 
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import com.example.smart_erp.auth.entity.Role;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

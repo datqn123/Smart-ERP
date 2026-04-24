@@ -1,4 +1,4 @@
-package com.example.smart_erp.users.dto;
+package com.example.smart_erp.users.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 

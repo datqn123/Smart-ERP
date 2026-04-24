@@ -1,12 +1,12 @@
-package com.example.smart_erp.users.web;
+package com.example.smart_erp.users.controller;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -25,7 +25,7 @@ import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.common.exception.GlobalExceptionHandler;
 import com.example.smart_erp.config.PermitAllWebSecurityConfiguration;
 import com.example.smart_erp.config.SecurityBeansConfiguration;
-import com.example.smart_erp.users.dto.UserResponseData;
+import com.example.smart_erp.users.response.UserResponseData;
 import com.example.smart_erp.users.service.UserCreationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

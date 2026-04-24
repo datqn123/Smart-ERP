@@ -17,12 +17,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.example.smart_erp.auth.persistence.RefreshToken;
-import com.example.smart_erp.auth.persistence.RefreshTokenRepository;
-import com.example.smart_erp.auth.persistence.Role;
-import com.example.smart_erp.auth.persistence.SystemLogJdbcRepository;
-import com.example.smart_erp.auth.persistence.User;
-import com.example.smart_erp.auth.persistence.UserRepository;
+import com.example.smart_erp.auth.entity.RefreshToken;
+import com.example.smart_erp.auth.entity.Role;
+import com.example.smart_erp.auth.entity.User;
+import com.example.smart_erp.auth.repository.RefreshTokenRepository;
+import com.example.smart_erp.auth.repository.SystemLogJdbcRepository;
+import com.example.smart_erp.auth.repository.UserRepository;
 import com.example.smart_erp.auth.session.LoginBruteForceProtection;
 import com.example.smart_erp.auth.session.LoginSessionRegistry;
 import com.example.smart_erp.auth.session.RefreshAccessThrottle;

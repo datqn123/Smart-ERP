@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.smart_erp.auth.persistence.UserRepository;
+import com.example.smart_erp.auth.repository.UserRepository;
 
 /**
  * Sau {@value #MAX_FAILURES} lần mật khẩu sai liên tiếp cho cùng một user Active → {@code status = Locked}.

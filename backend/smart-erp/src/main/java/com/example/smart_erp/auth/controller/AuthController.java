@@ -1,4 +1,4 @@
-package com.example.smart_erp.auth.web;
+package com.example.smart_erp.auth.controller;
 
 import java.util.Collections;
 
@@ -11,6 +11,11 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.smart_erp.auth.dto.LoginRequest;
+import com.example.smart_erp.auth.dto.LogoutRequest;
+import com.example.smart_erp.auth.dto.RefreshRequest;
+import com.example.smart_erp.auth.response.LoginResponseData;
+import com.example.smart_erp.auth.response.RefreshResponseData;
 import com.example.smart_erp.auth.service.AuthService;
 import com.example.smart_erp.auth.service.LoginResult;
 import com.example.smart_erp.auth.service.RefreshResult;

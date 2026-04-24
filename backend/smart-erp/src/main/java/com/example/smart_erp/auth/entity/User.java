@@ -1,4 +1,4 @@
-package com.example.smart_erp.auth.persistence;
+package com.example.smart_erp.auth.entity;
 
 import java.time.Instant;
 

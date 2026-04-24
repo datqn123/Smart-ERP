@@ -1,4 +1,4 @@
-package com.example.smart_erp.auth.persistence;
+package com.example.smart_erp.auth.repository;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;

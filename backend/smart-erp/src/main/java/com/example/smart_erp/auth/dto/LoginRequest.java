@@ -1,4 +1,4 @@
-package com.example.smart_erp.auth.web;
+package com.example.smart_erp.auth.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

@@ -10,15 +10,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import com.example.smart_erp.auth.persistence.Role;
-import com.example.smart_erp.auth.persistence.RolePermissionReader;
-import com.example.smart_erp.auth.persistence.RoleRepository;
-import com.example.smart_erp.auth.persistence.User;
-import com.example.smart_erp.auth.persistence.UserRepository;
+import com.example.smart_erp.auth.entity.Role;
+import com.example.smart_erp.auth.entity.User;
+import com.example.smart_erp.auth.repository.RoleRepository;
+import com.example.smart_erp.auth.repository.UserRepository;
+import com.example.smart_erp.auth.support.RolePermissionReader;
 import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.users.dto.UserCreateRequest;
-import com.example.smart_erp.users.dto.UserResponseData;
+import com.example.smart_erp.users.response.UserResponseData;
 
 @Service
 public class UserCreationService {

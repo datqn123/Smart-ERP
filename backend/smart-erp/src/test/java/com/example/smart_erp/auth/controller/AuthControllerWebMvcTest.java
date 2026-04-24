@@ -1,4 +1,4 @@
-package com.example.smart_erp.auth.web;
+package com.example.smart_erp.auth.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -24,6 +24,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.example.smart_erp.auth.AuthTask001Fixtures;
+import com.example.smart_erp.auth.dto.LoginRequest;
+import com.example.smart_erp.auth.dto.LogoutRequest;
+import com.example.smart_erp.auth.dto.RefreshRequest;
 import com.example.smart_erp.auth.service.AuthService;
 import com.example.smart_erp.auth.service.LoginResult;
 import com.example.smart_erp.auth.service.RefreshResult;

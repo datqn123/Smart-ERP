@@ -11,7 +11,7 @@ import com.example.smart_erp.common.exception.BusinessException;
 
 /**
  * Task003 / SRS §7.2: tối đa một access mới qua {@code /auth/refresh} mỗi 5 phút / user (in-memory).
- * Được xóa khi {@link com.example.smart_erp.auth.service.AuthService#login} thành công hoặc sau {@code logout}.
+ * Được xóa khi {@link com.example.smart_erp.auth.service.AuthService#login(String, String)} thành công hoặc sau {@code logout}.
  */
 @Component
 public class RefreshAccessThrottle {

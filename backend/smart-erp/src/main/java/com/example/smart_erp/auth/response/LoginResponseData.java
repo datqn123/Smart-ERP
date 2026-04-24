@@ -1,4 +1,4 @@
-package com.example.smart_erp.auth.web;
+package com.example.smart_erp.auth.response;
 
 import com.example.smart_erp.auth.service.LoginResult;
 

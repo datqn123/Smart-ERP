@@ -31,7 +31,7 @@
 
 ## 3. Inventory test tự động (cập nhật theo code hiện tại)
 
-### 3.1 `AuthControllerWebMvcTest` (`com.example.smart_erp.auth.web`)
+### 3.1 `AuthControllerWebMvcTest` (`com.example.smart_erp.auth.controller`)
 
 | Phương thức | Ý nghĩa nghiệp vụ | Mapping manual gần đương |
 | :--- | :--- | :--- |

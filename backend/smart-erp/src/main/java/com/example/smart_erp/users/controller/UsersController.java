@@ -1,4 +1,4 @@
-package com.example.smart_erp.users.web;
+package com.example.smart_erp.users.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,7 +14,7 @@ import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.api.ApiSuccessResponse;
 import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.users.dto.UserCreateRequest;
-import com.example.smart_erp.users.dto.UserResponseData;
+import com.example.smart_erp.users.response.UserResponseData;
 import com.example.smart_erp.users.service.UserCreationService;
 
 import jakarta.validation.Valid;

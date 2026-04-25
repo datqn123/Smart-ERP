@@ -9,6 +9,9 @@ export interface InventoryItem {
   productId: number;
   productName: string;
   skuCode: string;
+  /** Task005 BE — tùy chọn */
+  barcode?: string;
+  unitId?: number;
   locationId: number;
   warehouseCode: string;
   shelfCode: string;

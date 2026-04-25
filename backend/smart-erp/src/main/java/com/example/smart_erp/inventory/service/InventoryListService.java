@@ -1,0 +1,76 @@
+package com.example.smart_erp.inventory.service;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.example.smart_erp.inventory.query.InventoryListQuery;
+import com.example.smart_erp.inventory.repository.InventoryListJdbcRepository;
+import com.example.smart_erp.inventory.repository.InventoryListJdbcRepository.InventoryListRow;
+import com.example.smart_erp.inventory.response.InventoryListItemData;
+import com.example.smart_erp.inventory.response.InventoryListPageData;
+import com.example.smart_erp.inventory.response.InventorySummaryData;
+
+/**
+ * Tổng hợp 3 tầng đọc + tính read-model — SRS Task005.
+ */
+@Service
+public class InventoryListService {
+
+	private static final int EXPIRY_SOON_DAYS = 30;
+
+	private final InventoryListJdbcRepository listRepo;
+
+	public InventoryListService(InventoryListJdbcRepository listRepo) {
+		this.listRepo = listRepo;
+	}
+
+	@Transactional(readOnly = true)
+	public InventoryListPageData list(InventoryListQuery q) {
+		InventorySummaryData summary = listRepo.loadSummary(q);
+		long total = listRepo.countRows(q);
+		List<InventoryListRow> rows = listRepo.loadPage(q);
+		LocalDate today = LocalDate.now(ZoneOffset.UTC);
+		LocalDate thirtyAhead = today.plusDays(EXPIRY_SOON_DAYS);
+		var items = rows.stream().map(r -> toItem(r, thirtyAhead)).collect(Collectors.toList());
+		return new InventoryListPageData(summary, items, q.page(), q.limit(), total);
+	}
+
+	private static InventoryListItemData toItem(InventoryListRow r, LocalDate thirtyAhead) {
+		int qn = r.quantity();
+		int min = r.minQuantity();
+		boolean isLow = qn > 0 && qn <= min;
+		var exp = r.expiryDate();
+		boolean isExp = exp != null && !exp.isAfter(thirtyAhead) && qn > 0;
+		BigDecimal cost = r.costPrice() != null ? r.costPrice() : BigDecimal.ZERO;
+		BigDecimal lineVal = cost.multiply(BigDecimal.valueOf(qn)).setScale(2, RoundingMode.HALF_UP);
+		Instant upd = r.updatedAt() != null ? r.updatedAt() : Instant.EPOCH;
+		return new InventoryListItemData(
+				r.id(),
+				r.productId(),
+				r.productName(),
+				r.skuCode(),
+				r.barcode(),
+				r.locationId(),
+				r.warehouseCode(),
+				r.shelfCode(),
+				r.batchNumber(),
+				r.expiryDate(),
+				r.quantity(),
+				r.minQuantity(),
+				r.unitId(),
+				r.unitName(),
+				cost,
+				upd,
+				isLow,
+				isExp,
+				lineVal);
+	}
+}

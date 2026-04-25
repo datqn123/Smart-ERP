@@ -60,6 +60,7 @@
 
 | Loại | File |
 | :--- | :--- |
+| API (nối BE) | `api/inventoryApi.ts` — Task005 `GET /api/v1/inventory` |
 | Bảng / toolbar tồn | `components/StockTable.tsx`, `StockToolbar.tsx`, `StockEditDialog.tsx`, `StockActionDialog.tsx`, `StockBatchDetailsDialog.tsx` |
 | Nhập kho | `components/ReceiptForm.tsx`, `ReceiptTable.tsx`, `ReceiptDetailPanel.tsx`, `ReceiptDetailDialog.tsx` |
 | Xuất / điều phối | `components/DispatchForm.tsx`, `DispatchTable.tsx`, `DispatchDetailDialog.tsx`, `DispatchDetailPanel.tsx` |

@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from "@/lib/api/config"
+import { syncMenuPermissionsFromSessionStorage } from "@/features/auth/lib/syncMenuPermissionsFromSessionStorage"
 
 /**
  * Task003 — POST /api/v1/auth/refresh (public, no Bearer).
@@ -37,5 +38,6 @@ export async function tryRefreshAccessToken(): Promise<boolean> {
   }
   sessionStorage.setItem("accessToken", data.accessToken)
   sessionStorage.setItem("refreshToken", data.refreshToken)
+  syncMenuPermissionsFromSessionStorage()
   return true
 }

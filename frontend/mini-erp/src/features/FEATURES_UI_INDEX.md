@@ -114,6 +114,7 @@
 | Loại | File |
 | :--- | :--- |
 | Nhân viên | `components/EmployeeTable.tsx`, `EmployeeToolbar.tsx`, `EmployeeForm.tsx`, `EmployeeDetailDialog.tsx` |
+| API (nối BE) | `api/usersApi.ts` (`POST /api/v1/users` — Task078) |
 | Nhật ký | `components/LogTable.tsx`, `LogToolbar.tsx` |
 
 ---

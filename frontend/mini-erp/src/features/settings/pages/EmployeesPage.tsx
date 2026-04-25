@@ -4,9 +4,15 @@ import type { Employee } from "../types"
 import { EmployeeTable } from "../components/EmployeeTable"
 import { EmployeeToolbar } from "../components/EmployeeToolbar"
 import { EmployeeDetailDialog } from "../components/EmployeeDetailDialog"
-import { EmployeeForm } from "../components/EmployeeForm"
+import {
+  EmployeeForm,
+  type EmployeeCreateFormData,
+  type EmployeeEditFormData,
+} from "../components/EmployeeForm"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { toast } from "sonner"
+import { ApiRequestError } from "@/lib/api/http"
+import { buildUserCreateBody, postCreateUser, userResponseToEmployee } from "../api/usersApi"
 
 const mockEmployees: Employee[] = [
   { id: 1, employeeCode: "NV001", fullName: "Nguyễn Văn A", email: "vana@minierp.com", phone: "0987654321", role: "Admin", status: "Active", joinedDate: "2023-01-01" },
@@ -32,6 +38,7 @@ export function EmployeesPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingEmployee, setEditingEmployee] = useState<Employee | undefined>()
+  const [createServerFieldErrors, setCreateServerFieldErrors] = useState<Record<string, string> | undefined>()
 
   useEffect(() => {
     setTitle("Quản Lý Nhân Viên")
@@ -57,6 +64,7 @@ export function EmployeesPage() {
       setIsDeletingBulk(true)
     } else if (action === "create") {
       setEditingEmployee(undefined)
+      setCreateServerFieldErrors(undefined)
       setIsFormOpen(true)
     }
   }
@@ -66,6 +74,7 @@ export function EmployeesPage() {
     setIsDetailOpen(true)
   }
   const handleEdit = (item: Employee) => {
+    setCreateServerFieldErrors(undefined)
     setEditingEmployee(item)
     setIsFormOpen(true)
   }
@@ -141,23 +150,40 @@ export function EmployeesPage() {
         onClose={() => setIsDetailOpen(false)}
       />
 
-      <EmployeeForm 
+      <EmployeeForm
         open={isFormOpen}
-        onOpenChange={setIsFormOpen}
+        onOpenChange={(open) => {
+          setIsFormOpen(open)
+          if (!open) setCreateServerFieldErrors(undefined)
+        }}
         employee={editingEmployee}
-        onSubmit={(data) => {
-            if (editingEmployee) {
-                setEmployees(prev => prev.map(e => e.id === editingEmployee.id ? { ...e, ...data } : e))
-                toast.success("Cập nhật nhân viên thành công")
+        serverFieldErrors={editingEmployee ? undefined : createServerFieldErrors}
+        onSubmit={async (data) => {
+          if (editingEmployee) {
+            const d = data as EmployeeEditFormData
+            setEmployees((prev) =>
+              prev.map((e) => (e.id === editingEmployee.id ? { ...e, ...d } : e)),
+            )
+            toast.success("Cập nhật nhân viên thành công")
+            return
+          }
+          const d = data as EmployeeCreateFormData
+          try {
+            setCreateServerFieldErrors(undefined)
+            const created = await postCreateUser(buildUserCreateBody(d))
+            setEmployees((prev) => [userResponseToEmployee(created), ...prev])
+            toast.success("Thêm nhân viên thành công")
+          } catch (e) {
+            if (e instanceof ApiRequestError) {
+              toast.error(e.body.message)
+              if (e.status === 400 && e.body.details) {
+                setCreateServerFieldErrors(e.body.details)
+              }
             } else {
-                const newEmployee: Employee = {
-                    id: Math.max(...employees.map(e => e.id)) + 1,
-                    ...data,
-                    joinedDate: new Date().toISOString().split('T')[0]
-                }
-                setEmployees(prev => [newEmployee, ...prev])
-                toast.success("Thêm nhân viên thành công")
+              toast.error("Không thể tạo nhân viên")
             }
+            throw e /* tín hiệu để form không đóng dialog */
+          }
         }}
       />
     </div>

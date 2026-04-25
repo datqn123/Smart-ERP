@@ -14,6 +14,7 @@ import {
 import { useSidebarStore, type NavItemKey } from "@/store/sidebarStore"
 import { useAuthStore } from "@/features/auth/store/useAuthStore"
 import { logoutAndGoToLogin } from "@/features/auth/lib/sessionAuth"
+import type { MenuPermissions } from "@/features/auth/types/menuPermissions"
 import { useUIStore } from "@/store/useUIStore"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,31 +23,46 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 
-interface NavItem {
+/** Mục con: `always` (SRS *Thông tin cửa hàng* / tạm *Nhật ký*); hoặc một boolean trong `MenuPermissions`. */
+type SubItemSpec = {
+  label: string
+  path: string
+  always?: boolean
+  perm?: keyof MenuPermissions
+}
+
+interface NavItemConfig {
   id: NavItemKey
   label: string
   icon: React.ReactNode
-  subItems?: { label: string; path: string }[]
+  /** Tất cả mục con cùng một quyền (SRS: nhóm Kho, Sản phẩm, …). */
+  allSubsPerm?: keyof MenuPermissions
+  subItems: SubItemSpec[]
+}
+
+type NavItem = Pick<NavItemConfig, "id" | "label" | "icon"> & {
+  subItems: { label: string; path: string }[]
 }
 
 interface SidebarProps {
   isMobile?: boolean
 }
 
-const navItems: NavItem[] = [
+const navConfig: NavItemConfig[] = [
   {
     id: "dashboard",
     label: "Tổng quan",
     icon: <LayoutDashboard className="h-[18px] w-[18px]" />,
     subItems: [
-      { label: "Dashboard", path: "/dashboard" },
-      { label: "AI Insights", path: "/dashboard/ai-insights" },
+      { label: "Dashboard", path: "/dashboard", perm: "can_view_dashboard" },
+      { label: "AI Insights", path: "/dashboard/ai-insights", perm: "can_use_ai" },
     ],
   },
   {
     id: "inventory",
     label: "Kho hàng",
     icon: <Package className="h-[18px] w-[18px]" />,
+    allSubsPerm: "can_manage_inventory",
     subItems: [
       { label: "Tồn kho", path: "/inventory/stock" },
       { label: "Phiếu nhập kho", path: "/inventory/inbound" },
@@ -58,6 +74,7 @@ const navItems: NavItem[] = [
     id: "products",
     label: "Sản phẩm",
     icon: <Package className="h-[18px] w-[18px]" />,
+    allSubsPerm: "can_manage_products",
     subItems: [
       { label: "Danh mục sản phẩm", path: "/products/categories" },
       { label: "Quản lý sản phẩm", path: "/products/list" },
@@ -69,6 +86,7 @@ const navItems: NavItem[] = [
     id: "orders",
     label: "Đơn hàng",
     icon: <ShoppingCart className="h-[18px] w-[18px]" />,
+    allSubsPerm: "can_manage_orders",
     subItems: [
       { label: "Đơn bán lẻ", path: "/orders/retail" },
       { label: "Đơn bán sỉ", path: "/orders/wholesale" },
@@ -79,6 +97,7 @@ const navItems: NavItem[] = [
     id: "approvals",
     label: "Phê duyệt",
     icon: <FileInput className="h-[18px] w-[18px]" />,
+    allSubsPerm: "can_approve",
     subItems: [
       { label: "Chờ phê duyệt", path: "/approvals/pending" },
       { label: "Lịch sử phê duyệt", path: "/approvals/history" },
@@ -88,6 +107,7 @@ const navItems: NavItem[] = [
     id: "cashflow",
     label: "Dòng tiền",
     icon: <Banknote className="h-[18px] w-[18px]" />,
+    allSubsPerm: "can_view_finance",
     subItems: [
       { label: "Giao dịch thu chi", path: "/cashflow/transactions" },
       { label: "Sổ nợ", path: "/cashflow/debt" },
@@ -98,6 +118,7 @@ const navItems: NavItem[] = [
     id: "ai-tools",
     label: "AI & Trợ lý",
     icon: <Brain className="h-[18px] w-[18px]" />,
+    allSubsPerm: "can_use_ai",
     subItems: [
       { label: "Trợ lý ảo AI", path: "/ai/chat" },
     ],
@@ -107,13 +128,40 @@ const navItems: NavItem[] = [
     label: "Cài đặt",
     icon: <Settings className="h-[18px] w-[18px]" />,
     subItems: [
-      { label: "Thông tin cửa hàng", path: "/settings/store-info" },
-      { label: "Quản lý nhân viên", path: "/settings/employees" },
-      { label: "Cấu hình cảnh báo", path: "/settings/alerts" },
-      { label: "Nhật ký hệ thống", path: "/settings/system-logs" },
+      { label: "Thông tin cửa hàng", path: "/settings/store-info", always: true },
+      { label: "Quản lý nhân viên", path: "/settings/employees", perm: "can_manage_staff" },
+      { label: "Cấu hình cảnh báo", path: "/settings/alerts", perm: "can_configure_alerts" },
+      { label: "Nhật ký hệ thống", path: "/settings/system-logs", always: true },
     ],
   },
 ]
+
+function subItemVisible(s: SubItemSpec, p: MenuPermissions, all?: keyof MenuPermissions): boolean {
+  if (all) {
+    return Boolean(p[all])
+  }
+  if (s.always) {
+    return true
+  }
+  if (s.perm) {
+    return Boolean(p[s.perm])
+  }
+  return false
+}
+
+function buildNavForPermissions(p: MenuPermissions): NavItem[] {
+  const out: NavItem[] = []
+  for (const c of navConfig) {
+    const subs = c.subItems
+      .filter((s) => subItemVisible(s, p, c.allSubsPerm))
+      .map((s) => ({ label: s.label, path: s.path }))
+    if (subs.length === 0) {
+      continue
+    }
+    out.push({ id: c.id, label: c.label, icon: c.icon, subItems: subs })
+  }
+  return out
+}
 
 export function Sidebar({ isMobile = false }: SidebarProps) {
   const location = useLocation()
@@ -121,18 +169,14 @@ export function Sidebar({ isMobile = false }: SidebarProps) {
   const { expandedItems, toggleItem, expandItem } = useSidebarStore()
   const { setSidebarOpen, sidebarWidth, setSidebarWidth } = useUIStore()
   const isResizing = useRef(false)
-  const user = useAuthStore(state => state.user)
-  const zustandLogout = useAuthStore(state => state.logout)
+  const zustandLogout = useAuthStore((state) => state.logout)
+  const menuPermissions = useAuthStore((state) => state.menuPermissions)
   const [loggingOut, setLoggingOut] = useState(false)
 
-  // Use useMemo to prevent infinite re-renders since .filter() creates a new array reference
-  const filteredNavItems = useMemo(() => {
-    return navItems.filter(item => {
-      if (item.id === 'approvals' && user?.role !== 'Owner') return false
-      if (item.id === 'cashflow' && user?.role === 'Staff') return false
-      return true
-    })
-  }, [user?.role])
+  const filteredNavItems = useMemo(
+    () => buildNavForPermissions(menuPermissions),
+    [menuPermissions],
+  )
 
   const isActiveRoute = (path: string) => location.pathname === path
   

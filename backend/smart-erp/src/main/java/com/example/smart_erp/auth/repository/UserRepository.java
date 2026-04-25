@@ -1,5 +1,6 @@
 package com.example.smart_erp.auth.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -34,4 +35,8 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 	@EntityGraph(attributePaths = "role")
 	@Query("select u from User u where u.id = :id")
 	Optional<User> findWithRoleById(@Param("id") Integer id);
+
+	/** Task078_02 — prefix ví dụ {@code NV-MAN-}; tham số truyền {@code NV-MAN-} để khớp LIKE. */
+	@Query("select u.staffCode from User u where u.staffCode is not null and u.staffCode like concat(:prefix, '%')")
+	List<String> findStaffCodesLikePrefix(@Param("prefix") String prefix);
 }

@@ -74,7 +74,8 @@ class AuthServiceRefreshTest {
 				.thenReturn(Optional.of(new RefreshToken(7, plain, exp)));
 		User user = activeUser(7);
 		when(userRepository.findActiveById(7)).thenReturn(Optional.of(user));
-		when(jwtTokenService.createAccessToken(7, "admin", "Owner")).thenReturn("new.access.jwt");
+		when(jwtTokenService.createAccessToken(eq(7), eq("admin"), eq("Owner"), anyString()))
+				.thenReturn("new.access.jwt");
 
 		RefreshResult r = authService.refresh(plain);
 
@@ -110,7 +111,7 @@ class AuthServiceRefreshTest {
 				.thenReturn(Optional.of(new RefreshToken(2, plain, exp)));
 		User user = activeUser(2);
 		when(userRepository.findActiveById(2)).thenReturn(Optional.of(user));
-		when(jwtTokenService.createAccessToken(anyInt(), anyString(), anyString())).thenReturn("jwt1", "jwt2");
+		when(jwtTokenService.createAccessToken(anyInt(), anyString(), anyString(), anyString())).thenReturn("jwt1", "jwt2");
 
 		authService.refresh(plain);
 
@@ -125,6 +126,7 @@ class AuthServiceRefreshTest {
 		ReflectionTestUtils.setField(u, "status", "Active");
 		Role role = new Role();
 		ReflectionTestUtils.setField(role, "name", "Owner");
+		ReflectionTestUtils.setField(role, "permissions", "{\"can_view_dashboard\":true}");
 		ReflectionTestUtils.setField(u, "role", role);
 		return u;
 	}

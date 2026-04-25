@@ -3,6 +3,7 @@ package com.example.smart_erp.auth.support;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.crypto.SecretKey;
@@ -39,13 +40,18 @@ public class JwtTokenService {
 		this.accessTtlMinutes = ttl < 1 ? 1 : ttl;
 	}
 
-	public String createAccessToken(int userId, String username, String roleName) {
+	/**
+	 * @param rolePermissionsJson toàn bộ JSON {@code roles.permissions} (có thể rỗng) — rút subset menu (claim {@code mp})
+	 */
+	public String createAccessToken(int userId, String username, String roleName, String rolePermissionsJson) {
 		Instant now = Instant.now();
 		Instant exp = now.plusSeconds(accessTtlMinutes * 60L);
+		Map<String, Boolean> menuPerms = MenuPermissionClaims.fromRolePermissionsJson(rolePermissionsJson);
 		var builder = Jwts.builder()
 				.subject(String.valueOf(userId))
 				.claim("name", username)
 				.claim("role", roleName)
+				.claim(MenuPermissionClaims.CLAIM_NAME, menuPerms)
 				.issuedAt(Date.from(now))
 				.expiration(Date.from(exp))
 				.signWith(signingKey);

@@ -1,5 +1,7 @@
+import { useEffect } from "react"
 import { Routes, Route, Navigate } from "react-router-dom"
 import { Toaster } from "sonner"
+import { useAuthStore } from "@/features/auth/store/useAuthStore"
 import { LoginPage } from "./features/auth/pages/LoginPage"
 import { DashboardPage } from "./features/dashboard/pages/DashboardPage"
 import { MainLayout } from "./components/shared/layout/MainLayout"
@@ -50,9 +52,19 @@ const PlaceholderPage = ({ title }: { title: string }) => (
   </div>
 )
 
+/** Task101 — F5: đồng bộ user + claim `mp` từ sessionStorage. */
+function AuthSessionHydration() {
+  const hydrate = useAuthStore((s) => s.hydrateFromSession)
+  useEffect(() => {
+    hydrate()
+  }, [hydrate])
+  return null
+}
+
 function App() {
   return (
     <PageTitleProvider>
+      <AuthSessionHydration />
       <Toaster position="top-right" richColors />
       <Routes>
         {/* Auth Routes (No Sidebar) */}

@@ -52,7 +52,8 @@ public class UserCreationService {
 			throw new BusinessException(ApiErrorCode.FORBIDDEN, "Bạn không có quyền quản lý nhân viên");
 		}
 
-		Role targetRole = roleRepository.findById(request.roleId())
+		Integer roleId = Objects.requireNonNull(request.roleId(), "roleId");
+		Role targetRole = roleRepository.findById(roleId)
 				.orElseThrow(() -> new BusinessException(ApiErrorCode.BAD_REQUEST, "Vai trò không hợp lệ",
 						Map.of("roleId", "Không tồn tại")));
 
@@ -79,7 +80,7 @@ public class UserCreationService {
 		if (StringUtils.hasText(request.staffCode())) {
 			u.setStaffCode(request.staffCode().strip());
 		}
-		u.setRoleId(request.roleId());
+		u.setRoleId(roleId);
 		u.setStatus(dbStatus);
 		User saved = userRepository.save(u);
 

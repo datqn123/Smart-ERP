@@ -119,7 +119,8 @@ class AuthControllerWebMvcTest {
 				{"email":"  %s  ","password":"%s"}
 				""".formatted(AuthTask001Fixtures.DEV_OWNER_EMAIL, AuthTask001Fixtures.DEV_OWNER_PASSWORD);
 
-		mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON_VALUE).content(bodyJson.strip()))
+		mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON_VALUE)
+				.content(Objects.requireNonNull(bodyJson.strip())))
 				.andExpect(status().isOk());
 
 		verify(authService).login(AuthTask001Fixtures.DEV_OWNER_EMAIL, AuthTask001Fixtures.DEV_OWNER_PASSWORD);

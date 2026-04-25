@@ -78,7 +78,10 @@ public class AuthService {
 		refreshAccessThrottle.clear(user.getId());
 
 		String roleName = user.getRole() != null ? user.getRole().getName() : "Unknown";
-		String accessToken = jwtTokenService.createAccessToken(user.getId(), user.getUsername(), roleName);
+		String rolePermsJson = user.getRole() != null && user.getRole().getPermissions() != null
+				? user.getRole().getPermissions()
+				: "{}";
+		String accessToken = jwtTokenService.createAccessToken(user.getId(), user.getUsername(), roleName, rolePermsJson);
 		String refreshPlain = UUID.randomUUID().toString().replace("-", "");
 		Instant refreshExp = Instant.now().plus(REFRESH_TTL_DAYS, ChronoUnit.DAYS);
 		refreshTokenRepository.save(new RefreshToken(user.getId(), refreshPlain, refreshExp));
@@ -121,7 +124,10 @@ public class AuthService {
 				.orElseThrow(() -> new BusinessException(ApiErrorCode.UNAUTHORIZED, UNAUTHORIZED_REFRESH));
 		refreshAccessThrottle.assertCanIssueNewAccess(userId);
 		String roleName = user.getRole() != null ? user.getRole().getName() : "Unknown";
-		String accessToken = jwtTokenService.createAccessToken(user.getId(), user.getUsername(), roleName);
+		String rolePermsJson = user.getRole() != null && user.getRole().getPermissions() != null
+				? user.getRole().getPermissions()
+				: "{}";
+		String accessToken = jwtTokenService.createAccessToken(user.getId(), user.getUsername(), roleName, rolePermsJson);
 		refreshAccessThrottle.recordIssued(userId);
 		return new RefreshResult(accessToken, refreshTokenPlain, userId);
 	}

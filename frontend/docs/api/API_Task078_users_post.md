@@ -57,12 +57,12 @@ Trả về bản ghi dạng Task077 một phần tử.
 import { z } from "zod";
 
 export const UserCreateBodySchema = z.object({
-  username: z.string().min(3).max(100),
+  username: z.string().trim().min(3).max(100),
   password: z.string().min(8).max(128),
-  fullName: z.string().min(1).max(255),
-  email: z.string().email(),
-  phone: z.string().max(20).optional(),
-  staffCode: z.string().max(50).optional(),
+  fullName: z.string().trim().min(1).max(255),
+  email: z.string().trim().email(),
+  phone: z.string().trim().max(20).optional().or(z.literal("")),
+  staffCode: z.string().trim().max(50).optional().or(z.literal("")),
   roleId: z.number().int().positive(),
   status: z.enum(["Active", "Inactive"]).optional().default("Active"),
 });

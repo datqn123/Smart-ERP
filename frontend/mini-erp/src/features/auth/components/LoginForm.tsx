@@ -25,6 +25,7 @@ import { Loader2, Eye, EyeOff } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { ApiRequestError } from "@/lib/api/http"
 import { postLogin } from "@/features/auth/api/authApi"
+import { useAuthStore, type UserRole } from "@/features/auth/store/useAuthStore"
 
 const loginSchema = z.object({
   email: z
@@ -84,6 +85,16 @@ export function LoginForm() {
       sessionStorage.setItem("accessToken", result.accessToken)
       sessionStorage.setItem("refreshToken", result.refreshToken)
       sessionStorage.setItem("user", JSON.stringify(result.user))
+      useAuthStore.getState().login(
+        {
+          id: result.user.id,
+          fullName: result.user.fullName,
+          email: result.user.email,
+          username: result.user.username,
+          role: result.user.role as UserRole,
+        },
+        result.accessToken,
+      )
       navigate("/dashboard")
     } catch (err) {
       if (err instanceof ApiRequestError && err.status === 400 && err.body.details) {

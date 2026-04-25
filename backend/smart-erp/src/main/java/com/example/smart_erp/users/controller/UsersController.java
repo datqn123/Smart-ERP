@@ -5,16 +5,20 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.api.ApiSuccessResponse;
 import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.users.dto.UserCreateRequest;
+import com.example.smart_erp.users.response.NextStaffCodeData;
 import com.example.smart_erp.users.response.UserResponseData;
+import com.example.smart_erp.users.service.NextStaffCodeService;
 import com.example.smart_erp.users.service.UserCreationService;
 
 import jakarta.validation.Valid;
@@ -31,8 +35,21 @@ public class UsersController {
 
 	private final UserCreationService userCreationService;
 
-	public UsersController(UserCreationService userCreationService) {
+	private final NextStaffCodeService nextStaffCodeService;
+
+	public UsersController(UserCreationService userCreationService, NextStaffCodeService nextStaffCodeService) {
 		this.userCreationService = userCreationService;
+		this.nextStaffCodeService = nextStaffCodeService;
+	}
+
+	/** Task078_02 — gợi ý {@code staff_code} tiếp theo theo prefix suy ra từ {@code roleId} / {@code staffFamily}. */
+	@GetMapping("/users/next-staff-code")
+	public ResponseEntity<ApiSuccessResponse<NextStaffCodeData>> nextStaffCode(Authentication authentication,
+			@RequestParam("roleId") int roleId, @RequestParam(value = "staffFamily", required = false) String staffFamily) {
+		Jwt jwt = requireJwt(authentication);
+		int actorUserId = Integer.parseInt(jwt.getSubject());
+		NextStaffCodeData data = nextStaffCodeService.suggest(actorUserId, roleId, staffFamily);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
 	}
 
 	@PostMapping("/users")

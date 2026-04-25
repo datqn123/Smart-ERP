@@ -21,6 +21,7 @@ Tài liệu **SRS gắn triển khai backend** (API `smart-erp`, persistence, ma
 | [`SRS_Task078_users-post.md`](SRS_Task078_users-post.md) | `POST /api/v1/users` — tạo nhân viên; API: [`../../../frontend/docs/api/API_Task078_users_post.md`](../../../frontend/docs/api/API_Task078_users_post.md) |
 | [`SRS_Task100_auth-session-registry-stale-access.md`](SRS_Task100_auth-session-registry-stale-access.md) | Session map — [`../task100/README.md`](../task100/README.md) |
 | [`SRS_Task101_role-based-side-menu-visibility.md`](SRS_Task101_role-based-side-menu-visibility.md) | Side menu theo `Roles.permissions` (Task101); chưa có `Doc` API riêng — tham chiếu code + Flyway V1 |
+| [`SRS_Task101_1_api-permission-per-request.md`](SRS_Task101_1_api-permission-per-request.md) | Task101_1 — kiểm tra quyền từng request API; phụ bản từ [SRS_Task101](SRS_Task101_role-based-side-menu-visibility.md) mục 7.1 |
 
 ## File liên quan dưới `backend/docs/taskNNN/`
 

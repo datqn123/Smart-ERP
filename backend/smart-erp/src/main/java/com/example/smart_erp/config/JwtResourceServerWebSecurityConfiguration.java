@@ -8,12 +8,17 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.convert.converter.Converter;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
+
+import com.example.smart_erp.auth.support.MenuPermissionClaims;
 
 import io.jsonwebtoken.security.Keys;
 
@@ -39,6 +44,11 @@ public class JwtResourceServerWebSecurityConfiguration {
 	}
 
 	@Bean
+	public Converter<Jwt, AbstractAuthenticationToken> accessTokenConverter() {
+		return MenuPermissionClaims.jwtAuthenticationConverter();
+	}
+
+	@Bean
 	@Order(1)
 	public SecurityFilterChain authPublicChain(HttpSecurity http) throws Exception {
 		http.securityMatcher("/api/v1/auth/**").cors(Customizer.withDefaults()).csrf(csrf -> csrf.disable())
@@ -48,12 +58,14 @@ public class JwtResourceServerWebSecurityConfiguration {
 
 	@Bean
 	@Order(2)
-	public SecurityFilterChain resourceServerChain(HttpSecurity http, JwtDecoder jwtDecoder) throws Exception {
+	public SecurityFilterChain resourceServerChain(HttpSecurity http, JwtDecoder jwtDecoder,
+			Converter<Jwt, AbstractAuthenticationToken> accessTokenConverter) throws Exception {
 		http.cors(Customizer.withDefaults()).csrf(csrf -> csrf.disable())
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 						.anyRequest().authenticated())
-				.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder)));
+				.oauth2ResourceServer(oauth2 -> oauth2.jwt(
+						jwt -> jwt.decoder(jwtDecoder).jwtAuthenticationConverter(accessTokenConverter)));
 		return http.build();
 	}
 }

@@ -2,9 +2,12 @@ package com.example.smart_erp.auth.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 class MenuPermissionClaimsTest {
 
@@ -22,5 +25,24 @@ class MenuPermissionClaimsTest {
 	void fromRolePermissionsJson_nullOrBlank_allFalse() {
 		assertThat(MenuPermissionClaims.fromRolePermissionsJson(null).get("can_view_finance")).isFalse();
 		assertThat(MenuPermissionClaims.fromRolePermissionsJson("").get("can_view_finance")).isFalse();
+	}
+
+	@Test
+	void grantedAuthoritiesFromMpClaim_marksTrueAsAuthorities() {
+		List<GrantedAuthority> list = MenuPermissionClaims.grantedAuthoritiesFromMpClaim(
+				Map.of("can_manage_staff", true, "can_approve", false));
+		assertThat(list)
+				.contains(new SimpleGrantedAuthority("can_manage_staff"))
+				.doesNotContain(new SimpleGrantedAuthority("can_approve"));
+	}
+
+	@Test
+	void grantedAuthoritiesFromPermissionsJson_matchesJsonBooleans() {
+		String json = """
+				{"can_view_dashboard": true, "can_manage_staff": true}
+				""";
+		assertThat(MenuPermissionClaims.grantedAuthoritiesFromPermissionsJson(json))
+				.containsExactlyInAnyOrder(
+						new SimpleGrantedAuthority("can_view_dashboard"), new SimpleGrantedAuthority("can_manage_staff"));
 	}
 }

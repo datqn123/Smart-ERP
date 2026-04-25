@@ -25,9 +25,6 @@ public class RolePermissionReader {
 		if (role == null) {
 			return false;
 		}
-		if ("Owner".equals(role.getName())) {
-			return true;
-		}
 		return jsonBooleanTrue(role.getPermissions(), CAN_MANAGE_STAFF);
 	}
 

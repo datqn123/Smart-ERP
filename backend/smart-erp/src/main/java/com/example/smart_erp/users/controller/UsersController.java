@@ -2,6 +2,7 @@ package com.example.smart_erp.users.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -44,6 +45,7 @@ public class UsersController {
 
 	/** Task078_02 — gợi ý {@code staff_code} tiếp theo theo prefix suy ra từ {@code roleId} / {@code staffFamily}. */
 	@GetMapping("/users/next-staff-code")
+	@PreAuthorize("hasAuthority('can_manage_staff')")
 	public ResponseEntity<ApiSuccessResponse<NextStaffCodeData>> nextStaffCode(Authentication authentication,
 			@RequestParam("roleId") int roleId, @RequestParam(value = "staffFamily", required = false) String staffFamily) {
 		Jwt jwt = requireJwt(authentication);
@@ -53,6 +55,7 @@ public class UsersController {
 	}
 
 	@PostMapping("/users")
+	@PreAuthorize("hasAuthority('can_manage_staff')")
 	public ResponseEntity<ApiSuccessResponse<UserResponseData>> createUser(Authentication authentication,
 			@Valid @RequestBody UserCreateRequest request) {
 		Jwt jwt = requireJwt(authentication);

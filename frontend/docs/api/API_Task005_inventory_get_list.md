@@ -19,7 +19,7 @@
 
 **`GET /api/v1/inventory`** cung cấp **dữ liệu đọc** cho bảng tồn kho và (trong cùng response) khối **`summary`** phục vụ bốn thẻ KPI trên UI — tức là **một lần gọi** (hoặc FE có thể kết hợp Task009 nếu tách tải).
 
-**Khi nào gọi**: mở màn Tồn kho; đổi trang / đổi `limit`; đổi ô tìm kiếm hoặc bộ lọc trạng thái; cần refresh sau khi các endpoint ghi (Task007/008/010) đã thành công.
+**Khi nào gọi**: mở màn Tồn kho; **khi tải thêm** (giao diện chuẩn: `page=1, limit=20` rồi tăng `page` khi người dùng **cuộn tới gần cuối** bảng) hoặc đổi `page` / `limit` tương đương; đổi ô tìm kiếm hoặc bộ lọc trạng thái; cần refresh sau khi các endpoint ghi (Task007/008/010) đã thành công.
 
 **Sau khi thành công**: client nhận danh sách `items` đã join sản phẩm + vị trí + đơn vị + cờ read-model (`isLowStock`, …) và tổng hợp `summary` trên **toàn phạm vi quyền** (không chỉ trang hiện tại), để render đúng KPI.
 

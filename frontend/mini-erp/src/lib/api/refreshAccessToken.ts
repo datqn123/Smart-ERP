@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from "@/lib/api/config"
+import { getApiUrl } from "@/lib/api/config"
 import { syncMenuPermissionsFromSessionStorage } from "@/features/auth/lib/syncMenuPermissionsFromSessionStorage"
 
 /**
@@ -12,11 +12,7 @@ export async function tryRefreshAccessToken(): Promise<boolean> {
   if (!refreshToken?.trim()) {
     return false
   }
-  const base = getApiBaseUrl()
-  if (!base) {
-    return false
-  }
-  const url = `${base}/api/v1/auth/refresh`
+  const url = getApiUrl("/api/v1/auth/refresh")
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

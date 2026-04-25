@@ -6,6 +6,12 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: {
+    proxy: {
+      // Cùng origin: fetch('/api/...') → Spring trên 8080 (envelope JSON), không trúng index.html của Vite.
+      "/api": { target: "http://127.0.0.1:8080", changeOrigin: true },
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

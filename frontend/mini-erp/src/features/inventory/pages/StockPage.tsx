@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useInfiniteQuery } from "@tanstack/react-query"
 import { usePageTitle } from "@/context/PageTitleContext"
-import { Package, AlertTriangle, CalendarClock, TrendingUp, ChevronLeft, ChevronRight } from "lucide-react"
+import { Package, AlertTriangle, CalendarClock, TrendingUp } from "lucide-react"
 import { formatCurrency } from "../utils"
 import { Button } from "@/components/ui/button"
 import type { InventoryItem, InventoryFilters, InventoryKPIs } from "../types"
@@ -62,36 +62,71 @@ export function StockPage() {
   const { setTitle } = usePageTitle()
   const [filters, setFilters] = useState<InventoryFilters>({ search: "", status: "all" })
   const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [page, setPage] = useState(1)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
+
+  const scrollRootRef = useRef<HTMLDivElement>(null)
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(filters.search), SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
   }, [filters.search])
 
-  const { data, isPending, isError, error, refetch } = useQuery({
-    queryKey: ["inventory", "v1", "list", debouncedSearch, filters.status, page, PAGE_SIZE],
-    queryFn: () =>
-      getInventoryList({
-        search: debouncedSearch.trim() || undefined,
-        stockLevel: uiStatusToStockLevel(filters.status),
-        page,
-        limit: PAGE_SIZE,
-        sort: "id:asc",
-      }),
-  })
+  const { data, isPending, isError, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: ["inventory", "v1", "list", debouncedSearch, filters.status, PAGE_SIZE],
+      initialPageParam: 1,
+      queryFn: ({ pageParam }) =>
+        getInventoryList({
+          search: debouncedSearch.trim() || undefined,
+          stockLevel: uiStatusToStockLevel(filters.status),
+          page: pageParam,
+          limit: PAGE_SIZE,
+          sort: "id:asc",
+        }),
+      getNextPageParam: (lastPage) => {
+        if (lastPage.items.length < lastPage.limit) {
+          return undefined
+        }
+        if (lastPage.page * lastPage.limit >= lastPage.total) {
+          return undefined
+        }
+        return lastPage.page + 1
+      },
+    })
 
+  useEffect(() => {
+    const root = scrollRootRef.current
+    const sentinel = loadMoreSentinelRef.current
+    if (!root || !sentinel) {
+      return
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const e = entries[0]
+        if (e?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage()
+        }
+      },
+      { root, rootMargin: "80px", threshold: 0 },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, data?.pages])
+
+  const firstPage = data?.pages[0]
   const kpis = useMemo((): InventoryKPIs => {
-    if (!data?.summary) {
+    if (!firstPage?.summary) {
       return EMPTY_KPIS
     }
-    return mapSummaryToKpis(data.summary)
-  }, [data])
+    return mapSummaryToKpis(firstPage.summary)
+  }, [firstPage])
 
-  const listItems: InventoryItem[] = useMemo(() => (data?.items ? data.items.map(mapListItemToUi) : []), [data])
-  const total = data?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const listItems: InventoryItem[] = useMemo(
+    () => (data?.pages ? data.pages.flatMap((p) => p.items).map(mapListItemToUi) : []),
+    [data],
+  )
+  const total = firstPage?.total ?? 0
 
   useEffect(() => {
     if (isError && error instanceof ApiRequestError) {
@@ -116,7 +151,7 @@ export function StockPage() {
 
   useEffect(() => {
     setSelectedIds([])
-  }, [page])
+  }, [debouncedSearch, filters.status])
 
   const allSelected = listItems.length > 0 && selectedIds.length === listItems.length
   const someSelected = selectedIds.length > 0 && selectedIds.length < listItems.length
@@ -224,12 +259,10 @@ export function StockPage() {
           searchStr={filters.search}
           onSearch={(v) => {
             setFilters((prev) => ({ ...prev, search: v }))
-            setPage(1)
           }}
           status={filters.status}
           onStatusChange={(v) => {
             setFilters((prev) => ({ ...prev, status: v as InventoryFilters["status"] }))
-            setPage(1)
             setSelectedIds([])
           }}
           selectedIds={selectedIds}
@@ -243,7 +276,10 @@ export function StockPage() {
         ) : isError && !data ? (
           <div className="p-8 text-center text-red-600 flex-1">Không tải được dữ liệu. Bấm Tải lại hoặc kiểm tra mạng / quyền (can_manage_inventory).</div>
         ) : (
-          <div className="flex-1 overflow-y-auto relative scroll-smooth [scrollbar-gutter:stable] min-h-0">
+          <div
+            ref={scrollRootRef}
+            className="flex-1 overflow-y-auto relative scroll-smooth [scrollbar-gutter:stable] min-h-0"
+          >
             <StockTable
               data={listItems}
               selectedIds={selectedIds}
@@ -253,37 +289,24 @@ export function StockPage() {
               someSelected={someSelected}
               onSelectAll={handleSelectAll}
             />
+            <div
+              ref={loadMoreSentinelRef}
+              className="h-1 w-full flex-shrink-0"
+              aria-hidden
+            />
           </div>
         )}
         {data && total > 0 && !isError && (
-          <div className="flex items-center justify-between flex-wrap gap-2 px-3 py-2 border-t border-slate-200 bg-slate-50/80 text-sm text-slate-600">
+          <div className="flex items-center justify-between flex-wrap gap-2 px-3 py-2 border-t border-slate-200 bg-slate-50/80 text-sm text-slate-600 min-h-11">
             <span>
-              Trang {data.page} / {totalPages} — {total} dòng
+              Đang hiển thị {listItems.length} / {total} dòng
             </span>
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="min-h-[40px]"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1 || isPending}
-                aria-label="Trang trước"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="min-h-[40px]"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages || isPending}
-                aria-label="Trang sau"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+            {isFetchingNextPage && (
+              <span className="text-slate-500">Đang tải thêm…</span>
+            )}
+            {hasNextPage && !isFetchingNextPage && (
+              <span className="text-slate-400 text-xs hidden sm:inline">Cuộn xuống để tải thêm</span>
+            )}
           </div>
         )}
       </div>

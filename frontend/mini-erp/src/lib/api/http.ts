@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from "@/lib/api/config"
+import { getApiBaseUrl, getApiUrl } from "@/lib/api/config"
 import { tryRefreshAccessToken } from "@/lib/api/refreshAccessToken"
 
 export type ApiErrorBody = {
@@ -33,10 +33,10 @@ export type ApiJsonOptions = RequestInit & {
 export async function apiJson<T>(path: string, init: ApiJsonOptions = {}): Promise<T> {
   const { auth, _didRefresh, headers: initHeaders, ...rest } = init
   const base = getApiBaseUrl()
-  if (!base) {
+  if (!import.meta.env.DEV && !base) {
     throw new Error("VITE_API_BASE_URL is not set and non-DEV build has no default API host")
   }
-  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`
+  const url = getApiUrl(path.startsWith("/") ? path : `/${path}`)
   const headers = new Headers(initHeaders)
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json")
@@ -48,18 +48,10 @@ export async function apiJson<T>(path: string, init: ApiJsonOptions = {}): Promi
     }
   }
   const res = await fetch(url, { ...rest, headers })
-  let json: unknown
-  try {
-    json = await res.json()
-  } catch {
-    throw new ApiRequestError(res.status, {
-      success: false,
-      error: "BAD_RESPONSE",
-      message: "Không đọc được JSON từ server",
-    })
-  }
-  const obj = json as Record<string, unknown>
+  const raw = await res.text()
+  const trimmed = raw.trim()
 
+  // 401 từ OAuth2 Resource Server thường không có body; phải thử refresh *trước* khi từ chối thân rỗng
   if (
     auth &&
     !_didRefresh &&
@@ -72,6 +64,35 @@ export async function apiJson<T>(path: string, init: ApiJsonOptions = {}): Promi
       return apiJson<T>(path, { ...init, auth: true, _didRefresh: true })
     }
   }
+
+  if (trimmed.length === 0) {
+    if (res.status === 401) {
+      throw new ApiRequestError(401, {
+        success: false,
+        error: "UNAUTHORIZED",
+        message: "Phiên đăng nhập hết hạn hoặc chưa đăng nhập. Vui lòng đăng nhập lại.",
+      })
+    }
+    throw new ApiRequestError(res.status, {
+      success: false,
+      error: "BAD_RESPONSE",
+      message: "Phản hồi rỗng từ server. Kiểm tra backend, URL và proxy /api (dev).",
+    })
+  }
+  let json: unknown
+  try {
+    json = JSON.parse(raw)
+  } catch {
+    const isHtml = trimmed.toLowerCase().startsWith("<!") || /<\s*html[\s>]/i.test(raw)
+    throw new ApiRequestError(res.status, {
+      success: false,
+      error: "BAD_RESPONSE",
+      message: isHtml
+        ? "Máy chủ trả về trang HTML thay vì JSON. Kiểm tra proxy Vite (/api → 8080), VITE_API_BASE_URL và dịch vụ smart-erp."
+        : "Không đọc được JSON từ server (phản hồi không hợp lệ).",
+    })
+  }
+  const obj = json as Record<string, unknown>
 
   if (obj && obj.success === false) {
     throw new ApiRequestError(res.status, obj as unknown as ApiErrorBody)

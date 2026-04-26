@@ -25,6 +25,8 @@ Tài liệu **SRS gắn triển khai backend** (API `smart-erp`, persistence, ma
 | [`SRS_Task101_1_api-permission-per-request.md`](SRS_Task101_1_api-permission-per-request.md) | Task101_1 — kiểm tra quyền từng request API; phụ bản từ [SRS_Task101](SRS_Task101_role-based-side-menu-visibility.md) mục 7.1 |
 | [`SRS_Task005_inventory-get-list.md`](SRS_Task005_inventory-get-list.md) | `GET /api/v1/inventory` — danh sách + KPI; API: [`../../../frontend/docs/api/API_Task005_inventory_get_list.md`](../../../frontend/docs/api/API_Task005_inventory_get_list.md) |
 | [`SRS_Task006_inventory-get-by-id.md`](SRS_Task006_inventory-get-by-id.md) | `GET /api/v1/inventory/{id}` — **Approved** 25/04/2026; API: [`../../../frontend/docs/api/API_Task006_inventory_get_by_id.md`](../../../frontend/docs/api/API_Task006_inventory_get_by_id.md) |
+| [`SRS_Task007_inventory-patch.md`](SRS_Task007_inventory-patch.md) | `PATCH /api/v1/inventory/{id}` — **Draft**; API: [`../../../frontend/docs/api/API_Task007_inventory_patch.md`](../../../frontend/docs/api/API_Task007_inventory_patch.md) |
+| [`SRS_Task008_inventory-bulk-patch.md`](SRS_Task008_inventory-bulk-patch.md) | `PATCH /api/v1/inventory/bulk` — **Draft**; API: [`../../../frontend/docs/api/API_Task008_inventory_bulk_patch.md`](../../../frontend/docs/api/API_Task008_inventory_bulk_patch.md) |
 
 ## File liên quan dưới `backend/docs/taskNNN/`
 

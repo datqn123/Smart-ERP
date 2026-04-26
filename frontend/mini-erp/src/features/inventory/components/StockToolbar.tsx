@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, Trash2, Edit2, ArrowDownToLine, ArrowUpFromLine, CheckCircle2 } from "lucide-react"
+import { Search, Edit2, ArrowDownToLine, ArrowUpFromLine, CheckCircle2 } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -84,14 +84,6 @@ export function StockToolbar({ searchStr, onSearch, status, onStatusChange, sele
             className="min-h-[44px] xl:min-h-[36px]"
           >
             <Edit2 className="mr-1.5 h-4 w-4" />Sửa
-          </Button>
-          <Button 
-            variant="destructive" 
-            size="sm" 
-            onClick={() => hasSelection ? onAction("delete") : null}
-            className="min-h-[44px] xl:min-h-[36px] bg-red-600 hover:bg-red-700 text-white"
-          >
-            <Trash2 className="mr-1.5 h-4 w-4" />Xoá
           </Button>
         </div>
       </div>

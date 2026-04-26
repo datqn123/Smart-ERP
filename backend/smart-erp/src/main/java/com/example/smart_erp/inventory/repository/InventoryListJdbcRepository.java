@@ -26,11 +26,12 @@ public class InventoryListJdbcRepository {
 			FROM inventory i
 			INNER JOIN products p ON p.id = i.product_id
 			INNER JOIN warehouselocations wl ON wl.id = i.location_id
-			INNER JOIN productunits pu ON pu.product_id = p.id AND pu.is_base_unit = true
+			INNER JOIN productunits pub ON pub.product_id = p.id AND pub.is_base_unit = true
+			LEFT JOIN productunits pud ON pud.id = i.unit_id
 			LEFT JOIN LATERAL (
 			  SELECT pph1.cost_price AS latest_cost
 			  FROM productpricehistory pph1
-			  WHERE pph1.product_id = p.id AND pph1.unit_id = pu.id
+			  WHERE pph1.product_id = p.id AND pph1.unit_id = COALESCE(i.unit_id, pub.id)
 			  ORDER BY pph1.effective_date DESC, pph1.id DESC
 			  LIMIT 1
 			) pph ON true
@@ -50,8 +51,8 @@ public class InventoryListJdbcRepository {
 			  i.expiry_date,
 			  i.quantity,
 			  i.min_quantity,
-			  pu.id AS unit_id,
-			  pu.unit_name,
+			  COALESCE(pud.id, pub.id) AS unit_id,
+			  COALESCE(pud.unit_name, pub.unit_name) AS unit_name,
 			  pph.latest_cost,
 			  i.updated_at
 			""";

@@ -1,10 +1,26 @@
 import { apiJson } from "@/lib/api/http"
 import type { InventoryItem, InventoryKPIs } from "../types"
 
+function normBatch(s: string | undefined): string | null {
+  if (s == null || s.trim() === "") {
+    return null
+  }
+  return s.trim()
+}
+
+function normExpiryDay(s: string | undefined): string | null {
+  if (s == null || s.trim() === "") {
+    return null
+  }
+  return s.trim().split("T")[0] ?? null
+}
+
 /**
  * Task005 — `GET /api/v1/inventory` (màn Tồn kho) — hợp đồng
  * `frontend/docs/api/API_Task005_inventory_get_list.md` §7.
  * Task006 — `GET /api/v1/inventory/{id}` — `frontend/docs/api/API_Task006_inventory_get_by_id.md`.
+ * Task007 — `PATCH /api/v1/inventory/{id}` — `frontend/docs/api/API_Task007_inventory_patch.md`.
+ * Task008 — `PATCH /api/v1/inventory/bulk` — `frontend/docs/api/API_Task008_inventory_bulk_patch.md`.
  */
 export type InventoryListSummary = {
   totalSkus: number
@@ -146,4 +162,86 @@ export function getInventoryById(id: number, opts?: GetInventoryByIdOptions) {
     method: "GET",
     auth: true,
   })
+}
+
+/** Body PATCH (partial) — API Task007 §5.4. */
+export type InventoryPatchBody = {
+  locationId?: number
+  minQuantity?: number
+  batchNumber?: string | null
+  expiryDate?: string | null
+  unitId?: number | null
+}
+
+/**
+ * Task007 — cập nhật meta một dòng; `data` cùng shape phần tử list Task005.
+ */
+export function patchInventory(id: number, body: InventoryPatchBody) {
+  return apiJson<InventoryListItemResponse>(`/api/v1/inventory/${id}`, {
+    method: "PATCH",
+    auth: true,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+}
+
+/** Một phần tử trong body bulk — `id` + field PATCH (chỉ gửi dòng có thay đổi). */
+export type InventoryBulkPatchItemBody = { id: number } & InventoryPatchBody
+
+export type InventoryBulkPatchData = {
+  updated: InventoryListItemResponse[]
+  failed: unknown[]
+}
+
+/**
+ * Task008 — cập nhật meta nhiều dòng (all-or-nothing); `data.updated` cùng shape list Task005.
+ */
+export function patchBulkInventory(items: InventoryBulkPatchItemBody[]) {
+  return apiJson<InventoryBulkPatchData>("/api/v1/inventory/bulk", {
+    method: "PATCH",
+    auth: true,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  })
+}
+
+/**
+ * Từ các cặp before/after sau sửa dialog — chỉ thêm phần tử có ít nhất một field meta đổi (bỏ qua dòng không đổi).
+ */
+export function buildInventoryBulkPatchItems(
+  pairs: { before: InventoryItem; after: InventoryItem }[],
+): InventoryBulkPatchItemBody[] {
+  const out: InventoryBulkPatchItemBody[] = []
+  for (const { before, after } of pairs) {
+    const body = buildInventoryPatchBody(before, after)
+    if (body) {
+      out.push({ id: after.id, ...body })
+    }
+  }
+  return out
+}
+
+/**
+ * So khớp trước/sau màn sửa để chỉ gửi field đổi (PATCH partial). Trả `null` nếu không có gì gửi.
+ */
+export function buildInventoryPatchBody(before: InventoryItem, after: InventoryItem): InventoryPatchBody | null {
+  const body: InventoryPatchBody = {}
+  if (after.locationId !== before.locationId) {
+    body.locationId = after.locationId
+  }
+  if (after.minQuantity !== before.minQuantity) {
+    body.minQuantity = after.minQuantity
+  }
+  if (normBatch(after.batchNumber) !== normBatch(before.batchNumber)) {
+    body.batchNumber = normBatch(after.batchNumber)
+  }
+  if (normExpiryDay(after.expiryDate) !== normExpiryDay(before.expiryDate)) {
+    body.expiryDate = normExpiryDay(after.expiryDate)
+  }
+  const uAfter = after.unitId ?? null
+  const uBefore = before.unitId ?? null
+  if (uAfter !== uBefore) {
+    body.unitId = uAfter
+  }
+  return Object.keys(body).length > 0 ? body : null
 }

@@ -29,6 +29,7 @@
 - **Repository**: JPQL/native query an toàn tham số; tránh string concat SQL; với native SQL trong SRS, dùng **placeholder** (`:id`, `?`) đúng convention team.
 - **Migration**: mọi thay đổi schema đi qua **Flyway** mới (`V{n+1}__*.sql`); không hướng dẫn “sửa tay DB prod” trong SRS.
 - **Chỉ mục**: đề xuất index **có lý do** (cột filter/join/order by); composite index theo thứ tự selectivity; ghi trade-off (ghi thêm chậm hơn một chút nếu cần).
+- **Context7 (hiếm):** chỉ khi cần doc **API Hibernate / Spring Data / Flyway** (không nằm trong Flyway/SRS) để khớp mapping hoặc migration API — `use context7` + câu hỏi hẹp + version; **không** dùng để đặt tên bảng/cột (chỉ migration + Open Question PO).
 
 ## 5. Output góp vào SRS (BA chèn hoặc đồng soạn)
 

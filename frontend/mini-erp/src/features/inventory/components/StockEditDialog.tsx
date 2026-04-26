@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useState, useEffect } from "react"
 import type { InventoryItem } from "../types"
+import { formatCurrency } from "../utils"
 import { Edit3 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -19,13 +20,13 @@ import {
   TABLE_CELL_SECONDARY_CLASS,
   TABLE_CELL_MONO_CLASS,
   FORM_INPUT_CLASS,
-  FORM_LABEL_CLASS,
 } from "@/lib/data-table-layout"
 
 interface StockEditDialogProps {
   isOpen: boolean
   onClose: () => void
-  onConfirm: (updatedItems: InventoryItem[]) => void
+  /** Caller gọi Task007 (1 dòng) hoặc Task008 bulk (nhiều dòng). */
+  onConfirm: (updatedItems: InventoryItem[]) => void | Promise<void>
   items: InventoryItem[]
 }
 
@@ -40,10 +41,10 @@ export function StockEditDialog({ isOpen, onClose, onConfirm, items }: StockEdit
     }
   }, [isOpen, items])
 
-  const handleChange = (id: number, field: keyof InventoryItem, value: string | number) => {
-    setEditedItems(prev => prev.map(item => 
-      item.id === id ? { ...item, [field]: value } : item
-    ))
+  const handleChange = (id: number, field: keyof InventoryItem, value: string | number | undefined) => {
+    setEditedItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
+    )
   }
 
   return (
@@ -56,7 +57,9 @@ export function StockEditDialog({ isOpen, onClose, onConfirm, items }: StockEdit
                 <Edit3 className="h-6 w-6 text-slate-900" /> Sửa thông tin tồn kho
               </DialogTitle>
               <DialogDescription className="text-base text-slate-500 font-medium mt-2">
-                Cập nhật vị trí, định mức và giá vốn cho {items.length} mặt hàng đã chọn
+                {items.length > 1
+                  ? `Bạn đã chọn ${items.length} dòng. Bấm Lưu để gửi PATCH hàng loạt (tối đa 100 dòng có thay đổi); nếu một dòng lỗi, toàn bộ sẽ không được lưu.`
+                  : "Chỉnh định mức tối thiểu, số lô, hạn sử dụng, mã vị trí kho và mã đơn vị tính. Giá vốn và tên đơn vị chỉ hiển thị để tham khảo; để đổi, vào mục Sản phẩm."}
               </DialogDescription>
             </div>
           </div>
@@ -68,10 +71,10 @@ export function StockEditDialog({ isOpen, onClose, onConfirm, items }: StockEdit
               <TableRow className="hover:bg-transparent">
                 <TableHead className={cn(TABLE_HEAD_CLASS, "w-[8%] px-4")}>Mã SP</TableHead>
                 <TableHead className={cn(TABLE_HEAD_CLASS, "w-[18%] px-4")}>Tên sản phẩm</TableHead>
-                <TableHead className={cn(TABLE_HEAD_CLASS, "w-[12%] px-4 text-center")}>Vị trí (Kho - Kệ)</TableHead>
-                <TableHead className={cn(TABLE_HEAD_CLASS, "w-[10%] px-4 text-center")}>Định mức</TableHead>
-                <TableHead className={cn(TABLE_HEAD_CLASS, "w-[8%] px-4 text-center")}>Đơn vị</TableHead>
-                <TableHead className={cn(TABLE_HEAD_CLASS, "w-[12%] px-4 text-center")}>Giá vốn (VNĐ)</TableHead>
+                <TableHead className={cn(TABLE_HEAD_CLASS, "w-[12%] px-4 text-center")}>Vị trí kho</TableHead>
+                <TableHead className={cn(TABLE_HEAD_CLASS, "w-[8%] px-4 text-center")}>Định mức</TableHead>
+                <TableHead className={cn(TABLE_HEAD_CLASS, "w-[10%] px-4 text-center")}>Đơn vị tính</TableHead>
+                <TableHead className={cn(TABLE_HEAD_CLASS, "w-[10%] px-4 text-center")}>Giá vốn</TableHead>
                 <TableHead className={cn(TABLE_HEAD_CLASS, "w-[12%] px-4 text-center")}>Số lô</TableHead>
                 <TableHead className={cn(TABLE_HEAD_CLASS, "w-[10%] px-4 text-center")}>Hạn SD</TableHead>
               </TableRow>
@@ -89,21 +92,22 @@ export function StockEditDialog({ isOpen, onClose, onConfirm, items }: StockEdit
                     <div className={cn(TABLE_CELL_PRIMARY_CLASS, "truncate")} title={item.productName}>{item.productName}</div>
                   </TableCell>
 
-                  {/* Vị trí */}
+                  {/* Vị trí: kệ hiển thị + mã nội bộ */}
                   <TableCell className="px-4 py-3 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <Input 
-                        value={item.warehouseCode} 
-                        onChange={(e) => handleChange(item.id, 'warehouseCode', e.target.value)}
-                        placeholder="Kho"
-                        className={cn(FORM_INPUT_CLASS, "h-8 w-14 font-bold text-center text-xs")}
-                      />
-                      <span className="text-slate-300 font-bold">-</span>
-                      <Input 
-                        value={item.shelfCode} 
-                        onChange={(e) => handleChange(item.id, 'shelfCode', e.target.value)}
-                        placeholder="Kệ"
-                        className={cn(FORM_INPUT_CLASS, "h-8 w-14 font-bold text-center text-xs")}
+                    <div className="flex flex-col items-center gap-1">
+                      <span className={cn(TABLE_CELL_SECONDARY_CLASS, "text-[10px] font-mono")}>
+                        {item.warehouseCode}-{item.shelfCode}
+                      </span>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={item.locationId}
+                        onChange={(e) =>
+                          handleChange(item.id, "locationId", parseInt(e.target.value, 10) || item.locationId)
+                        }
+                        title="Mã vị trí kho trong hệ thống"
+                        aria-label="Mã vị trí kho"
+                        className={cn(FORM_INPUT_CLASS, "h-8 w-20 font-bold text-center text-xs")}
                       />
                     </div>
                   </TableCell>
@@ -119,24 +123,33 @@ export function StockEditDialog({ isOpen, onClose, onConfirm, items }: StockEdit
                     />
                   </TableCell>
 
-                  {/* Đơn vị */}
+                  {/* Đơn vị: tên + mã đơn vị */}
                   <TableCell className="px-4 py-3 text-center">
-                    <Input 
-                      value={item.unitName} 
-                      onChange={(e) => handleChange(item.id, 'unitName', e.target.value)}
-                      className={cn(FORM_INPUT_CLASS, "h-8 w-16 mx-auto font-bold text-center text-xs")}
-                    />
+                    <div className="flex flex-col items-center gap-1">
+                      <span className={cn(TABLE_CELL_SECONDARY_CLASS, "text-[10px] max-w-[100px] truncate")} title={item.unitName}>
+                        {item.unitName}
+                      </span>
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="Mã"
+                        value={item.unitId ?? ""}
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          handleChange(item.id, "unitId", raw === "" ? undefined : parseInt(raw, 10))
+                        }}
+                        title="Mã đơn vị tính trong hệ thống"
+                        aria-label="Mã đơn vị tính"
+                        className={cn(FORM_INPUT_CLASS, "h-8 w-20 mx-auto font-bold text-center text-xs")}
+                      />
+                    </div>
                   </TableCell>
 
-                  {/* Giá vốn */}
+                  {/* Giá vốn — read-only */}
                   <TableCell className="px-4 py-3 text-center">
-                    <Input 
-                      type="number"
-                      min="0"
-                      value={item.costPrice} 
-                      onChange={(e) => handleChange(item.id, 'costPrice', parseInt(e.target.value) || 0)}
-                      className={cn(FORM_INPUT_CLASS, "h-8 w-full max-w-[120px] mx-auto font-bold text-center text-xs")}
-                    />
+                    <span className={cn(TABLE_CELL_PRIMARY_CLASS, "text-xs font-semibold")}>
+                      {formatCurrency(item.costPrice)}
+                    </span>
                   </TableCell>
 
                   {/* Số lô */}
@@ -166,8 +179,8 @@ export function StockEditDialog({ isOpen, onClose, onConfirm, items }: StockEdit
 
         <DialogFooter className="p-8 border-t bg-slate-50 sticky bottom-0 z-20 shrink-0">
           <Button variant="ghost" onClick={onClose} className="rounded-xl font-bold text-slate-600 hover:bg-slate-200 transition-colors h-12 px-8">Hủy</Button>
-          <Button 
-            onClick={() => onConfirm(editedItems)}
+          <Button
+            onClick={() => void Promise.resolve(onConfirm(editedItems))}
             className="rounded-xl px-12 bg-slate-900 hover:bg-black font-black text-white shadow-xl shadow-slate-200 transition-all h-12 uppercase tracking-widest text-xs"
           >
             Lưu thay đổi

@@ -70,6 +70,7 @@ Với task có **ít nhất một endpoint HTTP** (auth, CRUD, …), output Test
 - **Mặc định:** **không** viết / không mở rộng auto test cho từng API — **manual unit test** (mục 2) là đủ cho gate nghiệp vụ.
 - **Luôn có thể có:** test contract **shape** 3 file Postman (`*PostmanBodyContractTest`) — không thay thế chạy tay đầy đủ DB.
 - Chỉ thêm automation khác khi có **lý do** ghi trong ADR hoặc lệnh Owner (vd. regression nặng, CI bắt buộc). Khi đó vẫn phải **đồng bộ** `body`/`path` với `docs/postman/*.json` để tay và máy một nguồn.
+- **Context7 (chỉ khi đã mở automation):** một câu hỏi hẹp cho doc thư viện test (REST Assured, Testcontainers, JUnit 5, …) — `use context7` + version; không gọi cho mỗi case Postman tay.
 
 ---
 

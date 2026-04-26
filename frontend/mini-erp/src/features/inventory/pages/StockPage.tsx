@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
 import { usePageTitle } from "@/context/PageTitleContext"
 import { Package, AlertTriangle, CalendarClock, TrendingUp } from "lucide-react"
 import { formatCurrency } from "../utils"
@@ -7,10 +7,14 @@ import { Button } from "@/components/ui/button"
 import type { InventoryItem, InventoryFilters, InventoryKPIs } from "../types"
 import { toast } from "sonner"
 import {
+  buildInventoryBulkPatchItems,
+  buildInventoryPatchBody,
   getInventoryById,
   getInventoryList,
   mapListItemToUi,
   mapSummaryToKpis,
+  patchBulkInventory,
+  patchInventory,
   type GetInventoryListParams,
 } from "../api/inventoryApi"
 import { ApiRequestError } from "@/lib/api/http"
@@ -30,6 +34,8 @@ const EMPTY_KPIS: InventoryKPIs = {
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 400
+/** SRS Task008 / BE `InventoryBulkPatchJsonParser.MAX_ITEMS`. */
+const BULK_PATCH_MAX_ITEMS = 100
 
 function uiStatusToStockLevel(status: InventoryFilters["status"]): NonNullable<GetInventoryListParams["stockLevel"]> {
   switch (status) {
@@ -60,6 +66,7 @@ function KPICard({ title, value, icon, color }: {
 }
 
 export function StockPage() {
+  const queryClient = useQueryClient()
   const { setTitle } = usePageTitle()
   const [filters, setFilters] = useState<InventoryFilters>({ search: "", status: "all" })
   const [debouncedSearch, setDebouncedSearch] = useState("")
@@ -178,20 +185,14 @@ export function StockPage() {
     setIsDialogOpen(true)
   }
 
-  const notImplementedBulk = useCallback(
-    (label: string) => {
-      toast.info(`${label} — cập nhật tồn qua API ở Task007/010; hiện màn dùchỉ GET /api/v1/inventory.`)
-    },
-    []
-  )
+  const notImplementedBulk = useCallback((label: string) => {
+    toast.info(`${label} — tính năng đang được hoàn thiện.`)
+  }, [])
 
   const handleToolbarAction = (action: string) => {
     switch (action) {
     case "approve":
-      notImplementedBulk("Phê duyệt tồn (Task010+)")
-      break
-    case "delete":
-      notImplementedBulk("Xoá dòng tồn (sẽ nối khi BE có ghi phân tách)")
+      notImplementedBulk("Phê duyệt điều chỉnh tồn")
       break
     case "edit":
       setItemsToEdit(listItems.filter((i) => selectedIds.includes(i.id)))
@@ -215,9 +216,74 @@ export function StockPage() {
     setIsActionDialogOpen(false)
   }
 
-  const handleEditConfirm = (_updatedItems: InventoryItem[]) => {
-    notImplementedBulk("Cập nhật hàng loạt")
-    setIsEditDialogOpen(false)
+  const handleEditConfirm = async (updatedItems: InventoryItem[]) => {
+    const pairs = updatedItems
+      .map((after) => {
+        const before = itemsToEdit.find((i) => i.id === after.id)
+        return before != null ? { before, after } : null
+      })
+      .filter((p): p is { before: InventoryItem; after: InventoryItem } => p != null)
+
+    if (pairs.length === 0) {
+      setIsEditDialogOpen(false)
+      return
+    }
+
+    if (pairs.length === 1) {
+      const { before, after } = pairs[0]
+      const body = buildInventoryPatchBody(before, after)
+      if (!body) {
+        toast.info("Không có thay đổi để lưu")
+        setIsEditDialogOpen(false)
+        return
+      }
+      try {
+        await patchInventory(after.id, body)
+        toast.success("Đã cập nhật thông tin tồn kho")
+        await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "list"] })
+        await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "detail"] })
+        setIsEditDialogOpen(false)
+        setItemsToEdit([])
+        setSelectedIds([])
+      }
+      catch (e) {
+        if (e instanceof ApiRequestError) {
+          toast.error(e.body?.message ?? "Không lưu được")
+        }
+        else {
+          toast.error("Không lưu được")
+        }
+      }
+      return
+    }
+
+    const bulkItems = buildInventoryBulkPatchItems(pairs)
+    if (bulkItems.length === 0) {
+      toast.info("Không có thay đổi để lưu")
+      setIsEditDialogOpen(false)
+      return
+    }
+    if (bulkItems.length > BULK_PATCH_MAX_ITEMS) {
+      toast.error(`Tối đa ${BULK_PATCH_MAX_ITEMS} dòng có thay đổi mỗi lần lưu hàng loạt.`)
+      return
+    }
+    try {
+      await patchBulkInventory(bulkItems)
+      toast.success("Đã cập nhật thông tin tồn kho (hàng loạt)")
+      await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "list"] })
+      await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "detail"] })
+      setIsEditDialogOpen(false)
+      setItemsToEdit([])
+      setSelectedIds([])
+    }
+    catch (e) {
+      if (e instanceof ApiRequestError) {
+        toast.error(e.body?.message ?? "Không lưu được")
+      }
+      else {
+        toast.error("Không lưu được")
+      }
+    }
   }
 
   return (
@@ -227,7 +293,7 @@ export function StockPage() {
           <h1 className="text-xl md:text-2xl font-semibold text-slate-900 tracking-tight">
             Danh sách tồn kho
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Quản lý số lượng, vị trí và lô hàng (dữ liệu từ API)</p>
+          <p className="text-sm text-slate-500 mt-1">Quản lý số lượng, vị trí và lô hàng.</p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={() => void refetch()} disabled={isPending}>
           Tải lại

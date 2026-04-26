@@ -26,4 +26,11 @@ public class SystemLogJdbcRepository {
 				"INSERT INTO systemlogs (log_level, module, action, user_id, message) VALUES (?, ?, ?, ?, ?)",
 				"INFO", "AUTH", "LOGOUT", userId, "Người dùng đã đăng xuất");
 	}
+
+	/** Task007 — audit PATCH tồn (context JSON theo SRS / Task011). */
+	public void insertInventoryPatch(int userId, String contextJson) {
+		jdbcTemplate.update(
+				"INSERT INTO systemlogs (log_level, module, action, user_id, message, context_data) VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb))",
+				"INFO", "inventory", "PATCH_INVENTORY", userId, "Cập nhật meta tồn kho", contextJson);
+	}
 }

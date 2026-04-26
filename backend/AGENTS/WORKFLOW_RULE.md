@@ -1,6 +1,6 @@
 # WORKFLOW_RULE — Chuỗi Agent (Spring Boot / `smart-erp`)
 
-> **Phiên bản**: 2.1  
+> **Phiên bản**: 2.2  
 > **Nguồn chân lý**: file này + [`AGENT_REGISTRY.md`](AGENT_REGISTRY.md).
 
 ---
@@ -57,6 +57,11 @@ flowchart LR
 | 2 | **Không phát minh yêu cầu** không có trong brief / SRS / task đã duyệt. |
 | 3 | Mọi thay đổi hợp đồng đa tầng (API, schema, ADR) phải **đồng bộ** trước merge — Doc Sync báo drift. |
 | 4 | Nhánh git: **PM** cam kết task lên `develop` trước khi Dev bắt đầu; Dev **không** commit trực tiếp `main` / `develop` — luôn nhánh feature từ `develop`. |
+
+### 1.1 Context7 (MCP — tài liệu thư viện ngoài repo)
+
+- Bổ sung **doc framework / thư viện** khi artifact dự án (SRS, Flyway, ADR, code) **không đủ** để tránh API cũ hoặc bịa — **sau** khi đã định vị bằng grep/read tối thiểu trong repo.
+- **Không** thay chân lý nghiệp vụ hay schema; **không** lạm dụng cho mọi prompt. Chi tiết theo vai: `DEVELOPER_AGENT_INSTRUCTIONS.md` §9, `TECH_LEAD_AGENT_INSTRUCTIONS.md` §6, `TESTER_AGENT_INSTRUCTIONS.md` §3, `SQL_AGENT_INSTRUCTIONS.md` §4, `API_BRIDGE_AGENT_INSTRUCTIONS.md` (mục 2 — sau Bước 0).
 
 ---
 

@@ -43,3 +43,10 @@
 
 - Không bỏ test để “xanh giả”.
 - Không commit secret (DB, JWT, key).
+
+## 9. Context7 (MCP — tài liệu thư viện, giảm token / giảm API bịa)
+
+- **Khi nào:** cần xác nhận **API hoặc cấu hình** của framework / thư viện (Spring Boot, Spring Security OAuth2 Resource Server, Hibernate 6, Flyway, JUnit 5, Mockito, JDBC…) theo **phiên bản** BOM dự án — sau khi đã đọc **task / SRS / ADR / mã repo** tối thiểu; **không** dùng Context7 để “đoán” nghiệp vụ hay schema DB (Flyway + SRS là chuẩn).
+- **Cách gọi (prompt):** thêm `use context7` và **một** câu hỏi hẹp (một API / một property / một annotation). Nếu đã biết ID thư viện trên Context7: `use library /<id>` để bỏ bước match — giảm vòng MCP.
+- **Phiên bản:** ghi rõ trong prompt (vd. Spring Boot 3.x) để doc trả về khớp BOM `smart-erp`.
+- **Cài đặt:** theo [Context7](https://github.com/upstash/context7) / `npx ctx7 setup` — ngoài phạm vi file AGENTS này.

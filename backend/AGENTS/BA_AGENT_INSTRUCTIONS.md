@@ -118,6 +118,7 @@ BA_SQL | Task=<TaskXXX> | Doc=<tên file trong frontend/docs/api/> | Mode=draft|
 | Task004 | `API_Task004_staff_owner_password_reset.md` |
 | Task078 | `API_Task078_users_post.md` |
 | Task078_02 | `API_Task078_02_next_staff_code.md` |
+| Task007 | `API_Task007_inventory_patch.md` |
 
 **Ví dụ:**
 

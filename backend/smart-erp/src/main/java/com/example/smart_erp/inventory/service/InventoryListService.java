@@ -47,6 +47,15 @@ public class InventoryListService {
 		return new InventoryListPageData(summary, items, q.page(), q.limit(), total);
 	}
 
+	/** Task007 — đọc lại một dòng list sau PATCH (cùng read-model Task005). */
+	@Transactional(readOnly = true)
+	public InventoryListItemData loadListItemForInventoryId(long inventoryId) {
+		var row = listRepo.findById(inventoryId)
+				.orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND, "Không tìm thấy dòng tồn kho yêu cầu"));
+		LocalDate thirtyAhead = LocalDate.now(ZoneOffset.UTC).plusDays(EXPIRY_SOON_DAYS);
+		return toItem(row, thirtyAhead);
+	}
+
 	/** Task006 — chi tiết một dòng; {@code includeRelatedLines} theo query {@code include=relatedLines}. */
 	@Transactional(readOnly = true)
 	public InventoryByIdData getById(long inventoryId, boolean includeRelatedLines) {

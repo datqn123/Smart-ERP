@@ -30,6 +30,7 @@ API_BRIDGE | Task=<TaskXXX> | Path=/api/v1/... | Mode=verify|wire-fe|fix-doc|fix
 
 - File này quy định: `VITE_API_BASE_URL`, layout `src/lib/api/`, `apiJson`, `features/*/api`, envelope, Bearer — **không** tự đặt quy ước khác trong phiên.  
 - Sau khi đọc xong mới `Grep` / `Read` thêm trong `frontend/mini-erp/src`.
+- **Context7 (tùy chọn, sau Bước 0):** chỉ khi `wire-fe` cần doc **thư viện FE** (React, TanStack Query, …) theo đúng phiên bản lockfile — `use context7` + câu hỏi hẹp hoặc `use library /<id>`; **không** thay `FE_API_CONNECTION_GUIDE.md` làm nguồn quy ước nối API dự án.
 
 ---
 

@@ -14,6 +14,11 @@
 | `DOC_SYNC` | Doc Sync | [`DOC_SYNC_AGENT_INSTRUCTIONS.md`](DOC_SYNC_AGENT_INSTRUCTIONS.md) |
 | `API_BRIDGE` | API Bridge (BE ↔ FE) | [`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md) |
 
+### Context7 (MCP — doc thư viện, tùy vai)
+
+- Điều phối chung: [`WORKFLOW_RULE.md`](WORKFLOW_RULE.md) §1.1.  
+- Chi tiết: `DEVELOPER_AGENT_INSTRUCTIONS.md` §9; `TECH_LEAD_AGENT_INSTRUCTIONS.md` §6; `TESTER_AGENT_INSTRUCTIONS.md` §3; `SQL_AGENT_INSTRUCTIONS.md` §4; `API_BRIDGE_AGENT_INSTRUCTIONS.md` (mục 2, sau Bước 0).
+
 ### Output chính (tham chiếu repo)
 
 | Agent | Artifact |

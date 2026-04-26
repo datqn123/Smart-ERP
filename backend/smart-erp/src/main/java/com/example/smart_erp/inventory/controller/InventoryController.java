@@ -8,18 +8,25 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.api.ApiSuccessResponse;
 import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.inventory.query.InventoryListQuery;
+import com.example.smart_erp.inventory.response.InventoryBulkPatchData;
 import com.example.smart_erp.inventory.response.InventoryByIdData;
+import com.example.smart_erp.inventory.response.InventoryListItemData;
 import com.example.smart_erp.inventory.response.InventoryListPageData;
 import com.example.smart_erp.inventory.service.InventoryListService;
+import com.example.smart_erp.inventory.service.InventoryPatchService;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -32,9 +39,11 @@ public class InventoryController {
 			+ "Kiểm tra Header Authorization: Bearer <accessToken>; nếu đã bật jwt-api, access token có thể đã hết hạn — đăng nhập hoặc refresh lại.";
 
 	private final InventoryListService inventoryListService;
+	private final InventoryPatchService inventoryPatchService;
 
-	public InventoryController(InventoryListService inventoryListService) {
+	public InventoryController(InventoryListService inventoryListService, InventoryPatchService inventoryPatchService) {
 		this.inventoryListService = inventoryListService;
+		this.inventoryPatchService = inventoryPatchService;
 	}
 
 	/** Task005 — danh sách tồn + summary KPI, đọc SRS Task005. */
@@ -55,7 +64,7 @@ public class InventoryController {
 	}
 
 	/** Task006 — chi tiết một dòng tồn (+ {@code relatedLines} khi {@code include=relatedLines}). */
-	@GetMapping("/inventory/{id}")
+	@GetMapping("/inventory/{id:\\d+}")
 	@PreAuthorize("hasAuthority('can_manage_inventory')")
 	public ResponseEntity<ApiSuccessResponse<InventoryByIdData>> getById(Authentication authentication,
 			@PathVariable("id") String idRaw, @RequestParam(name = "include", required = false) String include) {
@@ -64,6 +73,27 @@ public class InventoryController {
 		boolean includeRelated = parseIncludeRelatedLines(include);
 		InventoryByIdData data = inventoryListService.getById(id, includeRelated);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
+	}
+
+	/** Task007 — cập nhật meta một dòng (partial JSON). */
+	@PatchMapping("/inventory/{id:\\d+}")
+	@PreAuthorize("hasAuthority('can_manage_inventory')")
+	public ResponseEntity<ApiSuccessResponse<InventoryListItemData>> patchInventory(Authentication authentication,
+			@PathVariable("id") String idRaw, @RequestBody JsonNode body) {
+		Jwt jwt = requireJwt(authentication);
+		long id = parsePositiveInventoryId(idRaw);
+		InventoryListItemData data = inventoryPatchService.patchInventory(id, body, jwt);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã cập nhật thông tin tồn kho"));
+	}
+
+	/** Task008 — cập nhật meta nhiều dòng (all-or-nothing, tối đa 100 phần tử có thay đổi). */
+	@PatchMapping("/inventory/bulk")
+	@PreAuthorize("hasAuthority('can_manage_inventory')")
+	public ResponseEntity<ApiSuccessResponse<InventoryBulkPatchData>> patchInventoryBulk(Authentication authentication,
+			@RequestBody JsonNode body) {
+		Jwt jwt = requireJwt(authentication);
+		InventoryBulkPatchData data = inventoryPatchService.patchBulkInventory(body, jwt);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã cập nhật thông tin tồn kho (hàng loạt)"));
 	}
 
 	private static long parsePositiveInventoryId(String raw) {

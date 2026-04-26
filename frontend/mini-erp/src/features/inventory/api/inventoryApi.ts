@@ -21,6 +21,7 @@ function normExpiryDay(s: string | undefined): string | null {
  * Task006 — `GET /api/v1/inventory/{id}` — `frontend/docs/api/API_Task006_inventory_get_by_id.md`.
  * Task007 — `PATCH /api/v1/inventory/{id}` — `frontend/docs/api/API_Task007_inventory_patch.md`.
  * Task008 — `PATCH /api/v1/inventory/bulk` — `frontend/docs/api/API_Task008_inventory_bulk_patch.md`.
+ * Task009 — `GET /api/v1/inventory/summary` — `frontend/docs/api/API_Task009_inventory_get_summary.md`.
  */
 export type InventoryListSummary = {
   totalSkus: number
@@ -67,6 +68,33 @@ export type GetInventoryListParams = {
   page?: number
   limit?: number
   sort?: string
+}
+
+/** Tham số lọc giống Task005 — KPI-only (Task009). */
+export type GetInventorySummaryParams = Pick<
+  GetInventoryListParams,
+  "search" | "stockLevel" | "locationId" | "categoryId"
+>
+
+export function getInventorySummary(params: GetInventorySummaryParams = {}) {
+  const q = new URLSearchParams()
+  if (params.search) {
+    q.set("search", params.search)
+  }
+  if (params.stockLevel) {
+    q.set("stockLevel", params.stockLevel)
+  }
+  if (params.locationId != null && params.locationId > 0) {
+    q.set("locationId", String(params.locationId))
+  }
+  if (params.categoryId != null && params.categoryId > 0) {
+    q.set("categoryId", String(params.categoryId))
+  }
+  const qs = q.toString()
+  return apiJson<InventoryListSummary>(qs ? `/api/v1/inventory/summary?${qs}` : "/api/v1/inventory/summary", {
+    method: "GET",
+    auth: true,
+  })
 }
 
 export function getInventoryList(params: GetInventoryListParams) {

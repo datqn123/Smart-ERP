@@ -37,6 +37,12 @@ public class InventoryListService {
 		this.listRepo = listRepo;
 	}
 
+	/** Task009 — chỉ KPI; cùng SQL aggregate + WHERE như {@link #list}. */
+	@Transactional(readOnly = true)
+	public InventorySummaryData summary(InventoryListQuery q) {
+		return listRepo.loadSummary(q);
+	}
+
 	@Transactional(readOnly = true)
 	public InventoryListPageData list(InventoryListQuery q) {
 		InventorySummaryData summary = listRepo.loadSummary(q);

@@ -83,6 +83,30 @@ class InventoryControllerWebMvcTest {
 	}
 
 	@Test
+	void summary_returns200WithKpiFieldsOnData() throws Exception {
+		var summary = new InventorySummaryData(5L, java.math.BigDecimal.valueOf(250), 2L, 1L);
+		when(inventoryListService.summary(any(InventoryListQuery.class))).thenReturn(summary);
+
+		mockMvc.perform(get("/api/v1/inventory/summary").param("stockLevel", "low_stock")
+				.with(Objects.requireNonNull(jwt().authorities(new SimpleGrantedAuthority("can_manage_inventory"))
+						.jwt(j -> j.subject("1")))))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.totalSkus").value(5))
+				.andExpect(jsonPath("$.data.totalValue").value(250))
+				.andExpect(jsonPath("$.data.lowStockCount").value(2))
+				.andExpect(jsonPath("$.data.expiringSoonCount").value(1));
+		verify(inventoryListService).summary(any(InventoryListQuery.class));
+	}
+
+	@Test
+	void summary_returns403WhenNoPermission() throws Exception {
+		mockMvc.perform(get("/api/v1/inventory/summary")
+				.with(Objects.requireNonNull(jwt().authorities(new SimpleGrantedAuthority("can_view_dashboard"))).jwt(
+						j -> j.subject("1"))))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
 	void getById_returns200() throws Exception {
 		var item = new InventoryListItemData(10L, 2L, "P2", "S2", null, 1, "W", "A", null, null, 5, 1, 1, "u",
 				java.math.BigDecimal.ONE, java.time.Instant.parse("2026-01-01T00:00:00Z"), false, false,

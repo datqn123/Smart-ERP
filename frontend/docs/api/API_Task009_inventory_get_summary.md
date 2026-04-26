@@ -17,7 +17,7 @@
 
 ## 2. Mục đích Endpoint
 
-**`GET /api/v1/inventory/summary`** trả về **duy nhất** khối số liệu tổng hợp (`totalSkus`, `totalValue`, `lowStockCount`, `expiringSoonCount`) trên phạm vi quyền (và tuỳ chọn lọc `locationId` / `categoryId`).
+**`GET /api/v1/inventory/summary`** trả về **duy nhất** khối số liệu tổng hợp (`totalSkus`, `totalValue`, `lowStockCount`, `expiringSoonCount`) trên phạm vi quyền và **cùng bộ lọc** như Task005: `search`, `stockLevel`, `locationId`, `categoryId` (tất cả tùy chọn).
 
 **Khi nào gọi**: định kỳ poll KPI; sau khi Task010 thành công chỉ cần làm mới số trên thẻ; khi Task005 intentionally không gửi `summary` để giảm tải.
 
@@ -46,7 +46,7 @@
 | **Endpoint** | `/api/v1/inventory/summary` |
 | **Method** | `GET` |
 | **Authentication** | `Bearer` |
-| **RBAC** | Owner, Staff, Admin |
+| **RBAC** | Giống Task005 — `can_manage_inventory` (JWT) |
 | **Use Case Ref** | UC6 |
 
 ---
@@ -63,6 +63,8 @@ Authorization: Bearer <your_access_token>
 
 | Tham số | Kiểu | Bắt buộc | Mặc định | Mô tả |
 | :------ | :--- | :------- | :------- | :---- |
+| `search` | string | Không | — | Giống Task005 — `ILIKE` tên hoặc SKU |
+| `stockLevel` | string | Không | `all` | Giống Task005: `all` \| `in_stock` \| `low_stock` \| `out_of_stock` |
 | `locationId` | number (int > 0) | Không | — | Giới hạn tổng hợp theo `Inventory.location_id` |
 | `categoryId` | number (int > 0) | Không | — | Giới hạn theo `Products.category_id` |
 
@@ -93,15 +95,15 @@ _Không có_
 
 ## 7. Logic nghiệp vụ & Database (Business Logic)
 
-Kết quả **cùng định nghĩa** `data.summary` / `data` trong [`API_Task005_inventory_get_list.md`](API_Task005_inventory_get_list.md) (phần `summary`), nhưng **không** trả `items`.
+Kết quả **cùng định nghĩa** `data.summary` trong [`API_Task005_inventory_get_list.md`](API_Task005_inventory_get_list.md) khi truyền **cùng** `search` / `stockLevel` / `locationId` / `categoryId`, nhưng **không** trả `items` (và không dùng `page` / `limit` / `sort`).
 
 ### 7.1 Quy trình thực thi (Step-by-Step)
 
 1. **Xác thực JWT** → **401** / **403** nếu không hợp lệ.
 
-2. **Validation query** (`locationId`, `categoryId`) → **400** nếu sai kiểu.
+2. **Validation query** (`stockLevel`, `locationId`, `categoryId`, …) → **400** nếu sai (cùng quy tắc Task005).
 
-3. **Một query aggregate** (JOIN giống Task005 §8.1 bước 3, bỏ `LIMIT/OFFSET`):
+3. **Một query aggregate** (cùng JOIN + `WHERE` filter như Task005 `loadSummary`, không `LIMIT/OFFSET`):
 
 ```sql
 SELECT
@@ -124,7 +126,7 @@ LEFT JOIN LATERAL (
   ORDER BY pph.effective_date DESC, pph.id DESC
   LIMIT 1
 ) latest_pph ON true
-WHERE /* RBAC + optional locationId / categoryId */;
+WHERE /* RBAC + stockLevel + search + optional locationId / categoryId — đồng bộ Task005 */;
 ```
 
 4. Map 4 cột aggregate → JSON `data`.
@@ -193,6 +195,8 @@ _Không áp dụng_ cho `GET /inventory/summary`.
 import { z } from "zod";
 
 export const InventorySummaryQuerySchema = z.object({
+  search: z.string().optional(),
+  stockLevel: z.enum(["all", "in_stock", "low_stock", "out_of_stock"]).optional(),
   locationId: z.coerce.number().int().positive().optional(),
   categoryId: z.coerce.number().int().positive().optional(),
 });

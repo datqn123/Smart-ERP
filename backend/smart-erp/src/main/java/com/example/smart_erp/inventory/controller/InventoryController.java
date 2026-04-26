@@ -25,6 +25,7 @@ import com.example.smart_erp.inventory.response.InventoryBulkPatchData;
 import com.example.smart_erp.inventory.response.InventoryByIdData;
 import com.example.smart_erp.inventory.response.InventoryListItemData;
 import com.example.smart_erp.inventory.response.InventoryListPageData;
+import com.example.smart_erp.inventory.response.InventorySummaryData;
 import com.example.smart_erp.inventory.service.InventoryListService;
 import com.example.smart_erp.inventory.service.InventoryPatchService;
 
@@ -44,6 +45,20 @@ public class InventoryController {
 	public InventoryController(InventoryListService inventoryListService, InventoryPatchService inventoryPatchService) {
 		this.inventoryListService = inventoryListService;
 		this.inventoryPatchService = inventoryPatchService;
+	}
+
+	/** Task009 — chỉ KPI tồn (cùng filter {@code search}/{@code stockLevel}/{@code locationId}/{@code categoryId} như Task005). */
+	@GetMapping("/inventory/summary")
+	@PreAuthorize("hasAuthority('can_manage_inventory')")
+	public ResponseEntity<ApiSuccessResponse<InventorySummaryData>> inventorySummary(Authentication authentication,
+			@RequestParam(name = "search", required = false) String search,
+			@RequestParam(name = "stockLevel", required = false) String stockLevel,
+			@RequestParam(name = "locationId", required = false) String locationId,
+			@RequestParam(name = "categoryId", required = false) String categoryId) {
+		requireJwt(authentication);
+		var q = InventoryListQuery.forSummaryFilters(search, stockLevel, locationId, categoryId);
+		InventorySummaryData data = inventoryListService.summary(q);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
 	}
 
 	/** Task005 — danh sách tồn + summary KPI, đọc SRS Task005. */

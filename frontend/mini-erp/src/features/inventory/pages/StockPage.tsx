@@ -11,6 +11,7 @@ import {
   buildInventoryPatchBody,
   getInventoryById,
   getInventoryList,
+  getInventorySummary,
   mapListItemToUi,
   mapSummaryToKpis,
   patchBulkInventory,
@@ -103,6 +104,15 @@ export function StockPage() {
       },
     })
 
+  const summaryQuery = useQuery({
+    queryKey: ["inventory", "v1", "summary", debouncedSearch, filters.status],
+    queryFn: () =>
+      getInventorySummary({
+        search: debouncedSearch.trim() || undefined,
+        stockLevel: uiStatusToStockLevel(filters.status),
+      }),
+  })
+
   useEffect(() => {
     const root = scrollRootRef.current
     const sentinel = loadMoreSentinelRef.current
@@ -124,11 +134,17 @@ export function StockPage() {
 
   const firstPage = data?.pages[0]
   const kpis = useMemo((): InventoryKPIs => {
-    if (!firstPage?.summary) {
-      return EMPTY_KPIS
+    if (summaryQuery.data) {
+      return mapSummaryToKpis(summaryQuery.data)
     }
-    return mapSummaryToKpis(firstPage.summary)
-  }, [firstPage])
+    if (firstPage?.summary) {
+      return mapSummaryToKpis(firstPage.summary)
+    }
+    return EMPTY_KPIS
+  }, [summaryQuery.data, firstPage])
+
+  const kpiCardsPending =
+    (summaryQuery.isPending && !summaryQuery.data) && !firstPage?.summary
 
   const listItems: InventoryItem[] = useMemo(
     () => (data?.pages ? data.pages.flatMap((p) => p.items).map(mapListItemToUi) : []),
@@ -145,6 +161,16 @@ export function StockPage() {
       }
     }
   }, [isError, error])
+
+  useEffect(() => {
+    if (
+      summaryQuery.isError
+      && summaryQuery.error instanceof ApiRequestError
+      && !isError
+    ) {
+      toast.error(summaryQuery.error.body?.message ?? "Không tải được KPI tồn kho")
+    }
+  }, [summaryQuery.isError, summaryQuery.error, isError])
 
   // Custom states for selection and dialog tracking
   const [selectedBatchItem, setSelectedBatchItem] = useState<InventoryItem | null>(null)
@@ -241,6 +267,7 @@ export function StockPage() {
         await patchInventory(after.id, body)
         toast.success("Đã cập nhật thông tin tồn kho")
         await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "list"] })
+        await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "summary"] })
         await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "detail"] })
         setIsEditDialogOpen(false)
         setItemsToEdit([])
@@ -271,6 +298,7 @@ export function StockPage() {
       await patchBulkInventory(bulkItems)
       toast.success("Đã cập nhật thông tin tồn kho (hàng loạt)")
       await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "list"] })
+      await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "summary"] })
       await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "detail"] })
       setIsEditDialogOpen(false)
       setItemsToEdit([])
@@ -295,7 +323,16 @@ export function StockPage() {
           </h1>
           <p className="text-sm text-slate-500 mt-1">Quản lý số lượng, vị trí và lô hàng.</p>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => void refetch()} disabled={isPending}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            void refetch()
+            void summaryQuery.refetch()
+          }}
+          disabled={isPending}
+        >
           Tải lại
         </Button>
       </div>
@@ -303,25 +340,25 @@ export function StockPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 shrink-0">
         <KPICard
           title="Tổng mặt hàng"
-          value={isPending && !data ? "…" : String(kpis.totalSKUs)}
+          value={kpiCardsPending ? "…" : String(kpis.totalSKUs)}
           icon={<Package className="h-5 w-5 text-slate-700" />}
           color="bg-slate-100"
         />
         <KPICard
           title="Tổng giá trị kho"
-          value={isPending && !data ? "…" : formatCurrency(kpis.totalValue)}
+          value={kpiCardsPending ? "…" : formatCurrency(kpis.totalValue)}
           icon={<TrendingUp className="h-5 w-5 text-green-700" />}
           color="bg-green-50"
         />
         <KPICard
           title="Sắp hết hàng"
-          value={isPending && !data ? "…" : String(kpis.lowStockCount)}
+          value={kpiCardsPending ? "…" : String(kpis.lowStockCount)}
           icon={<AlertTriangle className="h-5 w-5 text-red-700" />}
           color="bg-red-50"
         />
         <KPICard
           title="Cận hạn sử dụng"
-          value={isPending && !data ? "…" : String(kpis.expiringSoonCount)}
+          value={kpiCardsPending ? "…" : String(kpis.expiringSoonCount)}
           icon={<CalendarClock className="h-5 w-5 text-amber-700" />}
           color="bg-amber-50"
         />

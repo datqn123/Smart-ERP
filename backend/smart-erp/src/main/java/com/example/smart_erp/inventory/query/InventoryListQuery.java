@@ -7,7 +7,8 @@ import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.exception.BusinessException;
 
 /**
- * Tham số thống nhất cho 3 tầng truy vấn: summary, count, page.
+ * Tham số thống nhất cho 3 tầng truy vấn Task005: summary, count, page.
+ * Task009 — {@link #forSummaryFilters}: cùng WHERE, aggregate bỏ qua LIMIT.
  */
 public record InventoryListQuery(
 		String search,
@@ -21,6 +22,13 @@ public record InventoryListQuery(
 	public static final int DEFAULT_PAGE = 1;
 	public static final int DEFAULT_LIMIT = 20;
 	public static final int MAX_LIMIT = 100;
+
+	/**
+	 * Task009 — chỉ cần filter giống Task005; {@code page}, {@code limit}, {@code sort} mặc định nội bộ (aggregate không dùng LIMIT).
+	 */
+	public static InventoryListQuery forSummaryFilters(String search, String stockLevel, String locationId, String categoryId) {
+		return of(search, stockLevel, locationId, categoryId, null, null, null);
+	}
 
 	public static InventoryListQuery of(String search, String stockLevel, String locationId, String categoryId, String page,
 			String limit, String sort) {

@@ -60,8 +60,8 @@
 
 | Loại | File |
 | :--- | :--- |
-| API (nối BE) | `api/inventoryApi.ts` — Task005 `GET /api/v1/inventory`, Task006 `GET /api/v1/inventory/{id}`, Task007 `PATCH /api/v1/inventory/{id}`, Task008 `PATCH /api/v1/inventory/bulk` |
-| Bảng / toolbar tồn | `components/StockTable.tsx`, `StockToolbar.tsx`, …; `pages/StockPage` — 20 bản ghi lần đầu, tải thêm theo trang khi **cuộn tới gần cuối** (`useInfiniteQuery`) |
+| API (nối BE) | `api/inventoryApi.ts` — Task005 `GET /api/v1/inventory`, Task006 `GET /api/v1/inventory/{id}`, Task007 `PATCH /api/v1/inventory/{id}`, Task008 `PATCH /api/v1/inventory/bulk`, Task009 `GET /api/v1/inventory/summary` |
+| Bảng / toolbar tồn | `components/StockTable.tsx`, `StockToolbar.tsx`, …; `pages/StockPage` — KPI qua Task009 (`getInventorySummary`); 20 bản ghi lần đầu, tải thêm khi **cuộn tới gần cuối** (`useInfiniteQuery`) |
 | Nhập kho | `components/ReceiptForm.tsx`, `ReceiptTable.tsx`, `ReceiptDetailPanel.tsx`, `ReceiptDetailDialog.tsx` |
 | Xuất / điều phối | `components/DispatchForm.tsx`, `DispatchTable.tsx`, `DispatchDetailDialog.tsx`, `DispatchDetailPanel.tsx` |
 | Kiểm kê | `components/AuditSessionsTable.tsx` |

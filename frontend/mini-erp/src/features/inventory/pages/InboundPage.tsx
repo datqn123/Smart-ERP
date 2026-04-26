@@ -1,19 +1,26 @@
-import { useEffect, useState, useRef, useCallback } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useInfiniteQuery } from "@tanstack/react-query"
 import { usePageTitle } from "@/context/PageTitleContext"
 import {
   Plus, Search, Calendar, Upload, Download, Camera
 } from "lucide-react"
-import { mockStockReceipts } from "../mockData"
 import type { StockReceipt } from "../types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { filterReceipts, paginateReceipts, sortByDate } from "../inboundLogic"
 import { ReceiptTable } from "../components/ReceiptTable"
 import { ReceiptDetailDialog } from "../components/ReceiptDetailDialog"
 import { ReceiptForm } from "../components/ReceiptForm"
 import { createReceipt, updateReceipt, deleteReceipt } from "../inventoryCrudLogic"
+import {
+  getStockReceiptList,
+  mapStockReceiptListItemToUi,
+  type GetStockReceiptListParams,
+} from "../api/stockReceiptsApi"
+import { ApiRequestError } from "@/lib/api/http"
+import { toast } from "sonner"
 
-const PAGE_SIZE = 20 // Tăng size cho table layout
+const PAGE_SIZE = 20
+const SEARCH_DEBOUNCE_MS = 400
 
 const statusOptions = [
   { label: "Tất cả trạng thái", value: "all" },
@@ -23,75 +30,139 @@ const statusOptions = [
   { label: "Từ chối", value: "Rejected" },
 ]
 
+function parseSupplierId(raw: string): number | undefined {
+  const t = raw.trim()
+  if (!/^\d+$/.test(t)) {
+    return undefined
+  }
+  const n = parseInt(t, 10)
+  return n > 0 ? n : undefined
+}
 
 // ─── Main Page ────────────────────────────────────────────
 export function InboundPage() {
   const { setTitle } = usePageTitle()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const sentinelRef = useRef<HTMLDivElement>(null)
+  const scrollRootRef = useRef<HTMLDivElement>(null)
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
 
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [supplierFilter, setSupplierFilter] = useState("")
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  
-  // Selection state for Detail Panel
+
   const [selectedReceipt, setSelectedReceipt] = useState<StockReceipt | null>(null)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
-  
-  // Form state
+
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingReceipt, setEditingReceipt] = useState<StockReceipt | undefined>()
 
+  const supplierIdParam = parseSupplierId(supplierFilter)
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [search])
 
   useEffect(() => { setTitle("Phiếu nhập kho") }, [setTitle])
 
-  // Sort + filter
-  const sorted = sortByDate(mockStockReceipts)
-  const filtered = filterReceipts(sorted, { search, status: statusFilter, dateFrom, dateTo, supplier: supplierFilter })
-  const visible = paginateReceipts(filtered, visibleCount)
-  const hasMore = visibleCount < filtered.length
+  const listQueryKey = useMemo(
+    () => ["stock-receipts", "v1", "list", debouncedSearch, statusFilter, dateFrom, dateTo, supplierIdParam ?? "", PAGE_SIZE] as const,
+    [debouncedSearch, statusFilter, dateFrom, dateTo, supplierIdParam],
+  )
 
-  // Reset visibleCount when filters change
+  const { data, isPending, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: listQueryKey,
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => {
+      const base: GetStockReceiptListParams = {
+        search: debouncedSearch.trim() || undefined,
+        status: statusFilter as GetStockReceiptListParams["status"],
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        supplierId: supplierIdParam,
+        page: pageParam,
+        limit: PAGE_SIZE,
+        sort: "id:desc",
+      }
+      return getStockReceiptList(base)
+    },
+    getNextPageParam: (lastPage) => {
+      if (lastPage.items.length < lastPage.limit) {
+        return undefined
+      }
+      if (lastPage.page * lastPage.limit >= lastPage.total) {
+        return undefined
+      }
+      return lastPage.page + 1
+    },
+  })
+
+  const mergedRows: StockReceipt[] = useMemo(
+    () => (data?.pages ? data.pages.flatMap((p) => p.items.map(mapStockReceiptListItemToUi)) : []),
+    [data],
+  )
+
+  const supplierTrim = supplierFilter.trim().toLowerCase()
+  const displayRows = useMemo(() => {
+    if (supplierIdParam != null) {
+      return mergedRows
+    }
+    if (!supplierTrim) {
+      return mergedRows
+    }
+    return mergedRows.filter((r) => r.supplierName.toLowerCase().includes(supplierTrim))
+  }, [mergedRows, supplierIdParam, supplierTrim])
+
+  const firstPage = data?.pages[0]
+  const serverTotal = firstPage?.total ?? 0
+
   useEffect(() => {
-    setVisibleCount(PAGE_SIZE)
-  }, [search, statusFilter, dateFrom, dateTo, supplierFilter])
-
-  // Infinite scroll via IntersectionObserver
-  const loadMore = useCallback(() => {
-    if (!hasMore || isLoadingMore) return
-    setIsLoadingMore(true)
-    // Simulate tiny async delay for skeleton to show
-    setTimeout(() => {
-      setVisibleCount(prev => prev + PAGE_SIZE)
-      setIsLoadingMore(false)
-    }, 300)
-  }, [hasMore, isLoadingMore])
-
-  useEffect(() => {
-    const sentinel = sentinelRef.current
-    if (!sentinel) return
+    const root = scrollRootRef.current
+    const sentinel = loadMoreSentinelRef.current
+    if (!root || !sentinel) {
+      return
+    }
     const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) loadMore() },
-      { threshold: 0.1 }
+      (entries) => {
+        const e = entries[0]
+        if (e?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage()
+        }
+      },
+      { root, rootMargin: "80px", threshold: 0 },
     )
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [loadMore])
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, data?.pages])
+
+  useEffect(() => {
+    if (isError && error instanceof ApiRequestError) {
+      const dr = error.body?.details?.dateRange
+      if (error.status === 400 && dr) {
+        toast.error(dr)
+        return
+      }
+      if (error.status === 401 || error.status === 403) {
+        toast.error(error.body?.message ?? "Bạn chưa đủ quyền xem phiếu nhập (can_manage_inventory).")
+      } else {
+        toast.error(error.body?.message ?? "Không tải được danh sách phiếu nhập")
+      }
+    }
+  }, [isError, error])
 
   const handleCreateReceipt = () => {
     setEditingReceipt(undefined)
     setIsFormOpen(true)
   }
-  
+
   const handleEditReceipt = (receipt: StockReceipt) => {
     setEditingReceipt(receipt)
     setIsFormOpen(true)
   }
-  
+
   const handleDeleteReceipt = (id: number) => {
     if (confirm("Bạn có chắc chắn muốn xóa phiếu nhập này?")) {
       deleteReceipt(id)
@@ -99,7 +170,7 @@ export function InboundPage() {
       window.location.reload()
     }
   }
-  
+
   const handleFormSubmit = async (data: any) => {
     const supplierMap: Record<number, string> = {
       1: "Công ty TNHH Vinamilk",
@@ -108,7 +179,7 @@ export function InboundPage() {
       4: "Công ty Masan",
       5: "Đại lý Unilever",
     }
-    
+
     if (editingReceipt) {
       updateReceipt(editingReceipt.id, {
         supplierId: data.supplierId,
@@ -161,9 +232,11 @@ export function InboundPage() {
     if (file) alert(`Đã chọn file: ${file.name}. Chức năng Import Excel sẽ được triển khai.`)
   }
 
+  const showEmpty = !isPending && !isError && displayRows.length === 0
+  const listLoaded = displayRows.length > 0
+
   return (
     <div className="h-full flex flex-col p-4 md:p-6 lg:p-8 gap-4 md:gap-5">
-      {/* ── Header (sticky, outside scroll) ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-xl md:text-2xl font-semibold text-slate-900 tracking-tight">Phiếu nhập kho</h1>
@@ -186,12 +259,11 @@ export function InboundPage() {
         </div>
       </div>
 
-      {/* ── Filters (sticky, outside scroll) ── */}
       <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3 shrink-0">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input placeholder="Tìm theo mã phiếu, NCC, người tạo..." value={search}
+            <Input placeholder="Mã phiếu, số hóa đơn (theo API)…" value={search}
               onChange={(e) => setSearch(e.target.value)} className="pl-9 h-11" />
           </div>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
@@ -211,68 +283,74 @@ export function InboundPage() {
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
               className="h-9 px-2 border border-slate-200 rounded text-sm" />
           </div>
-          <Input placeholder="Lọc theo nhà cung cấp..." value={supplierFilter}
-            onChange={(e) => setSupplierFilter(e.target.value)} className="h-9 sm:w-[220px]" />
+          <Input placeholder="NCC: nhập ID số hoặc lọc tên (đã tải)…" value={supplierFilter}
+            onChange={(e) => setSupplierFilter(e.target.value)} className="h-9 sm:w-[280px]" />
         </div>
         <p className="text-xs text-slate-500">
-          Hiển thị <span className="font-medium text-slate-700">{visible.length}</span> / <span className="font-medium text-slate-700">{filtered.length}</span> phiếu
+          Hiển thị <span className="font-medium text-slate-700">{displayRows.length}</span>
+          {supplierIdParam == null && supplierTrim ? " (lọc tên trên dữ liệu đã tải)" : ""}
+          {" · "}
+          Tổng server: <span className="font-medium text-slate-700">{serverTotal}</span> phiếu
         </p>
       </div>
 
-      {/* ── Table (một bảng thead+tbody trong cùng vùng cuộn — tránh lệch cột) ── */}
       <div className="flex-1 flex flex-col min-h-0 bg-white border border-slate-200/60 rounded-xl overflow-hidden shadow-md">
         <div
+          ref={scrollRootRef}
           data-testid="receipt-list-container"
           className="flex-1 overflow-y-auto relative scroll-smooth [scrollbar-gutter:stable] min-h-0"
         >
-          {filtered.length === 0 ? (
+          {isPending && (
+            <div className="flex justify-center py-20">
+              <div className="animate-spin h-8 w-8 border-2 border-slate-300 border-t-slate-900 rounded-full" />
+            </div>
+          )}
+          {showEmpty && (
             <div className="text-center py-16 bg-white">
               <Search className="h-12 w-12 text-slate-300 mx-auto mb-3" />
               <h3 className="text-lg font-medium text-slate-900">Không tìm thấy phiếu nào</h3>
               <p className="text-slate-500">Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
             </div>
-          ) : (
+          )}
+          {listLoaded && (
             <>
-              <ReceiptTable 
-                receipts={visible} 
+              <ReceiptTable
+                receipts={displayRows}
                 onAction={(r) => {
                   setSelectedReceipt(r);
                   setIsPanelOpen(true);
-                }} 
+                }}
                 onEdit={handleEditReceipt}
                 onDelete={handleDeleteReceipt}
               />
 
-            {/* Skeleton khi đang tải thêm (Spinner hoặc Shimmer cho hàng mới) */}
-            {isLoadingMore && (
-              <div className="flex justify-center p-4">
-                <div className="animate-spin h-6 w-6 border-2 border-slate-300 border-t-slate-900 rounded-full" />
-              </div>
-            )}
+              {isFetchingNextPage && (
+                <div className="flex justify-center p-4">
+                  <div className="animate-spin h-6 w-6 border-2 border-slate-300 border-t-slate-900 rounded-full" />
+                </div>
+              )}
 
-            {/* Sentinel element cho IntersectionObserver */}
-            {hasMore && !isLoadingMore && (
-              <div ref={sentinelRef} className="h-4" />
-            )}
+              {hasNextPage && !isFetchingNextPage && (
+                <div ref={loadMoreSentinelRef} className="h-4" />
+              )}
 
-            {/* End of list message */}
-            {!hasMore && filtered.length > 0 && (
-              <p className="text-center text-xs text-slate-400 py-6">
-                — Đã hiển thị toàn bộ {filtered.length} phiếu —
-              </p>
-            )}
-          </>
-        )}
+              {!hasNextPage && displayRows.length > 0 && (
+                <p className="text-center text-xs text-slate-400 py-6">
+                  — Đã tải {mergedRows.length} / {serverTotal} phiếu —
+                </p>
+              )}
+            </>
+          )}
         </div>
 
-        <ReceiptDetailDialog 
-          receipt={selectedReceipt} 
-          isOpen={isPanelOpen} 
+        <ReceiptDetailDialog
+          receipt={selectedReceipt}
+          isOpen={isPanelOpen}
           onClose={() => setIsPanelOpen(false)}
           canApprove={true}
         />
-        
-        <ReceiptForm 
+
+        <ReceiptForm
           open={isFormOpen}
           onOpenChange={setIsFormOpen}
           receipt={editingReceipt}

@@ -82,7 +82,7 @@ export function ReceiptTable({ receipts, onAction, onEdit, onDelete }: ReceiptTa
             <TableCell className={cn(RECEIPT_TABLE_COL.lineCount, "text-center")}>
               <div className="flex items-center justify-center gap-1 text-xs text-slate-500">
                 <Package className="h-3 w-3 shrink-0" />
-                {receipt.details.length}
+                {receipt.lineCount ?? receipt.details.length}
               </div>
             </TableCell>
             <TableCell className={cn(RECEIPT_TABLE_COL.totalAmount, "text-right", TABLE_CELL_NUMBER_CLASS)}>
@@ -99,6 +99,7 @@ export function ReceiptTable({ receipts, onAction, onEdit, onDelete }: ReceiptTa
                   className="h-8 w-8 text-slate-500 hover:text-slate-900 transition-colors"
                   onClick={() => onAction(receipt)}
                   title="Xem chi tiết"
+                  data-testid="view-detail-btn"
                 >
                   <Eye className="h-4 w-4" />
                 </Button>

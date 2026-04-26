@@ -73,10 +73,16 @@ export interface StockReceipt {
   status: ReceiptStatus;
   invoiceNumber?: string;
   totalAmount: number;
+  /** Task013 list — khi có thì ưu tiên hiển thị thay cho `details.length`. */
+  lineCount?: number;
   notes?: string;
   approvedBy?: number;
   approvedByName?: string;
   approvedAt?: string;
+  reviewedBy?: number;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
   createdAt: string;
   updatedAt: string;
   details: ReceiptDetailItem[];

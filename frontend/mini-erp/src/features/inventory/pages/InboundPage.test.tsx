@@ -1,4 +1,6 @@
+import type { ReactElement } from "react"
 import { render } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { InboundPage } from "./InboundPage"
 import { describe, it, expect, vi } from "vitest"
 import { PageTitleProvider } from "@/context/PageTitleContext"
@@ -18,6 +20,19 @@ vi.mock("../components/ReceiptDetailPanel", () => ({
   ReceiptDetailPanel: () => <div data-testid="receipt-detail-panel" />,
 }))
 
+vi.mock("../api/stockReceiptsApi", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../api/stockReceiptsApi")>()
+  return {
+    ...mod,
+    getStockReceiptList: vi.fn().mockResolvedValue({
+      items: [],
+      page: 1,
+      limit: 20,
+      total: 0,
+    }),
+  }
+})
+
 // Mock IntersectionObserver
 vi.stubGlobal("IntersectionObserver", class {
   observe = vi.fn()
@@ -25,14 +40,18 @@ vi.stubGlobal("IntersectionObserver", class {
   disconnect = vi.fn()
 })
 
+function wrap(ui: ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return (
+    <QueryClientProvider client={qc}>
+      <PageTitleProvider>{ui}</PageTitleProvider>
+    </QueryClientProvider>
+  )
+}
+
 describe("InboundPage Render Test", () => {
   it("should render without crashing", () => {
-    // This test is expected to FAIL to compile/run because of the syntax error in InboundPage.tsx
-    render(
-      <PageTitleProvider>
-        <InboundPage />
-      </PageTitleProvider>
-    )
+    render(wrap(<InboundPage />))
     expect(true).toBe(true)
   })
 })

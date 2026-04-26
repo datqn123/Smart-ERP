@@ -28,6 +28,7 @@ Tài liệu **SRS gắn triển khai backend** (API `smart-erp`, persistence, ma
 | [`SRS_Task007_inventory-patch.md`](SRS_Task007_inventory-patch.md) | `PATCH /api/v1/inventory/{id}` — **Draft**; API: [`../../../frontend/docs/api/API_Task007_inventory_patch.md`](../../../frontend/docs/api/API_Task007_inventory_patch.md) |
 | [`SRS_Task008_inventory-bulk-patch.md`](SRS_Task008_inventory-bulk-patch.md) | `PATCH /api/v1/inventory/bulk` — **Draft**; API: [`../../../frontend/docs/api/API_Task008_inventory_bulk_patch.md`](../../../frontend/docs/api/API_Task008_inventory_bulk_patch.md) |
 | [`SRS_Task009_inventory-get-summary.md`](SRS_Task009_inventory-get-summary.md) | `GET /api/v1/inventory/summary` — **Draft** (đã triển khai BE); API: [`../../../frontend/docs/api/API_Task009_inventory_get_summary.md`](../../../frontend/docs/api/API_Task009_inventory_get_summary.md) |
+| [`SRS_Task013_stock-receipts-get-list.md`](SRS_Task013_stock-receipts-get-list.md) | `GET /api/v1/stock-receipts` — **Draft**; API: [`../../../frontend/docs/api/API_Task013_stock_receipts_get_list.md`](../../../frontend/docs/api/API_Task013_stock_receipts_get_list.md) |
 
 ## File liên quan dưới `backend/docs/taskNNN/`
 

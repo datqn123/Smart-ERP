@@ -49,7 +49,7 @@ export function ReceiptDetailDialog({ receipt, isOpen, onClose, canApprove = fal
             <div className="flex items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <div className="text-right border-r pr-4 border-slate-100">
                     <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Số lượng</p>
-                    <p className="text-sm font-black text-slate-900">{receipt.details.length} <span className="text-[10px] text-slate-400">SKU</span></p>
+                    <p className="text-sm font-black text-slate-900">{receipt.lineCount ?? receipt.details.length} <span className="text-[10px] text-slate-400">SKU</span></p>
                 </div>
                 <div className="text-right">
                     <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Giá trị nhập</p>
@@ -115,21 +115,31 @@ export function ReceiptDetailDialog({ receipt, isOpen, onClose, canApprove = fal
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {receipt.details.map((item) => (
-                                <TableRow key={item.id} className="hover:bg-slate-50/30 transition-colors border-slate-50">
-                                    <TableCell className="py-3">
-                                        <p className="font-bold text-slate-900">{item.productName}</p>
-                                        <p className="text-[10px] text-slate-400 font-mono italic">{item.skuCode}</p>
-                                    </TableCell>
-                                    <TableCell className="py-3 text-right">
-                                        <span className="font-bold text-slate-900">{item.quantity}</span>
-                                        <span className="text-[10px] text-slate-400 ml-1">{item.unitName}</span>
-                                    </TableCell>
-                                    <TableCell className="py-3 text-right font-black text-slate-900">
-                                        {item.lineTotal.toLocaleString()}
+                            {receipt.details.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={3} className="py-8 text-center text-sm text-slate-500">
+                                        { (receipt.lineCount ?? 0) > 0
+                                            ? `Phiếu có ${receipt.lineCount ?? 0} dòng hàng — chi tiết từng dòng sẽ tải qua API chi tiết (Task015).`
+                                            : "Không có dòng chi tiết trên phiếu này." }
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                            ) : (
+                                receipt.details.map((item) => (
+                                    <TableRow key={item.id} className="hover:bg-slate-50/30 transition-colors border-slate-50">
+                                        <TableCell className="py-3">
+                                            <p className="font-bold text-slate-900">{item.productName}</p>
+                                            <p className="text-[10px] text-slate-400 font-mono italic">{item.skuCode}</p>
+                                        </TableCell>
+                                        <TableCell className="py-3 text-right">
+                                            <span className="font-bold text-slate-900">{item.quantity}</span>
+                                            <span className="text-[10px] text-slate-400 ml-1">{item.unitName}</span>
+                                        </TableCell>
+                                        <TableCell className="py-3 text-right font-black text-slate-900">
+                                            {item.lineTotal.toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
                         </TableBody>
                     </Table>
                 </div>

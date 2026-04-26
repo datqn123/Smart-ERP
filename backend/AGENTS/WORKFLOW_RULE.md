@@ -1,7 +1,13 @@
 # WORKFLOW_RULE — Chuỗi Agent (Spring Boot / `smart-erp`)
 
-> **Phiên bản**: 2.4  
+> **Phiên bản**: 2.5  
 > **Nguồn chân lý**: file này + [`AGENT_REGISTRY.md`](AGENT_REGISTRY.md).
+
+---
+
+## 0.0 Luồng ad-hoc: lỗi / defect (không thay chuỗi chính)
+
+Khi cần **RCA + phương án** trước khi sửa mã: **`BUG_INVESTIGATOR`** theo [`BUG_INVESTIGATOR_AGENT_INSTRUCTIONS.md`](BUG_INVESTIGATOR_AGENT_INSTRUCTIONS.md) → xuất `backend/docs/bugs/Bug_Task<NNN>.md` → Owner chốt phương án → **`DEVELOPER`** theo [`DEVELOPER_AGENT_INSTRUCTIONS.md`](DEVELOPER_AGENT_INSTRUCTIONS.md). Không chen `BUG_INVESTIGATOR` vào thứ tự bắt buộc `PM → … → Doc Sync` — đây là phiên song song / ngoài sprint khi có incident.
 
 ---
 

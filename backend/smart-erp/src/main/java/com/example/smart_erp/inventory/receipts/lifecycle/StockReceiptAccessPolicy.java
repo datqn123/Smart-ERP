@@ -52,14 +52,23 @@ public final class StockReceiptAccessPolicy {
 		}
 	}
 
+	private static final String DEFAULT_OWNER_ONLY_RECEIPT_MESSAGE = "Chỉ tài khoản Owner mới được xóa phiếu (Nháp/Chờ duyệt), phê duyệt hoặc từ chối phiếu Chờ duyệt";
+
 	/**
 	 * DELETE (Nháp/Chờ duyệt), Task019 approve, Task020 reject — chỉ Owner (claim {@code role}, không phân biệt hoa thường).
 	 */
 	public static void assertOwnerOnly(Jwt jwt) {
+		assertOwnerOnly(jwt, DEFAULT_OWNER_ONLY_RECEIPT_MESSAGE);
+	}
+
+	/**
+	 * Chỉ Owner — dùng cho Task033 categories soft-delete hoặc thao tác Owner-only khác (message tùy chỉnh).
+	 */
+	public static void assertOwnerOnly(Jwt jwt, String forbiddenMessage) {
 		String role = jwt.getClaimAsString("role");
 		if (!StringUtils.hasText(role) || !OWNER_ROLE_NAME.equalsIgnoreCase(role.trim())) {
 			throw new BusinessException(ApiErrorCode.FORBIDDEN,
-					"Chỉ tài khoản Owner mới được xóa phiếu (Nháp/Chờ duyệt), phê duyệt hoặc từ chối phiếu Chờ duyệt");
+					StringUtils.hasText(forbiddenMessage) ? forbiddenMessage : DEFAULT_OWNER_ONLY_RECEIPT_MESSAGE);
 		}
 	}
 }

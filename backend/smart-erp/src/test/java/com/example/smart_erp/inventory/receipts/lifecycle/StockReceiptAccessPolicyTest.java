@@ -30,6 +30,12 @@ class StockReceiptAccessPolicyTest {
 	}
 
 	@Test
+	void assertOwnerOnly_withCustomMessage_usesThatMessage() {
+		assertThatThrownBy(() -> StockReceiptAccessPolicy.assertOwnerOnly(jwt("1", "Staff"), "Chỉ Owner được xóa danh mục"))
+				.isInstanceOf(BusinessException.class).hasMessageContaining("Chỉ Owner được xóa danh mục");
+	}
+
+	@Test
 	void assertOwnerOnly_rejectsStaffOrBlank() {
 		assertThatThrownBy(() -> StockReceiptAccessPolicy.assertOwnerOnly(jwt("1", "Staff")))
 				.isInstanceOf(BusinessException.class).extracting(ex -> ((BusinessException) ex).getCode())

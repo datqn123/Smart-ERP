@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { usePageTitle } from "@/context/PageTitleContext"
 import { ClipboardCheck, Plus, Search, Calendar, Download, Upload } from "lucide-react"
 import type { AuditSession } from "../types"
@@ -7,11 +7,19 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { AuditSessionsTable } from "../components/AuditSessionsTable"
 import { AuditSessionCreateForm } from "../components/AuditSessionCreateForm"
+import { AuditSessionDetailDialog } from "../components/AuditSessionDetailDialog"
+import { AuditSessionPatchDialog } from "../components/AuditSessionPatchDialog"
 import { toast } from "sonner"
 import {
+  getAuditSessionById,
   getAuditSessionList,
+  mapAuditSessionDetailToUi,
   mapAuditSessionListItemToUi,
+  patchAuditSession,
+  patchAuditSessionLines,
   postAuditSession,
+  type AuditLinesPatchBody,
+  type AuditSessionPatchBody,
   type GetAuditSessionListParams,
 } from "../api/auditSessionsApi"
 import { ApiRequestError } from "@/lib/api/http"
@@ -42,6 +50,10 @@ export function AuditPage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [createOpen, setCreateOpen] = useState(false)
+  const [viewSessionId, setViewSessionId] = useState<number | null>(null)
+  const [viewListHint, setViewListHint] = useState<AuditSession | null>(null)
+  const [editSessionId, setEditSessionId] = useState<number | null>(null)
+  const [editListHint, setEditListHint] = useState<AuditSession | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), SEARCH_DEBOUNCE_MS)
@@ -90,6 +102,86 @@ export function AuditPage() {
 
   const firstPage = data?.pages[0]
   const serverTotal = firstPage?.total ?? 0
+
+  const detailOpen = viewSessionId != null
+  const editOpen = editSessionId != null
+  const activeDetailId = viewSessionId ?? editSessionId
+
+  const {
+    data: detailRaw,
+    isPending: isDetailPending,
+    isError: isDetailError,
+    error: detailError,
+  } = useQuery({
+    queryKey: ["inventory", "audit-sessions", "v1", "detail", activeDetailId],
+    queryFn: () => getAuditSessionById(activeDetailId!),
+    enabled: activeDetailId != null,
+  })
+
+  const viewSessionDetail = useMemo(() => {
+    if (!detailRaw || viewSessionId == null || detailRaw.id !== viewSessionId) return null
+    return mapAuditSessionDetailToUi(detailRaw)
+  }, [detailRaw, viewSessionId])
+
+  const editSessionDetail = useMemo(() => {
+    if (!detailRaw || editSessionId == null || detailRaw.id !== editSessionId) return null
+    return mapAuditSessionDetailToUi(detailRaw)
+  }, [detailRaw, editSessionId])
+
+  const patchMutation = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: AuditSessionPatchBody }) => patchAuditSession(id, body),
+    onSuccess: () => {
+      toast.success("Đã cập nhật đợt kiểm kê")
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "list"] })
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "detail"] })
+      setEditSessionId(null)
+      setEditListHint(null)
+    },
+    onError: (e) => {
+      if (e instanceof ApiRequestError) {
+        const det = e.body.details
+        if (det && typeof det === "object") {
+          const desc = Object.entries(det)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join("\n")
+          toast.error(e.body.message ?? "Không cập nhật được đợt kiểm kê", { description: desc })
+        } else {
+          toast.error(e.body?.message ?? "Không cập nhật được đợt kiểm kê")
+        }
+      } else {
+        toast.error("Không cập nhật được đợt kiểm kê")
+      }
+    },
+  })
+
+  const linesPatchMutation = useMutation({
+    mutationFn: ({ sessionId, body }: { sessionId: number; body: AuditLinesPatchBody }) =>
+      patchAuditSessionLines(sessionId, body),
+    onSuccess: () => {
+      toast.success("Đã cập nhật số đếm")
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "list"] })
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "detail"] })
+    },
+    onError: (e) => {
+      if (e instanceof ApiRequestError) {
+        const det = e.body.details
+        if (det && typeof det === "object") {
+          const desc = Object.entries(det)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join("\n")
+          toast.error(e.body.message ?? "Không cập nhật được số đếm", { description: desc })
+        } else {
+          toast.error(e.body?.message ?? "Không cập nhật được số đếm")
+        }
+      } else {
+        toast.error("Không cập nhật được số đếm")
+      }
+    },
+  })
+
+  const handlePatchLines = async (sessionId: number, body: AuditLinesPatchBody) => {
+    await linesPatchMutation.mutateAsync({ sessionId, body })
+  }
 
   const createMutation = useMutation({
     mutationFn: postAuditSession,
@@ -164,11 +256,32 @@ export function AuditPage() {
   }
 
   const handleView = (session: AuditSession) => {
-    toast.info(`Xem chi tiết đợt kiểm: ${session.auditCode}`)
+    setEditSessionId(null)
+    setEditListHint(null)
+    setViewSessionId(session.id)
+    setViewListHint(session)
+  }
+
+  const closeDetail = () => {
+    setViewSessionId(null)
+    setViewListHint(null)
+  }
+
+  const closeEdit = () => {
+    setEditSessionId(null)
+    setEditListHint(null)
   }
 
   const handleEdit = (session: AuditSession) => {
-    toast.info(`Chỉnh sửa đợt kiểm: ${session.auditCode}`)
+    setViewSessionId(null)
+    setViewListHint(null)
+    setEditSessionId(session.id)
+    setEditListHint(session)
+  }
+
+  const handlePatchSubmit = async (body: AuditSessionPatchBody) => {
+    if (editSessionId == null) return
+    await patchMutation.mutateAsync({ id: editSessionId, body })
   }
 
   const handleDelete = (id: number) => {
@@ -319,6 +432,30 @@ export function AuditPage() {
           </div>
         </div>
       </div>
+
+      <AuditSessionDetailDialog
+        open={detailOpen}
+        onClose={closeDetail}
+        session={viewSessionDetail}
+        listHint={viewListHint}
+        isLoading={isDetailPending && detailOpen}
+        isError={isDetailError && detailOpen}
+        errorMessage={detailError instanceof ApiRequestError ? detailError.body.message : undefined}
+        onPatchLines={handlePatchLines}
+        linesPatchPending={linesPatchMutation.isPending}
+      />
+
+      <AuditSessionPatchDialog
+        open={editOpen}
+        onClose={closeEdit}
+        session={editSessionDetail}
+        listHint={editListHint}
+        isLoading={isDetailPending && editOpen}
+        isError={isDetailError && editOpen}
+        errorMessage={detailError instanceof ApiRequestError ? detailError.body.message : undefined}
+        isSubmitting={patchMutation.isPending}
+        onSubmit={handlePatchSubmit}
+      />
 
       <AuditSessionCreateForm
         open={createOpen}

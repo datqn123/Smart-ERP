@@ -13,6 +13,7 @@
 | `CODEBASE_ANALYST` | Codebase Analyst (brownfield) | [`CODEBASE_ANALYST_AGENT_INSTRUCTIONS.md`](CODEBASE_ANALYST_AGENT_INSTRUCTIONS.md) |
 | `DOC_SYNC` | Doc Sync | [`DOC_SYNC_AGENT_INSTRUCTIONS.md`](DOC_SYNC_AGENT_INSTRUCTIONS.md) |
 | `API_BRIDGE` | API Bridge (BE ↔ FE) — sau **G-DEV** khi có REST cho mini-erp: [`WORKFLOW_RULE.md`](WORKFLOW_RULE.md) §0.3 §3.1; SRS nhiều Path: [`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md) §1.1–§1.2 |
+| `BUG_INVESTIGATOR` | Bug Investigator (RCA + `Bug_Task*.md`, không sửa code) | [`BUG_INVESTIGATOR_AGENT_INSTRUCTIONS.md`](BUG_INVESTIGATOR_AGENT_INSTRUCTIONS.md) |
 
 ### Context7 (MCP — doc thư viện, tùy vai)
 
@@ -32,3 +33,4 @@
 | Codebase Analyst | `backend/AGENTS/briefs/CODEBASE_ANALYST_*.md` (+ 7 deliverable greenfield) |
 | Doc Sync | `docs/sync_reports/SYNC_REPORT_*.md` |
 | API Bridge | Đọc [`frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md`](../../frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md) trước; `frontend/docs/api/bridge/BRIDGE_Task*_*.md` + code `mini-erp/src` khi `wire-fe` |
+| Bug Investigator | [`../docs/bugs/Bug_Task*.md`](../docs/bugs/Bug_Task*.md) (một file mỗi phiên điều tra, trừ khi Owner ghi đè / revision) |

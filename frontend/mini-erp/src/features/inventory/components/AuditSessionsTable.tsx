@@ -117,7 +117,7 @@ function AuditSessionItemsPanel({ session }: { session: AuditSession }) {
       </div>
       {session.items.length === 0 && (
         <p className="text-xs text-slate-500 bg-white border border-slate-200 rounded-md p-3">
-          Danh sách dòng kiểm không kèm trong API danh sách (Task021). Mở chi tiết đợt kiểm kê sẽ tải đầy đủ dòng (Task023).
+          Danh sách dòng không kèm trong API list (Task021). Bấm <strong className="font-medium text-slate-700">Xem</strong> trên dòng để mở chi tiết (Task023).
         </p>
       )}
       {session.items.length > 0 && (

@@ -1,5 +1,5 @@
 import { apiJson } from "@/lib/api/http"
-import type { AuditSession, AuditStatus } from "../types"
+import type { AuditItem, AuditSession, AuditStatus } from "../types"
 
 /**
  * Task021 — `GET /api/v1/inventory/audit-sessions` — `frontend/docs/api/API_Task021_inventory_audit_sessions_get_list.md` §5–6.
@@ -103,14 +103,157 @@ export type AuditSessionCreateBody = {
   scope: AuditScopeCreateBody
 }
 
-/** Phản hồi 201 — cùng family Task023; FE chỉ cần vài field cho toast / invalidate. */
-export type AuditSessionDetailResponse = {
+/**
+ * Task023 — `GET /api/v1/inventory/audit-sessions/{id}` — `frontend/docs/api/API_Task023_inventory_audit_sessions_get_by_id.md` §6.
+ * Cũng là body `data` của `POST` Task022 (201).
+ */
+export type AuditSessionLineItemResponse = {
+  id: number
+  auditSessionId: number
+  inventoryId: number
+  productId: number
+  productName: string
+  skuCode: string
+  unitName: string
+  locationId: number
+  warehouseCode: string
+  shelfCode: string
+  batchNumber: string | null
+  systemQuantity: number | string
+  actualQuantity: number | string | null
+  variance: number | string
+  variancePercent: number | string | null
+  isCounted: boolean
+  notes: string | null
+}
+
+export type AuditSessionEventItemResponse = {
+  id: number
+  eventType: string
+  payload?: string | null
+  createdBy: number
+  createdAt: string
+}
+
+export type AuditSessionDetailData = {
   id: number
   auditCode: string
   title: string
   auditDate: string
   status: string
-  items: unknown[]
+  locationFilter: string | null
+  categoryFilter: string | null
+  notes: string | null
+  createdBy: number
+  createdByName: string
+  completedAt: string | null
+  completedByName: string | null
+  cancelReason?: string | null
+  createdAt: string
+  updatedAt: string
+  ownerNotes?: string | null
+  events?: AuditSessionEventItemResponse[] | null
+  items: AuditSessionLineItemResponse[] | null
+}
+
+function asNum(v: number | string | null | undefined, fallback = 0): number {
+  if (v == null || v === "") return fallback
+  return typeof v === "number" ? v : Number(v)
+}
+
+export function mapAuditSessionLineToAuditItem(row: AuditSessionLineItemResponse): AuditItem {
+  const actualQty = row.actualQuantity == null || row.actualQuantity === "" ? undefined : asNum(row.actualQuantity)
+  return {
+    id: row.id,
+    auditSessionId: row.auditSessionId,
+    productId: row.productId,
+    productName: row.productName,
+    skuCode: row.skuCode,
+    unitName: row.unitName?.trim() ? row.unitName : "—",
+    locationId: row.locationId,
+    warehouseCode: row.warehouseCode,
+    shelfCode: row.shelfCode,
+    batchNumber: row.batchNumber ?? undefined,
+    systemQuantity: asNum(row.systemQuantity),
+    actualQuantity: actualQty,
+    variance: asNum(row.variance),
+    variancePercent: row.variancePercent == null || row.variancePercent === "" ? 0 : asNum(row.variancePercent),
+    isCounted: row.isCounted,
+    notes: row.notes ?? undefined,
+  }
+}
+
+export function mapAuditSessionDetailToUi(d: AuditSessionDetailData): AuditSession {
+  return {
+    id: d.id,
+    auditCode: d.auditCode,
+    title: d.title,
+    auditDate: d.auditDate,
+    status: d.status as AuditStatus,
+    locationFilter: d.locationFilter ?? undefined,
+    categoryFilter: d.categoryFilter ?? undefined,
+    notes: d.notes ?? undefined,
+    createdBy: d.createdBy,
+    createdByName: d.createdByName?.trim() ? d.createdByName : "—",
+    completedAt: d.completedAt ?? undefined,
+    completedByName: d.completedByName ?? undefined,
+    createdAt: d.createdAt,
+    updatedAt: d.updatedAt,
+    items: (d.items ?? []).map(mapAuditSessionLineToAuditItem),
+  }
+}
+
+export function getAuditSessionById(id: number) {
+  return apiJson<AuditSessionDetailData>(`/api/v1/inventory/audit-sessions/${id}`, {
+    method: "GET",
+    auth: true,
+  })
+}
+
+/**
+ * Task024 — `PATCH /api/v1/inventory/audit-sessions/{id}` — `frontend/docs/api/API_Task024_inventory_audit_sessions_patch.md` §5–6.
+ * BE: `AuditSessionPatchRequest` — chỉ gửi field có cập nhật (ít nhất một).
+ */
+export type AuditSessionPatchBody = Partial<{
+  title: string
+  notes: string | null
+  ownerNotes: string | null
+  status: string
+}>
+
+export function patchAuditSession(id: number, body: AuditSessionPatchBody) {
+  const payload: Record<string, string | null> = {}
+  if (body.title !== undefined) payload.title = body.title
+  if (body.notes !== undefined) payload.notes = body.notes
+  if (body.ownerNotes !== undefined) payload.ownerNotes = body.ownerNotes
+  if (body.status !== undefined) payload.status = body.status
+  return apiJson<AuditSessionDetailData>(`/api/v1/inventory/audit-sessions/${id}`, {
+    method: "PATCH",
+    auth: true,
+    body: JSON.stringify(payload),
+  })
+}
+
+/**
+ * Task025 — `PATCH /api/v1/inventory/audit-sessions/{id}/lines` — `frontend/docs/api/API_Task025_inventory_audit_sessions_patch_lines.md` §5–6.
+ * BE: `AuditLinesPatchRequest` / `AuditLinePatchRow` (`lineId`, `actualQuantity`, `notes`).
+ */
+export type AuditLinePatchRowBody = {
+  lineId: number
+  actualQuantity: number
+  notes?: string | null
+}
+
+export type AuditLinesPatchBody = {
+  lines: AuditLinePatchRowBody[]
+}
+
+export function patchAuditSessionLines(sessionId: number, body: AuditLinesPatchBody) {
+  return apiJson<AuditSessionDetailData>(`/api/v1/inventory/audit-sessions/${sessionId}/lines`, {
+    method: "PATCH",
+    auth: true,
+    body: JSON.stringify(body),
+  })
 }
 
 export function postAuditSession(body: AuditSessionCreateBody) {
@@ -120,7 +263,7 @@ export function postAuditSession(body: AuditSessionCreateBody) {
     notes: body.notes == null || String(body.notes).trim() === "" ? null : String(body.notes).trim(),
     scope: body.scope,
   }
-  return apiJson<AuditSessionDetailResponse>("/api/v1/inventory/audit-sessions", {
+  return apiJson<AuditSessionDetailData>("/api/v1/inventory/audit-sessions", {
     method: "POST",
     auth: true,
     body: JSON.stringify(payload),

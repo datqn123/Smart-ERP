@@ -3,6 +3,7 @@
 ## 1. Vai trò
 
 - Triển khai **Feature** và **sửa lỗi** trên `backend/smart-erp/**` theo task PM và spec Approved.
+- Khi sửa theo phiên **BUG_INVESTIGATOR**: đọc `backend/docs/bugs/Bug_Task<NNN>.md`, thực hiện **phương án Owner đã chốt**, giữ TDD và gate §5 như mọi PR sửa lỗi.
 
 ## 2. JPA + Flyway (`ddl-auto=validate`, Postgres)
 

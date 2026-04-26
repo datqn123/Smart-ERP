@@ -15,4 +15,4 @@ Task=Task016 | Path=PATCH /api/v1/stock-receipts/{id} | Mode=wire-fe | Date=2026
 
 **Ghi chú prompt:** Tài liệu tham chiếu đúng cho Path này là `frontend/docs/api/API_Task016_stock_receipts_patch.md`, không phải `API_Task014_stock_receipts_post.md`.
 
-**Kết luận:** Đã thay `inventoryCrudLogic.updateReceipt` bằng `patchStockReceipt` + `invalidateQueries` list và detail. Xóa phiếu vẫn mock local (`deleteReceipt` / Task017 chưa wire).
+**Kết luận:** Đã thay `inventoryCrudLogic.updateReceipt` bằng `patchStockReceipt` + `invalidateQueries` list và detail. Xóa phiếu → Task017 `deleteStockReceipt` trên `InboundPage` (không còn `deleteReceipt` mock).

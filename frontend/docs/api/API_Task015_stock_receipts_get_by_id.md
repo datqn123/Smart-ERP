@@ -33,7 +33,7 @@
 | **Endpoint** | `/api/v1/stock-receipts/{id}` |
 | **Method** | `GET` |
 | **Authentication** | `Bearer` |
-| **RBAC** | Owner, Staff, Admin (đọc trong phạm vi) |
+| **RBAC** | `hasAuthority('can_manage_inventory')` — xem **mọi** phiếu (không giới hạn theo người tạo). SRS: `backend/docs/srs/SRS_Task014-020_stock-receipts-lifecycle.md` §6. |
 | **Use Case Ref** | UC7 |
 
 ---
@@ -104,7 +104,7 @@
 1. **JWT** → **401** / **403**.
 2. **`SELECT`** header `StockReceipts` (gồm `rejection_reason`, `reviewed_at`, `reviewed_by`, `approved_by`, `approved_at`) **JOIN** `suppliers` → tên NCC, **JOIN** `users u_staff` → người tạo, **LEFT JOIN** `users u_appr` ON `u_appr.id = sr.approved_by`, **LEFT JOIN** `users u_rev` ON `u_rev.id = sr.reviewed_by` (tên người xét duyệt / từ chối); **không** `SELECT *` bừa bãi — liệt kê cột.
 3. **`details`**: join `StockReceiptDetails` với `Products`, `ProductUnits` như hiện tại.
-4. Không thấy hoặc ngoài phạm vi → **404**.
+4. Không thấy `id` → **404** (không trả **403** chỉ vì phiếu do người khác tạo).
 
 ### 7.2 Các ràng buộc (Constraints)
 
@@ -139,11 +139,13 @@
 
 #### 403 Forbidden
 
+Thiếu quyền module (vd. không có `can_manage_inventory`) — **không** dùng 403 để che phiếu của người khác.
+
 ```json
 {
   "success": false,
   "error": "FORBIDDEN",
-  "message": "Bạn không có quyền xem phiếu nhập kho này"
+  "message": "Bạn không có quyền truy cập chức năng này"
 }
 ```
 

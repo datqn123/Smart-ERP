@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * Success envelope: {@code success}, {@code data}, {@code message} — see {@code API_RESPONSE_ENVELOPE.md}.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record ApiSuccessResponse<T>(boolean success, T data, String message) {
+public record ApiSuccessResponse<T>(boolean success, @JsonInclude(JsonInclude.Include.ALWAYS) T data, String message) {
 
 	public static <T> ApiSuccessResponse<T> of(T data, String message) {
 		return new ApiSuccessResponse<>(true, data, message);

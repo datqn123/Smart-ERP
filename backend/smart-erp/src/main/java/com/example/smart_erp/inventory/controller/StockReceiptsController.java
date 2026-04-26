@@ -77,7 +77,7 @@ public class StockReceiptsController {
 	public ResponseEntity<ApiSuccessResponse<StockReceiptViewData>> create(Authentication authentication,
 			@Valid @RequestBody StockReceiptCreateRequest body) {
 		Jwt jwt = requireJwt(authentication);
-		StockReceiptViewData data = stockReceiptLifecycleService.create(body, jwt, authentication);
+		StockReceiptViewData data = stockReceiptLifecycleService.create(body, jwt);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiSuccessResponse.of(data, "Đã tạo phiếu nhập kho"));
 	}
 
@@ -86,8 +86,8 @@ public class StockReceiptsController {
 	@PreAuthorize("hasAuthority('can_manage_inventory')")
 	public ResponseEntity<ApiSuccessResponse<StockReceiptViewData>> getById(Authentication authentication,
 			@PathVariable("id") @Positive long id) {
-		Jwt jwt = requireJwt(authentication);
-		StockReceiptViewData data = stockReceiptLifecycleService.getById(id, jwt, authentication);
+		requireJwt(authentication);
+		StockReceiptViewData data = stockReceiptLifecycleService.getById(id);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
 	}
 
@@ -97,7 +97,7 @@ public class StockReceiptsController {
 	public ResponseEntity<ApiSuccessResponse<StockReceiptViewData>> patch(Authentication authentication,
 			@PathVariable("id") @Positive long id, @Valid @RequestBody StockReceiptPatchRequest body) {
 		Jwt jwt = requireJwt(authentication);
-		StockReceiptViewData data = stockReceiptLifecycleService.patch(id, body, jwt, authentication);
+		StockReceiptViewData data = stockReceiptLifecycleService.patch(id, body, jwt);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã cập nhật phiếu nhập kho"));
 	}
 
@@ -107,7 +107,7 @@ public class StockReceiptsController {
 	public ResponseEntity<ApiSuccessResponse<Object>> delete(Authentication authentication,
 			@PathVariable("id") @Positive long id) {
 		Jwt jwt = requireJwt(authentication);
-		stockReceiptLifecycleService.delete(id, jwt, authentication);
+		stockReceiptLifecycleService.delete(id, jwt);
 		return ResponseEntity.ok(ApiSuccessResponse.of(null, "Đã xóa phiếu nhập kho"));
 	}
 
@@ -117,11 +117,11 @@ public class StockReceiptsController {
 	public ResponseEntity<ApiSuccessResponse<StockReceiptViewData>> submit(Authentication authentication,
 			@PathVariable("id") @Positive long id) {
 		Jwt jwt = requireJwt(authentication);
-		StockReceiptViewData data = stockReceiptLifecycleService.submit(id, jwt, authentication);
+		StockReceiptViewData data = stockReceiptLifecycleService.submit(id, jwt);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã gửi yêu cầu duyệt"));
 	}
 
-	/** Task019 */
+	/** Task019 — {@code can_approve} + JWT {@code role} = Owner (SRS §6). */
 	@PostMapping("/stock-receipts/{id}/approve")
 	@PreAuthorize("hasAuthority('can_approve')")
 	public ResponseEntity<ApiSuccessResponse<StockReceiptViewData>> approve(Authentication authentication,
@@ -131,7 +131,7 @@ public class StockReceiptsController {
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã phê duyệt phiếu nhập kho"));
 	}
 
-	/** Task020 */
+	/** Task020 — cùng rule Owner với Task019 (SRS §6). */
 	@PostMapping("/stock-receipts/{id}/reject")
 	@PreAuthorize("hasAuthority('can_approve')")
 	public ResponseEntity<ApiSuccessResponse<StockReceiptViewData>> reject(Authentication authentication,

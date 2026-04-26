@@ -27,7 +27,7 @@
 | **Endpoint** | `/api/v1/stock-receipts/{id}` |
 | **Method** | `PATCH` |
 | **Authentication** | `Bearer` |
-| **RBAC** | Staff tạo / Owner |
+| **RBAC** | `can_manage_inventory` + **chỉ người tạo phiếu** (`stockreceipts.staff_id` = JWT `sub`); SRS §6. |
 | **Use Case Ref** | UC7 |
 
 ---

@@ -18,11 +18,13 @@ import {
   patchStockReceipt,
   postStockReceipt,
   deleteStockReceipt,
+  submitStockReceipt,
   type GetStockReceiptListParams,
   type StockReceiptCreateSaveMode,
 } from "../api/stockReceiptsApi"
 import { ApiRequestError } from "@/lib/api/http"
 import { toast } from "sonner"
+import { useAuthStore } from "@/features/auth/store/useAuthStore"
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 400
@@ -48,6 +50,7 @@ function parseSupplierId(raw: string): number | undefined {
 export function InboundPage() {
   const queryClient = useQueryClient()
   const { setTitle } = usePageTitle()
+  const userCanApprove = useAuthStore((s) => s.user?.role === "Owner" && s.menuPermissions.can_approve)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRootRef = useRef<HTMLDivElement>(null)
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
@@ -232,22 +235,28 @@ export function InboundPage() {
 
   const handleFormSubmit = async (data: ReceiptFormData, saveMode: StockReceiptCreateSaveMode) => {
     if (editingReceipt) {
+      const patchBody = {
+        supplierId: data.supplierId,
+        receiptDate: data.receiptDate,
+        invoiceNumber: data.invoiceNumber?.trim() ?? "",
+        notes: data.notes?.trim() ? data.notes.trim() : null,
+        details: data.details.map((d) => ({
+          productId: d.productId,
+          unitId: d.unitId,
+          quantity: Math.floor(Number(d.quantity)),
+          costPrice: d.costPrice,
+          batchNumber: d.batchNumber?.trim() ? d.batchNumber.trim() : null,
+          expiryDate: d.expiryDate?.trim() ? d.expiryDate.trim() : null,
+        })),
+      }
       try {
-        await patchStockReceipt(editingReceipt.id, {
-          supplierId: data.supplierId,
-          receiptDate: data.receiptDate,
-          invoiceNumber: data.invoiceNumber?.trim() ?? "",
-          notes: data.notes?.trim() ? data.notes.trim() : null,
-          details: data.details.map((d) => ({
-            productId: d.productId,
-            unitId: d.unitId,
-            quantity: Math.floor(Number(d.quantity)),
-            costPrice: d.costPrice,
-            batchNumber: d.batchNumber?.trim() ? d.batchNumber.trim() : null,
-            expiryDate: d.expiryDate?.trim() ? d.expiryDate.trim() : null,
-          })),
-        })
-        toast.success("Đã cập nhật phiếu nhập kho")
+        await patchStockReceipt(editingReceipt.id, patchBody)
+        if (saveMode === "pending") {
+          await submitStockReceipt(editingReceipt.id)
+          toast.success("Đã gửi phiếu chờ duyệt")
+        } else {
+          toast.success("Đã cập nhật phiếu nhập kho")
+        }
         await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "list"] })
         await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "detail", editingReceipt.id] })
       } catch (e) {
@@ -430,8 +439,12 @@ export function InboundPage() {
             setIsPanelOpen(false)
             setSelectedReceipt(null)
           }}
-          canApprove={true}
+          canApprove={userCanApprove}
           isLoadingDetail={isDetailPending}
+          onAfterApprove={async (receiptId) => {
+            await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "list"] })
+            await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "detail", receiptId] })
+          }}
         />
 
         <ReceiptForm
@@ -439,6 +452,11 @@ export function InboundPage() {
           onOpenChange={setIsFormOpen}
           receipt={editingReceipt}
           onSubmit={handleFormSubmit}
+          canApprove={userCanApprove}
+          onAfterApproveOrReject={async (receiptId) => {
+            await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "list"] })
+            await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "detail", receiptId] })
+          }}
         />
       </div>
     </div>

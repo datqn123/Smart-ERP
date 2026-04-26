@@ -20,7 +20,7 @@ test('verify inbound receipt details and edit form expansion', async ({ page }) 
   const detailBox = await detailDialog.boundingBox();
   expect(detailBox?.width).toBeGreaterThan(800); // 5xl is > 800px
 
-  await detailDialog.locator('button', { hasText: 'Đóng' }).click();
+  await detailDialog.locator('[data-slot="dialog-close"]').click();
   await expect(detailDialog).not.toBeVisible();
 
   // 2. Check Edit Form

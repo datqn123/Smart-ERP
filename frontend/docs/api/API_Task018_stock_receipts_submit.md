@@ -26,6 +26,7 @@
 | **Endpoint** | `/api/v1/stock-receipts/{id}/submit` |
 | **Method** | `POST` |
 | **Auth** | `Bearer` |
+| **RBAC** | `can_manage_inventory` + **chỉ người tạo phiếu** (`staff_id` = JWT `sub`); SRS §6. |
 
 ---
 

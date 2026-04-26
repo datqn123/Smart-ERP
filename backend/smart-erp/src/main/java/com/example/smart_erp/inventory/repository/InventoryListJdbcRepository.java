@@ -19,6 +19,7 @@ import com.example.smart_erp.inventory.response.InventorySummaryData;
 /**
  * Đọc tồn theo SRS Task005; SQL dialect PostgreSQL (bảng Flyway V1).
  */
+@SuppressWarnings("null")
 @Repository
 public class InventoryListJdbcRepository {
 
@@ -103,9 +104,8 @@ public class InventoryListJdbcRepository {
 	public List<InventoryListRow> loadPage(InventoryListQuery q) {
 		Filter f = buildFilter(q);
 		int offset = (q.page() - 1) * q.limit();
-		String order = q.sort().orderByFragment();
 		// page/limit đã validate; ghép số an toàn hơn mở rộng tên tham số
-		String sql = SELECT_LIST_COLUMNS + BASE_FROM + f.where + " ORDER BY " + order + " LIMIT " + q.limit() + " OFFSET " + offset;
+		String sql = SELECT_LIST_COLUMNS + BASE_FROM + f.where + " ORDER BY i.id ASC LIMIT " + q.limit() + " OFFSET " + offset;
 		return namedJdbc.query(sql, f.source, ROW);
 	}
 
@@ -130,7 +130,7 @@ public class InventoryListJdbcRepository {
 			WHERE i2.product_id = :_product_id
 			  AND i2.id <> :_exclude_id
 			  AND i2.quantity > 0
-			ORDER BY i2.expiry_date NULLS LAST, i2.id
+			ORDER BY i2.id ASC
 			""";
 
 	/** Task006 — các lô cùng SP, khác id, chỉ còn hàng (SRS OQ-2). */

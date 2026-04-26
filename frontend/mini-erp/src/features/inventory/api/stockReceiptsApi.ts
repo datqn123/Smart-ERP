@@ -260,3 +260,47 @@ export function deleteStockReceipt(id: number) {
     auth: true,
   })
 }
+
+/** Draft → Pending — `POST /api/v1/stock-receipts/{id}/submit` — `frontend/docs/api/API_Task018_stock_receipts_submit.md`. */
+export function submitStockReceipt(id: number) {
+  return apiJson<StockReceiptViewResponse>(`/api/v1/stock-receipts/${id}/submit`, {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify({}),
+  })
+}
+
+export type StockReceiptApproveBody = {
+  inboundLocationId: number
+}
+
+/** Pending → Approved — `POST /api/v1/stock-receipts/{id}/approve` — `frontend/docs/api/API_Task019_stock_receipts_approve.md`. RBAC BE: `can_approve`. */
+export function approveStockReceipt(id: number, body: StockReceiptApproveBody) {
+  return apiJson<StockReceiptViewResponse>(`/api/v1/stock-receipts/${id}/approve`, {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify(body),
+  })
+}
+
+export type StockReceiptRejectBody = {
+  reason: string
+}
+
+/** Pending → Rejected — `POST /api/v1/stock-receipts/{id}/reject` — `frontend/docs/api/API_Task020_stock_receipts_reject.md`. RBAC BE: giống approve. */
+export function rejectStockReceipt(id: number, body: StockReceiptRejectBody) {
+  return apiJson<StockReceiptViewResponse>(`/api/v1/stock-receipts/${id}/reject`, {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify(body),
+  })
+}
+
+/** Gợi ý chọn vị trí nhập: seed V1 `WarehouseLocations` (id 1..5). */
+export const STOCK_RECEIPT_APPROVE_LOCATION_OPTIONS: readonly { id: number; label: string }[] = [
+  { id: 1, label: "WH01 · A1 — Kệ A1" },
+  { id: 2, label: "WH01 · A2 — Kệ A2" },
+  { id: 3, label: "WH01 · B1 — Kệ B1" },
+  { id: 4, label: "WH01 · B2 — Kệ B2" },
+  { id: 5, label: "WH01 · C1 — Kệ C1" },
+]

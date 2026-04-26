@@ -1,19 +1,36 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Plus, X, Save, Send, ShoppingCart, Info, Trash2 } from "lucide-react"
+import { Plus, X, Save, Send, ShoppingCart, Info, Trash2, CheckCircle2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Separator } from "@/components/ui/separator"
-import { formatCurrency } from "../utils"
+import { formatCurrency, formatDate } from "../utils"
 import type { StockReceipt } from "../types"
 import { calculateReceiptTotal, isExpiryValid } from "../inboundLogic"
-import { RECEIPT_FORM_PRODUCTS, catalogUnitForProduct } from "../receiptFormCatalog"
+import {
+  RECEIPT_FORM_PRODUCTS,
+  type ReceiptFormProductOption,
+  catalogUnitForProduct,
+} from "../receiptFormCatalog"
+import {
+  approveStockReceipt,
+  rejectStockReceipt,
+  STOCK_RECEIPT_APPROVE_LOCATION_OPTIONS,
+} from "../api/stockReceiptsApi"
+import { ApiRequestError } from "@/lib/api/http"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
   FORM_LABEL_CLASS,
@@ -24,6 +41,9 @@ import {
   TABLE_CELL_MONO_CLASS,
   TABLE_CELL_NUMBER_CLASS,
 } from "@/lib/data-table-layout"
+
+/** Ghi đè `disabled:opacity-50` từ Input/Select: phiếu chờ duyệt vẫn full opacity, chỉ không tương tác. */
+const FORM_FIELD_DISABLED_OPAQUE = "disabled:opacity-100"
 
 const receiptSchema = z.object({
   supplierId: z.number().min(1, "Vui lòng chọn nhà cung cấp"),
@@ -52,6 +72,10 @@ interface ReceiptFormProps {
   onOpenChange: (open: boolean) => void
   receipt?: StockReceipt
   onSubmit: (data: ReceiptFormData, saveMode: "draft" | "pending") => void | Promise<void>
+  /** UC4 — Owner + `can_approve` (JWT); hiển thị Duyệt / Từ chối khi phiếu `Pending`. */
+  canApprove?: boolean
+  /** Sau approve/reject thành công — vd. invalidate list + detail. */
+  onAfterApproveOrReject?: (receiptId: number) => void | Promise<void>
 }
 
 const mockSuppliers = [
@@ -62,32 +86,101 @@ const mockSuppliers = [
   { id: 5, name: "Đại lý Unilever" },
 ]
 
-export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFormProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  
-  const form = useForm<ReceiptFormData>({
-    resolver: zodResolver(receiptSchema),
-    defaultValues: receipt ? {
+function buildReceiptFormDefaultValues(receipt: StockReceipt | undefined): ReceiptFormData {
+  if (receipt) {
+    return {
       supplierId: receipt.supplierId,
       receiptDate: receipt.receiptDate,
       invoiceNumber: receipt.invoiceNumber || "",
       notes: receipt.notes || "",
-      details: receipt.details.map(d => ({
+      details: receipt.details.map((d) => ({
         productId: d.productId,
         unitId: d.unitId > 0 ? d.unitId : (catalogUnitForProduct(d.productId) ?? 0),
         quantity: d.quantity,
         costPrice: d.costPrice,
         batchNumber: d.batchNumber || "",
-        expiryDate: d.expiryDate ? new Date(d.expiryDate).toISOString().split('T')[0] : "",
-      }))
-    } : {
-      supplierId: 0 as unknown as number,
-      receiptDate: new Date().toISOString().split("T")[0],
-      invoiceNumber: "",
-      notes: "",
-      details: [{ productId: 0 as unknown as number, unitId: 0 as unknown as number, quantity: 1, costPrice: 0, batchNumber: "", expiryDate: "" }]
+        expiryDate: d.expiryDate ? new Date(d.expiryDate).toISOString().split("T")[0] : "",
+      })),
     }
+  }
+  return {
+    supplierId: 0 as unknown as number,
+    receiptDate: new Date().toISOString().split("T")[0],
+    invoiceNumber: "",
+    notes: "",
+    details: [
+      { productId: 0 as unknown as number, unitId: 0 as unknown as number, quantity: 1, costPrice: 0, batchNumber: "", expiryDate: "" },
+    ],
+  }
+}
+
+/**
+ * Radix Select chỉ hiện label khi có `SelectItem` cùng `value`. Catalog tĩnh có id 1..8;
+ * phiếu từ API có thể có sản phẩm ngoài bảng này — bổ sung từ `receipt.details` (tên, SKU, ĐVT từ BE).
+ */
+function mergeProductSelectOptions(receipt: StockReceipt | undefined): ReceiptFormProductOption[] {
+  const base = RECEIPT_FORM_PRODUCTS
+  if (!receipt?.details?.length) {
+    return base
+  }
+  const have = new Set(base.map((p) => p.productId))
+  const extra: ReceiptFormProductOption[] = []
+  for (const d of receipt.details) {
+    if (!have.has(d.productId)) {
+      have.add(d.productId)
+      extra.push({
+        productId: d.productId,
+        unitId: d.unitId,
+        name: d.productName,
+        sku: d.skuCode,
+        unitName: d.unitName,
+      })
+    }
+  }
+  return extra.length > 0 ? [...base, ...extra] : base
+}
+
+export function ReceiptForm({
+  open,
+  onOpenChange,
+  receipt,
+  onSubmit,
+  canApprove = false,
+  onAfterApproveOrReject,
+}: ReceiptFormProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [inboundLocationId, setInboundLocationId] = useState(1)
+  const [approveBusy, setApproveBusy] = useState(false)
+  const [rejectBusy, setRejectBusy] = useState(false)
+  const [rejectInlineOpen, setRejectInlineOpen] = useState(false)
+  const [rejectReason, setRejectReason] = useState("")
+
+  const form = useForm<ReceiptFormData>({
+    resolver: zodResolver(receiptSchema),
+    defaultValues: buildReceiptFormDefaultValues(receipt),
   })
+
+  // Đồng bộ form khi mở dialog hoặc đổi phiếu; defaultValues của useForm chỉ áp dụng lúc mount lần đầu.
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+    form.reset(buildReceiptFormDefaultValues(receipt))
+  }, [open, form, receipt?.id, receipt?.updatedAt])
+
+  useEffect(() => {
+    if (!open) {
+      setRejectInlineOpen(false)
+      return
+    }
+    if (receipt) {
+      setInboundLocationId(1)
+      setApproveBusy(false)
+      setRejectBusy(false)
+      setRejectInlineOpen(false)
+      setRejectReason("")
+    }
+  }, [open, receipt?.id])
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -95,6 +188,7 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
   })
 
   const formValues = form.watch()
+  const productSelectOptions = useMemo(() => mergeProductSelectOptions(receipt), [receipt])
   const totalAmount = useMemo(() => calculateReceiptTotal(formValues.details || []), [formValues.details])
 
   const submitWithMode = (saveMode: "draft" | "pending") =>
@@ -109,6 +203,55 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
     })
 
   const isEditable = !receipt || receipt.status === "Draft"
+  const showPendingApprovalActions = Boolean(receipt && receipt.status === "Pending" && canApprove)
+
+  const handleApprove = async () => {
+    if (!receipt) {
+      return
+    }
+    setApproveBusy(true)
+    try {
+      await approveStockReceipt(receipt.id, { inboundLocationId })
+      toast.success("Đã phê duyệt phiếu nhập kho")
+      await onAfterApproveOrReject?.(receipt.id)
+      onOpenChange(false)
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        toast.error(e.body?.message ?? "Không phê duyệt được phiếu nhập")
+      } else {
+        toast.error("Không phê duyệt được phiếu nhập")
+      }
+    } finally {
+      setApproveBusy(false)
+    }
+  }
+
+  const handleConfirmReject = async () => {
+    if (!receipt) {
+      return
+    }
+    const reason = rejectReason.trim()
+    if (!reason) {
+      toast.error("Vui lòng nhập lý do từ chối")
+      return
+    }
+    setRejectBusy(true)
+    try {
+      await rejectStockReceipt(receipt.id, { reason })
+      toast.success("Đã từ chối phiếu nhập kho")
+      await onAfterApproveOrReject?.(receipt.id)
+      setRejectInlineOpen(false)
+      onOpenChange(false)
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        toast.error(e.body?.message ?? "Không từ chối được phiếu nhập")
+      } else {
+        toast.error("Không từ chối được phiếu nhập")
+      }
+    } finally {
+      setRejectBusy(false)
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -120,7 +263,11 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
                 {receipt ? (isEditable ? `Sửa phiếu: ${receipt.receiptCode}` : `Chi tiết phiếu: ${receipt.receiptCode}`) : "Tạo mới phiếu nhập kho"}
               </DialogTitle>
               <DialogDescription className="text-slate-500 mt-1">
-                Điền đầy đủ các thông tin hóa đơn và chi tiết mặt hàng nhập kho.
+                {receipt?.status === "Pending"
+                  ? "Phiếu đang chờ duyệt — chỉ xem nội dung; dùng Duyệt hoặc Từ chối phiếu nhập nếu bạn có quyền phê duyệt."
+                  : receipt?.status === "Rejected"
+                    ? "Phiếu đã bị từ chối — chỉ xem nội dung; xem lý do từ chối bên dưới."
+                    : "Điền đầy đủ các thông tin hóa đơn và chi tiết mặt hàng nhập kho."}
               </DialogDescription>
             </div>
             <div className="text-right">
@@ -153,7 +300,7 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
                         onValueChange={(val) => form.setValue("supplierId", parseInt(val))}
                         disabled={!isEditable}
                     >
-                        <SelectTrigger className={FORM_INPUT_CLASS}>
+                        <SelectTrigger className={cn(FORM_INPUT_CLASS, "w-full", FORM_FIELD_DISABLED_OPAQUE)}>
                         <SelectValue placeholder="Chọn đối tác..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -169,11 +316,11 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
 
                     <div className="space-y-1.5">
                     <label className={FORM_LABEL_CLASS}>Ngày nhập thực tế *</label>
-                    <Input 
-                        type="date" 
+                    <Input
+                        type="date"
                         {...form.register("receiptDate")}
                         disabled={!isEditable}
-                        className={FORM_INPUT_CLASS}
+                        className={cn(FORM_INPUT_CLASS, FORM_FIELD_DISABLED_OPAQUE)}
                     />
                     {form.formState.errors.receiptDate && (
                         <p className="text-[10px] text-red-500 font-bold px-1">{form.formState.errors.receiptDate.message}</p>
@@ -182,70 +329,127 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
 
                     <div className="space-y-1.5">
                     <label className={FORM_LABEL_CLASS}>Số hóa đơn / Chứng từ</label>
-                    <Input 
-                        placeholder="VD: INV-001..." 
+                    <Input
+                        placeholder="VD: INV-001..."
                         {...form.register("invoiceNumber")}
                         disabled={!isEditable}
-                        className={cn(FORM_INPUT_CLASS, "font-mono")}
+                        className={cn(FORM_INPUT_CLASS, "font-mono", FORM_FIELD_DISABLED_OPAQUE)}
                     />
                     </div>
 
                     <div className="space-y-1.5">
                         <label className={FORM_LABEL_CLASS}>Ghi chú phiếu</label>
-                        <Input 
-                            placeholder="Mô tả ngắn..." 
+                        <Input
+                            placeholder="Mô tả ngắn..."
                             {...form.register("notes")}
                             disabled={!isEditable}
-                            className={FORM_INPUT_CLASS}
+                            className={cn(FORM_INPUT_CLASS, FORM_FIELD_DISABLED_OPAQUE)}
                         />
                     </div>
                 </div>
             </div>
 
+            {receipt?.status === "Rejected" && (
+              <div className="rounded-xl border border-red-200 bg-red-50/70 p-5">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-700">
+                    <XCircle className="h-5 w-5" aria-hidden />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-black uppercase tracking-widest text-red-800">Phiếu đã bị từ chối</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">Lý do từ chối</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-red-950/90">
+                      {receipt.rejectionReason?.trim() ? receipt.rejectionReason.trim() : "Không ghi nhận lý do cụ thể trên hệ thống."}
+                    </p>
+                    {(receipt.reviewedByName || receipt.reviewedAt) && (
+                      <p className="mt-3 text-xs text-slate-600">
+                        {receipt.reviewedByName ? (
+                          <span>
+                            Người xử lý: <span className="font-medium text-slate-800">{receipt.reviewedByName}</span>
+                          </span>
+                        ) : null}
+                        {receipt.reviewedAt ? (
+                          <span className={receipt.reviewedByName ? " ml-2" : ""}>· {formatDate(receipt.reviewedAt)}</span>
+                        ) : null}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Product Items Table Section */}
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-              <div className="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex flex-col gap-4 border-b border-slate-200 bg-slate-50/80 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2">
                     <ShoppingCart size={18} className="text-slate-400" />
                     <h3 className="text-sm font-black uppercase tracking-widest text-slate-700">Chi tiết hàng hóa ({fields.length})</h3>
                 </div>
-                {isEditable && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => append({ productId: 0 as unknown as number, unitId: 0 as unknown as number, quantity: 1, costPrice: 0, batchNumber: "", expiryDate: "" })}
-                    className="h-9 border-slate-300 bg-white hover:bg-slate-50 text-slate-700"
-                  >
-                    <Plus className="h-4 w-4 mr-2" /> Thêm mặt hàng
-                  </Button>
-                )}
+                <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4 sm:shrink-0">
+                  {showPendingApprovalActions && (
+                    <div className="flex w-full flex-col gap-1.5 sm:max-w-[260px] sm:text-right">
+                      <label
+                        className="text-[10px] font-bold uppercase tracking-widest text-slate-500 sm:text-right"
+                        htmlFor="receipt-form-inbound-location"
+                      >
+                        Vị trí nhập kho
+                      </label>
+                      <Select
+                        value={String(inboundLocationId)}
+                        onValueChange={(v) => setInboundLocationId(parseInt(v, 10))}
+                        disabled={approveBusy || rejectBusy}
+                      >
+                        <SelectTrigger id="receipt-form-inbound-location" className="h-9 border-slate-200 bg-white sm:w-full">
+                          <SelectValue placeholder="Chọn vị trí…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STOCK_RECEIPT_APPROVE_LOCATION_OPTIONS.map((o) => (
+                            <SelectItem key={o.id} value={String(o.id)}>
+                              {o.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {isEditable && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => append({ productId: 0 as unknown as number, unitId: 0 as unknown as number, quantity: 1, costPrice: 0, batchNumber: "", expiryDate: "" })}
+                      className="h-9 shrink-0 border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                    >
+                      <Plus className="mr-2 h-4 w-4" /> Thêm mặt hàng
+                    </Button>
+                  )}
+                </div>
               </div>
 
               <div className="overflow-x-auto min-h-[300px]">
                 <Table className="border-collapse">
                   <TableHeader className="bg-slate-50/50">
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className={cn(TABLE_HEAD_CLASS, "w-[50px] text-center")}>#</TableHead>
-                      <TableHead className={cn(TABLE_HEAD_CLASS, "min-w-[280px]")}>Sản phẩm *</TableHead>
-                      <TableHead className={cn(TABLE_HEAD_CLASS, "w-[100px] text-center")}>ĐVT</TableHead>
-                      <TableHead className={cn(TABLE_HEAD_CLASS, "w-[120px] text-right")}>Số lượng *</TableHead>
-                      <TableHead className={cn(TABLE_HEAD_CLASS, "w-[150px] text-right")}>Đơn giá *</TableHead>
-                      <TableHead className={cn(TABLE_HEAD_CLASS, "w-[150px]")}>Số lô</TableHead>
-                      <TableHead className={cn(TABLE_HEAD_CLASS, "w-[160px]")}>Hạn sử dụng</TableHead>
-                      <TableHead className={cn(TABLE_HEAD_CLASS, "w-[150px] text-right")}>Thành tiền</TableHead>
-                      {isEditable && <TableHead className="w-[60px]"></TableHead>}
+                      <TableHead className={cn(TABLE_HEAD_CLASS, "w-[50px] text-left")}>#</TableHead>
+                      <TableHead className={cn(TABLE_HEAD_CLASS, "min-w-[280px] text-left")}>Sản phẩm *</TableHead>
+                      <TableHead className={cn(TABLE_HEAD_CLASS, "w-[100px] text-left")}>ĐVT</TableHead>
+                      <TableHead className={cn(TABLE_HEAD_CLASS, "w-[120px] text-left")}>Số lượng *</TableHead>
+                      <TableHead className={cn(TABLE_HEAD_CLASS, "w-[150px] text-left")}>Đơn giá *</TableHead>
+                      <TableHead className={cn(TABLE_HEAD_CLASS, "w-[150px] text-left")}>Số lô</TableHead>
+                      <TableHead className={cn(TABLE_HEAD_CLASS, "w-[160px] text-left")}>Hạn sử dụng</TableHead>
+                      <TableHead className={cn(TABLE_HEAD_CLASS, "w-[150px] text-left")}>Thành tiền</TableHead>
+                      {isEditable && <TableHead className="w-[60px] text-left" />}
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-slate-100">
                     {fields.map((field, index) => {
                       const detail = formValues.details[index]
-                      const product = RECEIPT_FORM_PRODUCTS.find(p => p.productId === detail?.productId)
+                      const product = productSelectOptions.find((p) => p.productId === detail?.productId)
                       const lineTotal = (detail?.quantity || 0) * (detail?.costPrice || 0)
 
                       return (
                         <TableRow key={field.id} className="hover:bg-slate-50/30 transition-colors group h-14">
-                          <TableCell className={cn("text-center", TABLE_CELL_MONO_CLASS)}>
+                          <TableCell className={cn("text-left", TABLE_CELL_MONO_CLASS)}>
                             {index + 1}
                           </TableCell>
                           <TableCell className="px-2 py-1.5 focus-within:z-10">
@@ -254,18 +458,29 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
                               onValueChange={(val) => {
                                 const pid = parseInt(val, 10)
                                 form.setValue(`details.${index}.productId`, pid)
-                                const uid = catalogUnitForProduct(pid)
-                                if (uid != null) {
-                                  form.setValue(`details.${index}.unitId`, uid)
+                                const opt = productSelectOptions.find((p) => p.productId === pid)
+                                if (opt != null) {
+                                  form.setValue(`details.${index}.unitId`, opt.unitId)
+                                } else {
+                                  const uid = catalogUnitForProduct(pid)
+                                  if (uid != null) {
+                                    form.setValue(`details.${index}.unitId`, uid)
+                                  }
                                 }
                               }}
                               disabled={!isEditable}
                             >
-                              <SelectTrigger className={cn(FORM_INPUT_CLASS, "h-10 group-hover:bg-white focus:bg-white transition-all shadow-none")}>
+                              <SelectTrigger
+                                className={cn(
+                                  FORM_INPUT_CLASS,
+                                  "h-10 w-full min-w-0 text-left group-hover:bg-white focus:bg-white transition-all shadow-none",
+                                  FORM_FIELD_DISABLED_OPAQUE,
+                                )}
+                              >
                                 <SelectValue placeholder="Chọn sản phẩm..." />
                               </SelectTrigger>
                               <SelectContent>
-                                {RECEIPT_FORM_PRODUCTS.map((p) => (
+                                {productSelectOptions.map((p) => (
                                   <SelectItem key={p.productId} value={p.productId.toString()}>
                                     <div className="flex flex-col text-left">
                                         <span className={TABLE_CELL_PRIMARY_CLASS}>{p.name}</span>
@@ -276,49 +491,65 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell className="text-center">
-                             <span className={cn(TABLE_CELL_SECONDARY_CLASS, "bg-slate-50 px-2 py-1 rounded")}>
-                                {product?.unit || "—"}
+                          <TableCell className="text-left">
+                             <span className={cn(TABLE_CELL_SECONDARY_CLASS, "inline-block w-full bg-slate-50 px-2 py-1 text-left")}>
+                                {product?.unitName || "—"}
                              </span>
                           </TableCell>
-                          <TableCell className="px-1">
+                          <TableCell className="px-1 text-left">
                             <Input
                               type="number"
                               {...form.register(`details.${index}.quantity`, { valueAsNumber: true })}
                               disabled={!isEditable}
-                              className={cn(FORM_INPUT_CLASS, "h-10 text-right group-hover:bg-white focus:bg-white")}
+                              className={cn(
+                                FORM_INPUT_CLASS,
+                                "h-10 text-left group-hover:bg-white focus:bg-white",
+                                FORM_FIELD_DISABLED_OPAQUE,
+                              )}
                             />
                           </TableCell>
-                          <TableCell className="px-1">
+                          <TableCell className="px-1 text-left">
                             <Input
                               type="number"
                               {...form.register(`details.${index}.costPrice`, { valueAsNumber: true })}
                               disabled={!isEditable}
-                              className={cn(FORM_INPUT_CLASS, "h-10 text-right group-hover:bg-white focus:bg-white")}
+                              className={cn(
+                                FORM_INPUT_CLASS,
+                                "h-10 text-left group-hover:bg-white focus:bg-white",
+                                FORM_FIELD_DISABLED_OPAQUE,
+                              )}
                             />
                           </TableCell>
-                          <TableCell className="px-1">
+                          <TableCell className="px-1 text-left">
                             <Input
                               placeholder="BATCH..."
                               {...form.register(`details.${index}.batchNumber`)}
                               disabled={!isEditable}
-                              className={cn(FORM_INPUT_CLASS, "h-10 font-mono text-xs group-hover:bg-white focus:bg-white")}
+                              className={cn(
+                                FORM_INPUT_CLASS,
+                                "h-10 font-mono text-xs group-hover:bg-white focus:bg-white",
+                                FORM_FIELD_DISABLED_OPAQUE,
+                              )}
                             />
                           </TableCell>
-                          <TableCell className="px-1">
+                          <TableCell className="px-1 text-left">
                             <Input
                               type="date"
                               {...form.register(`details.${index}.expiryDate`)}
                               disabled={!isEditable}
-                              className={cn(FORM_INPUT_CLASS, "h-10 text-xs group-hover:bg-white focus:bg-white px-2")}
+                              className={cn(
+                                FORM_INPUT_CLASS,
+                                "h-10 text-left text-xs group-hover:bg-white focus:bg-white px-2",
+                                FORM_FIELD_DISABLED_OPAQUE,
+                              )}
                             />
                           </TableCell>
-                          <TableCell className="text-right pr-6">
-                             <span className={TABLE_CELL_NUMBER_CLASS}>{formatCurrency(lineTotal)}</span>
+                          <TableCell className="pr-2 text-left">
+                             <span className={cn(TABLE_CELL_NUMBER_CLASS, "text-left")}>{formatCurrency(lineTotal)}</span>
                           </TableCell>
                           
                           {isEditable && (
-                            <TableCell className="w-[60px] text-center">
+                            <TableCell className="w-[60px] text-left">
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -355,23 +586,110 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
           </form>
         </div>
 
-        <DialogFooter className="p-6 bg-slate-50 border-t border-slate-200 flex-none flex flex-col sm:flex-row gap-3">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="h-11 border-slate-300">
-            Đóng
-          </Button>
-          <div className="flex-1" />
-          {isEditable && (
-            <>
-              <Button type="button" variant="outline" disabled={isSubmitting} className="h-11 border-slate-300 bg-white" onClick={() => void submitWithMode("draft")()}>
-                <Save className="h-4 w-4 mr-2" />
-                Lưu bản nháp
-              </Button>
-              <Button type="button" disabled={isSubmitting} className="h-11 bg-slate-900 hover:bg-slate-800 text-white min-w-[140px]" onClick={() => void submitWithMode("pending")()}>
-                <Send className="h-4 w-4 mr-2" />
-                Gửi yêu cầu duyệt
-              </Button>
-            </>
-          )}
+        <DialogFooter className="w-full flex-none flex-col gap-0 border-t border-slate-200 bg-slate-50 p-6 sm:flex-row sm:justify-start">
+          <div className="flex w-full flex-col gap-4">
+            {/* Một hàng: Từ chối (trái) và Duyệt / Lưu / Gửi (phải) — cùng baseline */}
+            <div className="flex w-full min-h-[44px] flex-row flex-wrap items-center justify-between gap-3">
+              <div className="flex shrink-0 items-center">
+                {showPendingApprovalActions && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "h-11 shrink-0 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700",
+                      rejectInlineOpen && "bg-red-50/80 ring-2 ring-red-300",
+                    )}
+                    onClick={() => {
+                      setRejectReason("")
+                      setRejectInlineOpen((v) => !v)
+                    }}
+                    disabled={approveBusy || rejectBusy}
+                  >
+                    <XCircle className="mr-2 h-4 w-4" />
+                    {rejectInlineOpen ? "Đóng nhập lý do" : "Từ chối phiếu nhập"}
+                  </Button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                {isEditable && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isSubmitting}
+                      className="h-11 border-slate-300 bg-white"
+                      onClick={() => void submitWithMode("draft")()}
+                    >
+                      <Save className="mr-2 h-4 w-4" />
+                      Lưu bản nháp
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={isSubmitting}
+                      className="h-11 min-w-[140px] bg-slate-900 text-white hover:bg-slate-800"
+                      onClick={() => void submitWithMode("pending")()}
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      Gửi yêu cầu duyệt
+                    </Button>
+                  </>
+                )}
+                {showPendingApprovalActions && (
+                  <Button
+                    type="button"
+                    className="h-11 min-w-[120px] shrink-0 bg-slate-900 text-white hover:bg-slate-800"
+                    onClick={() => void handleApprove()}
+                    disabled={approveBusy || rejectBusy}
+                  >
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Duyệt
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {showPendingApprovalActions && rejectInlineOpen && (
+              <div className="w-full max-w-2xl space-y-3 rounded-xl border border-red-200 bg-red-50/60 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Từ chối phiếu nhập</p>
+                  <p className="mt-0.5 text-xs text-slate-600">
+                    Nhập lý do (bắt buộc). « Xác nhận từ chối » gửi yêu cầu từ chối lên server.
+                  </p>
+                </div>
+                <Textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Ví dụ: Số lượng không khớp hóa đơn gốc…"
+                  disabled={rejectBusy}
+                  className="min-h-[120px] bg-white text-sm"
+                  maxLength={2000}
+                  aria-label="Lý do từ chối"
+                />
+                <div className="flex flex-row flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 min-h-[44px] min-w-[88px]"
+                    onClick={() => {
+                      setRejectInlineOpen(false)
+                      setRejectReason("")
+                    }}
+                    disabled={rejectBusy}
+                  >
+                    Hủy
+                  </Button>
+                  <Button
+                    type="button"
+                    className="h-11 min-h-[44px] min-w-[168px] bg-red-600 font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-60"
+                    onClick={() => void handleConfirmReject()}
+                    disabled={rejectBusy}
+                  >
+                    Xác nhận từ chối
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

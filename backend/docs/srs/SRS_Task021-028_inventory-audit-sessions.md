@@ -23,7 +23,6 @@
 | API design | [`../../../frontend/docs/api/API_PROJECT_DESIGN.md`](../../../frontend/docs/api/API_PROJECT_DESIGN.md) §4.15 |
 | UC / tồn kho | [`../../../frontend/docs/UC/Database_Specification.md`](../../../frontend/docs/UC/Database_Specification.md) §16 `Inventory` |
 | Flyway | [`../../smart-erp/src/main/resources/db/migration/V1__baseline_smart_inventory.sql`](../../smart-erp/src/main/resources/db/migration/V1__baseline_smart_inventory.sql) — `Inventory`, `InventoryAuditSessions`, `InventoryAuditLines`, `InventoryLogs`, `Users`, `Products`, `WarehouseLocations`, `ProductUnits`, `SystemLogs` |
-| Index UI Mini-ERP | [`../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md`](../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md) — route `/inventory/audit`, feature `inventory/` |
 
 ---
 
@@ -32,17 +31,6 @@
 - **Vấn đề:** Cần một **bộ REST thống nhất** cho UC6 — danh sách đợt kiểm kê, tạo đợt + snapshot dòng từ `Inventory`, đọc chi tiết, cập nhật meta/trạng thái, ghi số thực tế từng dòng, hoàn tất, hủy, áp chênh lệch lên tồn — thay mock FE.
 - **Mục tiêu:** Mô tả nghiệp vụ, máy trạng thái, transaction, toàn vẹn DB; **hợp nhất** lệch giữa các file API markdown và **schema Flyway thực tế** (tên bảng, kiểu khóa, cột idempotency).
 - **Đối tượng:** Staff / Owner / Admin có quyền kho (chi tiết RBAC → §4 OQ + §6).
-
-### 1.1 Giao diện Mini-ERP (đang thiết kế / nối API — UC6)
-
-Theo [`FEATURES_UI_INDEX.md`](../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md) và các API Task021–028 (mục Feature / UI).
-
-| Nhãn menu (Sidebar) | Route | Page (export) | Component / vùng chính | File |
-| :--- | :--- | :--- | :--- | :--- |
-| **Kiểm kê kho** | `/inventory/audit` | `AuditPage` | Bảng đợt kiểm kê, toolbar tạo đợt / lọc (Task021–022); panel chi tiết / nhập số (Task023–025); hành động hoàn tất, hủy, áp lệch (Task026–028) — *chi tiết tách component theo tiến độ FE* | `inventory/pages/AuditPage.tsx` |
-| *(cùng màn)* | *(cùng route)* | *(cùng page)* | `AuditSessionsTable` — danh sách đợt (Task021), mở chi tiết (Task023) | `inventory/components/AuditSessionsTable.tsx` |
-
-**Ghi chú API doc:** Task021/023 còn ghi `AuditDetailDialog` / panel — khi xuất hiện trong repo, bổ sung một dòng vào bảng trên (hoặc GAP nếu chỉ có mock tên trong spec chưa có file).
 
 ---
 
@@ -107,9 +95,13 @@ Pending ──PATCH status In Progress──► In Progress ──complete (Task
 
 | ID | Quyết định PO | Ngày |
 | :--- | :--- | :--- |
-| OQ-1 | | |
-| OQ-2 | | |
-| … | | |
+| OQ-1 | Ai cũng làm được chức năng kiểm kê này, Permission all User | |
+| OQ-2 | Có | |
+| OQ-3 | Chỉ cho `In Progress` → `Completed` | |
+| OQ-4 | **migration thêm cột** `cancel_reason` | |
+| OQ-5 | **(A)** làm tròn HALF_UP về int | |
+| OQ-6 | Tạm thời chưa làm SysLogs | |
+| OQ-7 | Không loại bỏ | |
 
 ---
 
@@ -119,7 +111,6 @@ Pending ──PATCH status In Progress──► In Progress ──complete (Task
 
 - `API_Task021` … `API_Task028` (toàn bộ).
 - Flyway `V1__baseline_smart_inventory.sql` (mục Inventory audit + Inventory + InventoryLogs).
-- `FEATURES_UI_INDEX.md` (§1.1 — route `/inventory/audit`, `AuditPage`, `AuditSessionsTable`).
 
 ### 5.2 Mã / package dự kiến (Spring)
 

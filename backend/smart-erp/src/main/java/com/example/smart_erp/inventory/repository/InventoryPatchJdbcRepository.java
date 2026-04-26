@@ -16,6 +16,7 @@ import org.springframework.stereotype.Repository;
 /**
  * Ghi và khóa dòng tồn — SRS Task007 (PATCH meta).
  */
+@SuppressWarnings("null")
 @Repository
 public class InventoryPatchJdbcRepository {
 

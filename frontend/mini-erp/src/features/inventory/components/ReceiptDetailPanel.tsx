@@ -9,7 +9,7 @@ import {
 import { formatCurrency, formatDate } from "../utils"
 import type { StockReceipt } from "../types"
 import { StatusBadge } from "./StatusBadge"
-import { Package, Calendar, User, Building2, Hash, FileText } from "lucide-react"
+import { Package, Calendar, User, Building2, Hash, FileText, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 
@@ -42,33 +42,49 @@ export function ReceiptDetailPanel({ receipt, isOpen, onClose, canApprove = fals
 
         <Separator className="my-4" />
 
-        {/* Workflow Indicator */}
-        <div className="flex items-center gap-2 mb-6">
-          {(["Draft", "Pending", "Approved"] as const).map((step, i, arr) => {
-            const statusOrder = ["Draft", "Pending", "Approved", "Rejected"]
-            const currentIdx = statusOrder.indexOf(receipt.status)
-            const stepIdx = statusOrder.indexOf(step)
-            const isCompleted = receipt.status === "Approved" && stepIdx <= 2
-            const isCurrent = step === receipt.status
-            const isPast = stepIdx < currentIdx && receipt.status !== "Approved"
-            return (
-              <div key={step} className="flex items-center">
-                <div className={`px-2.5 py-1 rounded text-[10px] sm:text-xs font-medium
-                  ${isCompleted || isPast ? "bg-green-50 text-green-700" : ""}
-                  ${isCurrent && receipt.status !== "Approved" && receipt.status !== "Rejected" ? "bg-blue-50 text-blue-700" : ""}
-                  ${isCurrent && receipt.status === "Rejected" ? "bg-red-50 text-red-700" : ""}
-                  ${!isCompleted && !isCurrent && !isPast ? "bg-slate-50 text-slate-400" : ""}
-                `}>
-                  {isCompleted || isPast ? "✓" : isCurrent ? "●" : "○"}{" "}
-                  {step === "Draft" ? "Nháp" : step === "Pending" ? "Chờ duyệt" : "Đã duyệt"}
-                </div>
-                {i < arr.length - 1 && (
-                  <div className={`w-3 sm:w-5 h-0.5 mx-1 ${isCompleted ? "bg-green-300" : "bg-slate-200"}`} />
-                )}
+        {receipt.status === "Rejected" ? (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50/70 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-red-100 text-red-700">
+                <XCircle className="h-4 w-4" aria-hidden />
               </div>
-            )
-          })}
-        </div>
+              <div className="min-w-0 flex-1 text-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-red-800">Phiếu đã bị từ chối</p>
+                <p className="mt-1 font-medium text-slate-900">Lý do từ chối</p>
+                <p className="mt-1 whitespace-pre-wrap text-slate-800">
+                  {receipt.rejectionReason?.trim() ? receipt.rejectionReason.trim() : "Không ghi nhận lý do cụ thể."}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-6 flex items-center gap-2">
+            {(["Draft", "Pending", "Approved"] as const).map((step, i, arr) => {
+              const statusOrder = ["Draft", "Pending", "Approved", "Rejected"]
+              const currentIdx = statusOrder.indexOf(receipt.status)
+              const stepIdx = statusOrder.indexOf(step)
+              const isCompleted = receipt.status === "Approved" && stepIdx <= 2
+              const isCurrent = step === receipt.status
+              const isPast = stepIdx < currentIdx && receipt.status !== "Approved"
+              return (
+                <div key={step} className="flex items-center">
+                  <div className={`px-2.5 py-1 rounded text-[10px] sm:text-xs font-medium
+                    ${isCompleted || isPast ? "bg-green-50 text-green-700" : ""}
+                    ${isCurrent && receipt.status !== "Approved" && receipt.status !== "Rejected" ? "bg-blue-50 text-blue-700" : ""}
+                    ${isCurrent && receipt.status === "Rejected" ? "bg-red-50 text-red-700" : ""}
+                    ${!isCompleted && !isCurrent && !isPast ? "bg-slate-50 text-slate-400" : ""}
+                  `}>
+                    {isCompleted || isPast ? "✓" : isCurrent ? "●" : "○"}{" "}
+                    {step === "Draft" ? "Nháp" : step === "Pending" ? "Chờ duyệt" : "Đã duyệt"}
+                  </div>
+                  {i < arr.length - 1 && (
+                    <div className={`w-3 sm:w-5 h-0.5 mx-1 ${isCompleted ? "bg-green-300" : "bg-slate-200"}`} />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Info Grid */}
         <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm mb-8">

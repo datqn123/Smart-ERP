@@ -36,6 +36,12 @@ Không gộp bước này vào `mvn verify` — đây là phiên Cursor/agent th
 
 **SRS một file, nhiều endpoint** (vd. `SRS_Task014-020_stock-receipts-lifecycle.md` → API Task014…020): trong PR liệt kê **danh sách Path** cần verify và nhắc Owner chạy **API_BRIDGE** lần lượt (một Path một phiên — xem `WORKFLOW_RULE.md` **§0.3** và `API_BRIDGE_AGENT_INSTRUCTIONS.md` **§1.2**). Developer **không** coi việc đã đọc SRS khi code là đủ thay cho API_BRIDGE.
 
+### 5.2 Phiếu nhập kho — `SRS_Task014-020_stock-receipts-lifecycle.md` (RBAC)
+
+- **Đọc** (`GET` list Task013, `GET /stock-receipts/{id}` Task015): user có `can_manage_inventory` (controller) xem **mọi** phiếu — **không** lọc theo `staff_id` trong service đọc chi tiết.
+- **Sửa / gửi duyệt** (`PATCH` Task016, `POST …/submit` Task018): chỉ người tạo — so khớp `stockreceipts.staff_id` với `Integer.parseInt(jwt.getSubject())` (policy `assertReceiptCreator`).
+- **Xóa** (`DELETE` Task017 khi `Draft` hoặc `Pending`), **phê duyệt / từ chối** (Task019/020): chỉ JWT claim `role` = Owner (trim, không phân biệt hoa thường) — `StockReceiptAccessPolicy.assertOwnerOnly`; Task019/020 vẫn kiểm `can_approve` trước đó trong service như SRS §6.
+
 ## 6. Quét hiệu năng sau khi test xanh (bắt buộc checklist ngắn)
 
 - **grep** / review: vòng lặp có **gọi DB bên trong** (N+1).  

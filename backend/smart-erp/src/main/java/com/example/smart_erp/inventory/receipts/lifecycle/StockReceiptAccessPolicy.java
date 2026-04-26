@@ -2,22 +2,28 @@ package com.example.smart_erp.inventory.receipts.lifecycle;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.util.StringUtils;
 
 import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.exception.BusinessException;
 
 /**
- * SRS Task014–020 §6 + OQ-2 — Staff chỉ thao tác phiếu {@code staff_id} của mình; user có
- * {@code can_approve} được coi như giám sát (mọi phiếu).
+ * SRS Task014–020 §6 — Đọc (GET list/detail): mọi user có {@code can_manage_inventory} xem **mọi** phiếu.
+ * PATCH/SUBMIT: chỉ người tạo phiếu ({@code staff_id} = JWT subject). Xóa (DELETE) / phê duyệt / từ chối: chỉ
+ * {@code role} = Owner (SRS §6).
  */
 public final class StockReceiptAccessPolicy {
+
+	/** Khớp tên vai trò seed Flyway V1 / claim {@code role} trên access token. */
+	public static final String OWNER_ROLE_NAME = "Owner";
 
 	public static final String AUTH_CAN_APPROVE = "can_approve";
 
 	private StockReceiptAccessPolicy() {
 	}
 
-	public static int parseUserId(org.springframework.security.oauth2.jwt.Jwt jwt) {
+	public static int parseUserId(Jwt jwt) {
 		try {
 			return Integer.parseInt(jwt.getSubject());
 		}
@@ -38,15 +44,22 @@ public final class StockReceiptAccessPolicy {
 		return false;
 	}
 
-	/** GET/PATCH/DELETE/SUBMIT — inventory staff hoặc approver toàn quyền (OQ-2). */
-	public static void assertCanManageInventoryReceipt(int receiptStaffId, org.springframework.security.oauth2.jwt.Jwt jwt,
-			Authentication authentication) {
-		if (hasAuthority(authentication, AUTH_CAN_APPROVE)) {
-			return;
-		}
+	/** PATCH / POST submit — chỉ người tạo phiếu ({@code staff_id}). */
+	public static void assertReceiptCreator(int receiptStaffId, Jwt jwt) {
 		int uid = parseUserId(jwt);
 		if (receiptStaffId != uid) {
 			throw new BusinessException(ApiErrorCode.FORBIDDEN, "Bạn chỉ được thao tác trên phiếu do chính mình tạo");
+		}
+	}
+
+	/**
+	 * DELETE (Nháp/Chờ duyệt), Task019 approve, Task020 reject — chỉ Owner (claim {@code role}, không phân biệt hoa thường).
+	 */
+	public static void assertOwnerOnly(Jwt jwt) {
+		String role = jwt.getClaimAsString("role");
+		if (!StringUtils.hasText(role) || !OWNER_ROLE_NAME.equalsIgnoreCase(role.trim())) {
+			throw new BusinessException(ApiErrorCode.FORBIDDEN,
+					"Chỉ tài khoản Owner mới được xóa phiếu (Nháp/Chờ duyệt), phê duyệt hoặc từ chối phiếu Chờ duyệt");
 		}
 	}
 }

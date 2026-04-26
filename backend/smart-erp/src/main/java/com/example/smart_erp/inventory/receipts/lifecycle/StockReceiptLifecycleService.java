@@ -33,7 +33,7 @@ public class StockReceiptLifecycleService {
 	}
 
 	@Transactional
-	public StockReceiptViewData create(StockReceiptCreateRequest req, Jwt jwt, Authentication authentication) {
+	public StockReceiptViewData create(StockReceiptCreateRequest req, Jwt jwt) {
 		int staffId = StockReceiptAccessPolicy.parseUserId(jwt);
 		validateSupplier(req.supplierId());
 		LocalDate receiptDate = LocalDate.parse(req.receiptDate());
@@ -60,20 +60,18 @@ public class StockReceiptLifecycleService {
 	}
 
 	@Transactional(readOnly = true)
-	public StockReceiptViewData getById(long id, Jwt jwt, Authentication authentication) {
-		StockReceiptViewData v = repo.loadView(id).orElseThrow(() -> notFound());
-		StockReceiptAccessPolicy.assertCanManageInventoryReceipt(v.staffId(), jwt, authentication);
-		return v;
+	public StockReceiptViewData getById(long id) {
+		return repo.loadView(id).orElseThrow(() -> notFound());
 	}
 
 	@Transactional
-	public StockReceiptViewData patch(long id, StockReceiptPatchRequest req, Jwt jwt, Authentication authentication) {
+	public StockReceiptViewData patch(long id, StockReceiptPatchRequest req, Jwt jwt) {
 		if (req.supplierId() == null && req.receiptDate() == null && req.invoiceNumber() == null && req.notes() == null
 				&& req.details() == null) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Cần ít nhất một trường để cập nhật");
 		}
 		ReceiptHeaderLockRow h = lockOrThrow(id);
-		StockReceiptAccessPolicy.assertCanManageInventoryReceipt(h.staffId(), jwt, authentication);
+		StockReceiptAccessPolicy.assertReceiptCreator(h.staffId(), jwt);
 		if (!"Draft".equals(h.status())) {
 			throw new BusinessException(ApiErrorCode.CONFLICT, "Chỉ được sửa phiếu ở trạng thái Nháp");
 		}
@@ -111,9 +109,9 @@ public class StockReceiptLifecycleService {
 	}
 
 	@Transactional
-	public void delete(long id, Jwt jwt, Authentication authentication) {
+	public void delete(long id, Jwt jwt) {
 		ReceiptHeaderLockRow h = lockOrThrow(id);
-		StockReceiptAccessPolicy.assertCanManageInventoryReceipt(h.staffId(), jwt, authentication);
+		StockReceiptAccessPolicy.assertOwnerOnly(jwt);
 		if (!"Draft".equals(h.status()) && !"Pending".equals(h.status())) {
 			throw new BusinessException(ApiErrorCode.CONFLICT, "Chỉ được xóa phiếu ở trạng thái Nháp hoặc Chờ duyệt");
 		}
@@ -121,9 +119,9 @@ public class StockReceiptLifecycleService {
 	}
 
 	@Transactional
-	public StockReceiptViewData submit(long id, Jwt jwt, Authentication authentication) {
+	public StockReceiptViewData submit(long id, Jwt jwt) {
 		ReceiptHeaderLockRow h = lockOrThrow(id);
-		StockReceiptAccessPolicy.assertCanManageInventoryReceipt(h.staffId(), jwt, authentication);
+		StockReceiptAccessPolicy.assertReceiptCreator(h.staffId(), jwt);
 		if (!"Draft".equals(h.status())) {
 			throw new BusinessException(ApiErrorCode.CONFLICT, "Phiếu không ở trạng thái Nháp");
 		}
@@ -139,6 +137,7 @@ public class StockReceiptLifecycleService {
 		if (!StockReceiptAccessPolicy.hasAuthority(authentication, StockReceiptAccessPolicy.AUTH_CAN_APPROVE)) {
 			throw new BusinessException(ApiErrorCode.FORBIDDEN, "Bạn không có quyền phê duyệt phiếu nhập kho");
 		}
+		StockReceiptAccessPolicy.assertOwnerOnly(jwt);
 		int approverId = StockReceiptAccessPolicy.parseUserId(jwt);
 		if (!repo.warehouseLocationActive(req.inboundLocationId())) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Vị trí nhập kho không tồn tại hoặc không Active");
@@ -182,6 +181,7 @@ public class StockReceiptLifecycleService {
 		if (!StockReceiptAccessPolicy.hasAuthority(authentication, StockReceiptAccessPolicy.AUTH_CAN_APPROVE)) {
 			throw new BusinessException(ApiErrorCode.FORBIDDEN, "Bạn không có quyền từ chối phiếu nhập kho");
 		}
+		StockReceiptAccessPolicy.assertOwnerOnly(jwt);
 		int reviewerId = StockReceiptAccessPolicy.parseUserId(jwt);
 		ReceiptHeaderLockRow h = lockOrThrow(id);
 		if (!"Pending".equals(h.status())) {

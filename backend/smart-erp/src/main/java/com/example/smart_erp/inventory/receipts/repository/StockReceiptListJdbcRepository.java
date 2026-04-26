@@ -20,6 +20,7 @@ import com.example.smart_erp.inventory.receipts.response.StockReceiptListItemDat
 /**
  * Đọc list phiếu nhập — SRS Task013 / Flyway V1 + V9.
  */
+@SuppressWarnings("null")
 @Repository
 public class StockReceiptListJdbcRepository {
 
@@ -72,8 +73,7 @@ public class StockReceiptListJdbcRepository {
 	public List<StockReceiptListItemData> loadPage(StockReceiptListQuery q) {
 		Filter f = buildFilter(q);
 		int offset = (q.page() - 1) * q.limit();
-		String order = q.sort().orderByFragment();
-		String sql = SELECT_LIST + BASE_FROM + f.where + " ORDER BY " + order + " LIMIT " + q.limit() + " OFFSET " + offset;
+		String sql = SELECT_LIST + BASE_FROM + f.where + " ORDER BY sr.id ASC LIMIT " + q.limit() + " OFFSET " + offset;
 		return namedJdbc.query(sql, f.source, ROW);
 	}
 

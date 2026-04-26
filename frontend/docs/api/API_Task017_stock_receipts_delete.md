@@ -27,7 +27,7 @@
 | **Endpoint** | `/api/v1/stock-receipts/{id}` |
 | **Method** | `DELETE` |
 | **Authentication** | `Bearer` |
-| **RBAC** | Staff (tác giả) / Owner — theo policy |
+| **RBAC** | `hasAuthority('can_manage_inventory')` + **chỉ Owner** (`JWT claim role` = Owner, không phân biệt hoa thường) mới xóa được phiếu **Draft** hoặc **Pending** — SRS §6. |
 | **Use Case Ref** | UC7 |
 
 ---
@@ -84,6 +84,16 @@
   "success": false,
   "error": "CONFLICT",
   "message": "Chỉ được xóa phiếu ở trạng thái Nháp"
+}
+```
+
+#### 403 Forbidden — không phải Owner
+
+```json
+{
+  "success": false,
+  "error": "FORBIDDEN",
+  "message": "Chỉ tài khoản Owner mới được xóa phiếu (Nháp/Chờ duyệt), phê duyệt hoặc từ chối phiếu Chờ duyệt"
 }
 ```
 

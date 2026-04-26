@@ -33,7 +33,7 @@
 
 - **Vấn đề:** Cần một **bộ endpoint thống nhất** cho vòng đời phiếu nhập: tạo (Draft / Pending), đọc chi tiết, sửa Draft, xóa, gửi duyệt, phê duyệt (cộng kho + sổ cái), từ chối — thay mock UI UC7/UC4.
 - **Mục tiêu:** Mô tả nghiệp vụ, RBAC, transaction, toàn vẹn DB và **hợp nhất** các chỗ lệch nhỏ giữa các file API (đã ghi trong §12 *Quyết định BA đã hợp nhất*).
-- **Đối tượng:** Nhân viên kho (Staff), Owner/Admin (duyệt); JWT Bearer.
+- **Đối tượng:** Mọi user có quyền module phiếu nhập **xem toàn bộ** phiếu (list Task013 + chi tiết Task015), kể phiếu do người khác tạo. **Sửa Draft / gửi duyệt** chỉ người tạo (`staff_id`). **Xóa** phiếu Nháp hoặc Chờ duyệt, **phê duyệt / từ chối** phiếu Chờ duyệt — **chỉ Owner** (`JWT role`); JWT Bearer (`role` + claim `mp` theo Task001).
 
 ---
 
@@ -43,12 +43,12 @@
 | #   | Capability                                                                               | Endpoint / method                          | Kết quả                                  |
 | --- | ---------------------------------------------------------------------------------------- | ------------------------------------------ | ---------------------------------------- |
 | C1  | Tạo phiếu + ≥1 dòng chi tiết, `saveMode` draft/pending                                   | `POST /api/v1/stock-receipts`              | `201` + header + details                 |
-| C2  | Đọc một phiếu đầy đủ header + details                                                    | `GET /api/v1/stock-receipts/{id}`          | `200` hoặc `404`                         |
+| C2  | Đọc một phiếu đầy đủ header + details (**mọi** phiếu nếu đủ quyền module — không lọc theo người tạo) | `GET /api/v1/stock-receipts/{id}`          | `200` hoặc `404`                         |
 | C3  | Sửa phiếu **chỉ Draft** (partial header; details = replace-all trong transaction)        | `PATCH /api/v1/stock-receipts/{id}`        | `200` shape Task015                      |
-| C4  | Xóa phiếu ở trạng thái cho phép (tối thiểu Draft)                                        | `DELETE /api/v1/stock-receipts/{id}`       | `200` + envelope                         |
+| C4  | Xóa phiếu ở trạng thái cho phép (**OQ-1**); **chỉ Owner** (`JWT role`) — tương đương quyền hủy phiếu Chờ duyệt | `DELETE /api/v1/stock-receipts/{id}`       | `200` + envelope; **403** nếu không Owner |
 | C5  | Draft → Pending (validate có detail)                                                     | `POST /api/v1/stock-receipts/{id}/submit`  | `200`                                    |
-| C6  | Pending → Approved + cộng `inventory` + `inventorylogs` + `financeledger` + audit header | `POST /api/v1/stock-receipts/{id}/approve` | `200`, idempotent `409` nếu đã Approved  |
-| C7  | Pending → Rejected + `rejection_reason` + `reviewed_`*                                   | `POST /api/v1/stock-receipts/{id}/reject`  | `200`                                    |
+| C6  | Pending → Approved + cộng `inventory` + `inventorylogs` + `financeledger` + audit header; **chỉ Owner** (`JWT role`) | `POST /api/v1/stock-receipts/{id}/approve` | `200`, idempotent `409` nếu đã Approved; **403** nếu không phải Owner |
+| C7  | Pending → Rejected + `rejection_reason` + `reviewed_`*; **chỉ Owner** (`JWT role`)                                   | `POST /api/v1/stock-receipts/{id}/reject`  | `200`; **403** nếu không phải Owner |
 | C8  | Ghi `systemlogs` (INFO/WARNING) sau thao tác ghi có ý nghĩa nghiệp vụ                    | Mọi endpoint ghi                           | Không fail chính nếu log fail — **OQ-6** |
 
 
@@ -58,7 +58,7 @@
 Draft ──submit──► Pending ──approve──► Approved (cộng kho + ledger)
    │                  │
    │                  └──reject──► Rejected
-   └── (PATCH, DELETE khi policy cho phép)
+   └── (PATCH/submit: chỉ người tạo; DELETE Draft/Pending: chỉ Owner)
 ```
 
 ---
@@ -84,7 +84,7 @@ Draft ──submit──► Pending ──approve──► Approved (cộng kho 
 | ID   | Câu hỏi                                                                                                                                                                                                                                                                  | Ảnh hưởng nếu không trả lời                  | Blocker? |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- | -------- |
 | OQ-1 | `**DELETE**`: chỉ cho phép xóa khi `status = Draft`, hay **cũng cho phép `Pending`** (hủy yêu cầu duyệt, không đụng kho)? API Task017 để mở Pending “nếu PM cho phép”.                                                                                                   | Dev chọn một → tester không biết kỳ vọng 409 | **Có**   |
-| OQ-2 | **Quyền sửa/xóa/gửi**: Staff chỉ được thao tác trên phiếu **mình tạo** (`staff_id` = user JWT), hay **mọi** phiếu Draft/Pending của cửa hàng (Owner kiểu giám sát)?                                                                                                      | 403 vs 200 — rule kiểm tra ownership         | Không    |
+| OQ-2 | **Quyền đọc vs ghi** (đã chốt — xem bảng *Quyết định PO* ngay dưới): trước đây từng mô tả “staff chỉ phiếu mình” cho mọi thao tác; PO yêu cầu **đọc toàn bộ** + **Owner** cho xóa/hủy Pending/duyệt.                                                                 | SRS §6 phải khớp triển khai                  | Không    |
 | OQ-3 | `**PATCH` gửi `details`**: có cho phép mảng **rỗng** (0 dòng) không? (Khác POST bắt buộc ≥1 dòng.)                                                                                                                                                                       | 400 vs cho phép xóa sạch rồi chặn submit     | Không    |
 | OQ-4 | **Phê duyệt (Task019) — đơn vị tính**: **(A)** chỉ chấp nhận `unit_id` là **đơn vị cơ sở** (`is_base_unit = true`) v1; **(B)** cho phép đơn vị khác và quy đổi `quantity * conversion_rate` (cột `ProductUnits.conversion_rate` — “số đơn vị cơ sở trong 1 đơn vị này”). | Công thức tồn kho sai nếu giả định sai       | **Có**   |
 | OQ-5 | `**FinanceLedger` khi approve**: **(A)** một dòng tổng `amount = -total_amount` phiếu (một `PurchaseCost`); **(B)** một dòng / dòng detail (mapping chi phí từng SP).                                                                                                    | Báo cáo tài chính / đối soát                 | Không    |
@@ -97,7 +97,7 @@ Draft ──submit──► Pending ──approve──► Approved (cộng kho 
 | ID   | Quyết định PO                                   | Ngày |
 | ---- | ----------------------------------------------- | ---- |
 | OQ-1 | cũng cho phép `Pending`                         |      |
-| OQ-2 | Staff chỉ được thao tác trên phiếu **mình tạo** |      |
+| OQ-2 | **Đọc** (GET list + GET `{id}`): mọi phiếu nếu có `can_manage_inventory`. **PATCH / submit**: chỉ `staff_id` = JWT subject. **DELETE** (Draft/Pending) + **approve / reject** (Pending): chỉ JWT `role` = Owner. |      |
 | OQ-3 | Có cho phép rỗng                                |      |
 | OQ-4 | A                                               |      |
 | OQ-5 | A                                               |      |
@@ -131,13 +131,15 @@ Draft ──submit──► Pending ──approve──► Approved (cộng kho 
 ## 6. Persona & RBAC
 
 
-| Nhóm quyền (Spring `hasAuthority`) | Endpoint / hành vi                                                                                                                                                                          |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `can_manage_inventory`             | Task014 POST; Task015 GET `{id}`; Task016 PATCH; Task017 DELETE; Task018 submit — **đồng bộ** với `[SRS_Task013](SRS_Task013_stock-receipts-get-list.md)` / `StockReceiptsController` list. |
-| `can_approve`                      | Task019 approve, Task020 reject — theo UC4; user có quyền trong `Roles.permissions` (Owner/Admin seed V1).                                                                                  |
+| Điều kiện | Endpoint / hành vi |
+| --------- | ------------------ |
+| `hasAuthority('can_manage_inventory')` | Task014 POST; Task015 GET `{id}` (xem **mọi** phiếu); Task016 PATCH; Task017 DELETE (sau đó service kiểm Owner — §6 dòng dưới); Task018 submit — **đồng bộ** với `[SRS_Task013](SRS_Task013_stock-receipts-get-list.md)` / `StockReceiptsController` list (list không lọc theo người tạo). |
+| JWT claim `role` **khớp seed `Owner`** (không phân biệt hoa thường, `trim`) | **Task017** `DELETE` khi `Draft` hoặc `Pending`; **Task019** approve; **Task020** reject — nếu không phải Owner → **403** (message thống nhất §8.3). |
+| `staff_id` = `Integer.parseInt(jwt.getSubject())` | **Task016** PATCH và **Task018** submit — chỉ trên phiếu do chính user tạo; khác → **403**. |
+| `hasAuthority('can_approve')` **và** `role` = Owner | **Task019** / **Task020** — thiếu `can_approve` → **403**; có `can_approve` nhưng không Owner → **403** sau kiểm `role`. |
 
 
-**Ghi chú BA (hợp nhất):** Các file API ghi “Staff/Owner” khác nhau; SRS chốt bảng trên để khớp mã hiện có (`MenuPermissionClaims`: `can_manage_inventory`, `can_approve`).
+**Ghi chú BA (hợp nhất):** Claim `role` trên access token phải khớp bản ghi `Roles.name` (Flyway V1: `Owner`, `Staff`, …). `API_Task015` / `API_Task017` / `API_Task019` / `API_Task020` phải phản ánh **đọc toàn bộ** và **Owner** cho DELETE/approve/reject; mini-erp: ẩn nút xóa/duyệt/từ chối khi user không Owner (§12).
 
 ---
 
@@ -211,7 +213,7 @@ sequenceDiagram
 | ---------------------- | --------------------------- | -------------------------------------------------------------------------------------------- |
 | Task018 trạng thái sai | 409 hoặc 400                | Luôn **409 CONFLICT** (đồng nhất Task016/017/019).                                           |
 | DELETE thành công      | 200 hoặc 204                | **200** + `ApiSuccessResponse` `{ data: { id, deleted: true } }` để `apiJson` FE thống nhất. |
-| RBAC đọc/ghi phiếu     | “Admin” / “Staff” khác nhau | `can_manage_inventory` + `can_approve` như §6.                                               |
+| RBAC đọc/ghi phiếu     | “Admin” / “Staff” khác nhau | `can_manage_inventory` cho đọc + POST tạo; GET `{id}` **không** lọc owner; PATCH/submit: **creator**; DELETE + Task019/020: **`role` = Owner** (Task019/020 thêm `can_approve`) — §6. |
 | FinanceLedger          | Task019 ghi amount < 0      | Khớp comment DB: **âm = chi** (`PurchaseCost`).                                              |
 
 
@@ -278,6 +280,26 @@ sequenceDiagram
 }
 ```
 
+**403 — Task017 / Task019 / Task020 khi caller không phải Owner** (có thể vẫn có `can_approve` trên token nhưng `role` ≠ Owner; hoặc DELETE bởi Staff dù là người tạo phiếu)
+
+```json
+{
+  "success": false,
+  "error": "FORBIDDEN",
+  "message": "Chỉ tài khoản Owner mới được xóa phiếu (Nháp/Chờ duyệt), phê duyệt hoặc từ chối phiếu Chờ duyệt"
+}
+```
+
+**403 — Task016 / Task018 khi user không phải người tạo phiếu**
+
+```json
+{
+  "success": false,
+  "error": "FORBIDDEN",
+  "message": "Bạn chỉ được thao tác trên phiếu do chính mình tạo"
+}
+```
+
 ---
 
 ## 9. Quy tắc nghiệp vụ (bảng)
@@ -289,9 +311,9 @@ sequenceDiagram
 | BR-2 | `saveMode = pending`  | `status = Pending`; vẫn validate giống draft; **không** cộng kho                                      |
 | BR-3 | `POST …/submit`       | Chỉ từ `Draft`; `COUNT(details) ≥ 1` → `Pending`                                                      |
 | BR-4 | `PATCH`               | Chỉ `Draft`; không cho client gửi `approved_`*, `reviewed_*`, `rejection_reason` — nếu gửi → **400**  |
-| BR-5 | `DELETE`              | Chỉ trạng thái PO chọn (**OQ-1**); CASCADE `stockreceiptdetails`                                      |
-| BR-6 | `approve`             | Chỉ `Pending`; `warehouselocations.status = Active`; một transaction toàn bộ bước §7.2                |
-| BR-7 | `reject`              | Chỉ `Pending`; ghi `rejection_reason`, `reviewed_by/at`; **không** set `approved_by/at`               |
+| BR-5 | `DELETE`              | Chỉ trạng thái PO chọn (**OQ-1**); caller **Owner** (`JWT role`); CASCADE `stockreceiptdetails`                                      |
+| BR-6 | `approve`             | Chỉ `Pending`; caller **Owner** (`JWT role`); `warehouselocations.status = Active`; một transaction toàn bộ bước §7.2 |
+| BR-7 | `reject`              | Chỉ `Pending`; caller **Owner** (`JWT role`); ghi `rejection_reason`, `reviewed_by/at`; **không** set `approved_by/at` |
 | BR-8 | `total_amount` header | Luôn khớp tổng `quantity * cost_price` các dòng (sau quy đổi nếu có — theo OQ-4) tại thời điểm commit |
 
 
@@ -387,6 +409,30 @@ Given phiếu Pending và vị trí Active
 When POST …/approve với inboundLocationId
 Then 200 Approved và inventory tăng và financeledger ghi chi
 
+Given phiếu Pending và JWT `role` = Owner và có `can_approve`
+When POST …/approve với inboundLocationId hợp lệ
+Then 200 Approved
+
+Given phiếu tồn tại do user A tạo và user B có `can_manage_inventory`
+When GET …/{id} bởi user B
+Then 200 và payload đúng phiếu
+
+Given phiếu Draft do user A và user B (Staff) có `can_manage_inventory`
+When PATCH …/{id} bởi user B
+Then 403
+
+Given phiếu Draft hoặc Pending và user là người tạo phiếu nhưng `role` = Staff
+When DELETE …/{id}
+Then 403
+
+Given phiếu Draft hoặc Pending và JWT `role` = Owner
+When DELETE …/{id}
+Then 200
+
+Given phiếu Pending và JWT `role` = Staff (dù token có các quyền khác)
+When POST …/approve hoặc POST …/reject
+Then 403
+
 Given phiếu Pending
 When POST …/reject có reason
 Then 200 Rejected và không đổi inventory
@@ -406,6 +452,7 @@ Then 409
 | API Task014 đề cập `INSERT SystemLogs` với tuple (INFO, INVENTORY, …) | Cần map sang cột thực `systemlogs`    | Dev map `module`, `action`, `message`; optional `context_data` JSON |
 | Task019 response `details: []` hoặc đầy đủ                            | FE hydrate                            | Chốt một trong PR — ưu tiên **đầy đủ như Task015** để đỡ round-trip |
 | `staff_id` POST                                                       | Lấy từ JWT `sub` → resolve `users.id` | Giống mô tả Task014                                                 |
+| API Task019 / Task020 (đồng bộ RBAC Owner)                             | Đã chỉnh markdown API + BE §6         | Giữ FE `canApprove` + ẩn nút nếu `role` ≠ Owner (mini-erp).          |
 
 
 ---
@@ -413,7 +460,7 @@ Then 409
 ## 13. PO sign-off (chỉ điền khi Approved)
 
 - Đã trả lời / đóng các **OQ blocker** (OQ-1, OQ-4 tối thiểu)
-- Đồng ý bảng RBAC §6 và quy tắc hợp nhất §8.2
+- Đồng ý bảng RBAC §6 (Owner-only Task019/020) và quy tắc hợp nhất §8.2
 - JSON / AC đủ để Tester viết Postman
 
 **Chữ ký / nhãn PR:** …

@@ -15,7 +15,7 @@
 
 ## 2. Mục đích Endpoint
 
-**`POST /api/v1/stock-receipts/{id}/reject`** — Owner/Admin có quyền UC4.
+**`POST /api/v1/stock-receipts/{id}/reject`** — cùng rule **Owner-only** với Task019 (JWT `role` = Owner + `can_approve`); SRS §6.
 
 ---
 
@@ -25,6 +25,7 @@
 | **Endpoint** | `/api/v1/stock-receipts/{id}/reject` |
 | **Method** | `POST` |
 | **Auth** | `Bearer` |
+| **RBAC** | Giống Task019: `can_approve` + claim `role` = **Owner**; không phải Owner → **403**. |
 
 ---
 
@@ -67,6 +68,16 @@
 ---
 
 ## 8. Lỗi — 400 (thiếu reason), 401, 403, 404, 409, 500.
+
+Ví dụ **403** (không phải Owner — cùng message Task017/Task019 / SRS §8.3):
+
+```json
+{
+  "success": false,
+  "error": "FORBIDDEN",
+  "message": "Chỉ tài khoản Owner mới được xóa phiếu (Nháp/Chờ duyệt), phê duyệt hoặc từ chối phiếu Chờ duyệt"
+}
+```
 
 Ví dụ **400**:
 

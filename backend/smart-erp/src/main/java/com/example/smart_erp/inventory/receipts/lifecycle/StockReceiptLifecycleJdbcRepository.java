@@ -19,6 +19,7 @@ import com.example.smart_erp.inventory.receipts.response.StockReceiptViewData;
 /**
  * JDBC cho vòng đời phiếu nhập (Task014–020).
  */
+@SuppressWarnings("null")
 @Repository
 public class StockReceiptLifecycleJdbcRepository {
 

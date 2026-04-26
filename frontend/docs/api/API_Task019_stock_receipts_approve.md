@@ -25,7 +25,7 @@ Sau khi duyệt, hệ thống **mới** được cộng tồn và ghi sổ tài 
 | **Endpoint** | `/api/v1/stock-receipts/{id}/approve` |
 | **Method** | `POST` |
 | **Auth** | `Bearer` |
-| **RBAC** | Owner / Admin (hoặc vai có quyền UC4 — chốt policy) |
+| **RBAC** | JWT `hasAuthority('can_approve')` **và** claim `role` = **`Owner`** (không phân biệt hoa thường). User khác Owner → **403** dù có `can_approve`. SRS: `backend/docs/srs/SRS_Task014-020_stock-receipts-lifecycle.md` §6. |
 
 ---
 
@@ -104,7 +104,17 @@ _(V2: thêm `locationId` từng dòng trong receipt detail — cần migration D
 ## 8. Lỗi
 
 - **400** — thiếu `inboundLocationId`, vị trí không Active.  
-- **401**, **403**, **404**, **409** (đã duyệt / sai trạng thái), **500**.
+- **401**, **403** (thiếu `can_approve` hoặc JWT `role` ≠ Owner), **404**, **409** (đã duyệt / sai trạng thái), **500**.
+
+Ví dụ **403** (có `can_approve` nhưng không phải Owner — cùng message với Task017/020 / SRS §8.3):
+
+```json
+{
+  "success": false,
+  "error": "FORBIDDEN",
+  "message": "Chỉ tài khoản Owner mới được xóa phiếu (Nháp/Chờ duyệt), phê duyệt hoặc từ chối phiếu Chờ duyệt"
+}
+```
 
 Ví dụ **409**:
 

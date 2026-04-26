@@ -20,9 +20,11 @@ interface ReceiptDetailDialogProps {
   isOpen: boolean;
   onClose: () => void;
   canApprove?: boolean;
+  /** Task015 — đang fetch `GET /api/v1/stock-receipts/{id}` để hiển thị dòng hàng. */
+  isLoadingDetail?: boolean;
 }
 
-export function ReceiptDetailDialog({ receipt, isOpen, onClose, canApprove = false }: ReceiptDetailDialogProps) {
+export function ReceiptDetailDialog({ receipt, isOpen, onClose, canApprove = false, isLoadingDetail = false }: ReceiptDetailDialogProps) {
   if (!receipt) return null;
 
   const handleApprove = () => alert(`Đã phê duyệt phiếu ${receipt.receiptCode} (Dữ liệu mock)`);
@@ -118,9 +120,11 @@ export function ReceiptDetailDialog({ receipt, isOpen, onClose, canApprove = fal
                             {receipt.details.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={3} className="py-8 text-center text-sm text-slate-500">
-                                        { (receipt.lineCount ?? 0) > 0
-                                            ? `Phiếu có ${receipt.lineCount ?? 0} dòng hàng — chi tiết từng dòng sẽ tải qua API chi tiết (Task015).`
-                                            : "Không có dòng chi tiết trên phiếu này." }
+                                        {isLoadingDetail
+                                            ? "Đang tải chi tiết dòng hàng…"
+                                            : (receipt.lineCount ?? 0) > 0
+                                                ? "Không tải được danh sách dòng — thử đóng và mở lại phiếu."
+                                                : "Không có dòng chi tiết trên phiếu này."}
                                     </TableCell>
                                 </TableRow>
                             ) : (

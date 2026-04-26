@@ -14,6 +14,7 @@ BA **phân tích** yêu cầu (brief, ticket, **API markdown**, UC) và xuất b
 4. **Phối hợp Agent SQL** khi luồng đụng DB: đọc/ghi, transaction, index, toàn vẹn — BA **giữ owner** nội dung SRS; SQL bổ sung mục dữ liệu theo [`SQL_AGENT_INSTRUCTIONS.md`](SQL_AGENT_INSTRUCTIONS.md).
 5. **Hợp đồng HTTP đo được**: mô tả field-level **và** ít nhất **một ví dụ JSON request đầy đủ** + **một ví dụ JSON response thành công** + **ví dụ JSON cho mỗi mã lỗi** mà nghiệp vụ cần (400, 401, 403, …) — bám envelope dự án; nếu khác file API `frontend/docs/api/` → ghi **GAP**.
 6. **Luồng giữa các actor** (User, Client, API, DB, hệ thống ngoài): mô tả bằng bullet **và** **`mermaid` sequenceDiagram** (hoặc `flowchart` có chú thích) khi có từ **hai bước hệ thống** trở lên.
+7. **Giao diện Mini-ERP đang thiết kế / nối API:** khi SRS phục vụ endpoint gọi từ `mini-erp`, BA **bắt buộc** ghi rõ **tên gọi giao diện** (nhãn menu tiếng Việt nếu có), **route**, tên **page** (export), **component** chính, đường dẫn file dưới `frontend/mini-erp/src/features/**` — tra **một file** [`frontend/mini-erp/src/features/FEATURES_UI_INDEX.md`](../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md) và/hoặc mục UI trong `frontend/docs/api/API_Task*.md`. Xuất trong SRS tại **§1.1** (theo [`../docs/srs/SRS_TEMPLATE.md`](../docs/srs/SRS_TEMPLATE.md)). Nếu chưa có route trong index → ghi **GAP UI** + tên tạm PO chốt.
 
 BA **không** viết mã production Java; **không** chốt thay PO khi còn OQ blocker chưa trả lời.
 
@@ -25,7 +26,7 @@ Khi Owner gọi BA trên một **requirement** hoặc một **tài liệu API**,
 
 | Bước | Việc làm | Output trong SRS |
 | :---: | :--- | :--- |
-| **A** | Đọc đầu vào; ghi **traceability** (API doc, UC, Flyway, brief). | §0 (template) |
+| **A** | Đọc đầu vào; ghi **traceability** (API doc, UC, Flyway, brief). **Nếu API có màn Mini-ERP:** tra [`FEATURES_UI_INDEX.md`](../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md) (và/hoặc mục UI trong API doc) — ghi **§1.1 Giao diện Mini-ERP**: tên menu / **route**, tên **page** (export), **component** chính, path file `features/**`. | §0 + **§1.1** |
 | **B** | **Bóc tách nghiệp vụ**: động từ + đối tượng + điều kiện + kết quả; tách In/Out scope. | §2, §3 |
 | **C** | **Câu hỏi PO**: mọi chỗ “nhanh”, “tối ưu”, “tùy policy”, mâu thuẫn nguồn → OQ có ID; đánh dấu **Blocker**. | §4 |
 | **D** | **Scope tệp**: danh sách file đã `Read`/`grep`; dự kiến package/class/migration Dev đụng — không lan sang FE trừ khi API contract bắt buộc. | §5 |
@@ -65,7 +66,7 @@ Quy ước repo: có thể dùng nhãn PR / ticket “SRS Approved” — team g
 SRS cho Spring/API **không** bám mẫu UI cũ trong `frontend/docs/srs/SRS_TEMPLATE.md`.
 
 - **Template chuẩn (backend):** [`../docs/srs/SRS_TEMPLATE.md`](../docs/srs/SRS_TEMPLATE.md)  
-- Các mục **bắt buộc** tối thiểu: **§0 Traceability**, **§2 Bóc tách nghiệp vụ**, **§4 Open Questions (PO)**, **§5 Scope tệp**, **§7 Actor + mermaid**, **§8 JSON request/response đầy đủ**, **§10 Dữ liệu & SQL** (khi đụng DB), **§11 AC**.
+- Các mục **bắt buộc** tối thiểu: **§0 Traceability**, **§1 Tóm tắt**, **§1.1 Giao diện Mini-ERP** (khi REST được gọi từ `mini-erp` — tên màn / route / page / component / path file), **§2 Bóc tách nghiệp vụ**, **§4 Open Questions (PO)**, **§5 Scope tệp**, **§7 Actor + mermaid**, **§8 JSON request/response đầy đủ**, **§10 Dữ liệu & SQL** (khi đụng DB), **§11 AC**. Nếu task **chỉ** batch/server nội bộ không có UI → ghi một dòng *“Không áp dụng §1.1 (không có màn mini-erp).”* tại §1.1.
 
 Nếu task **vừa** API **vừa** màn Mini-ERP nặng: giữ một SRS backend theo template trên; có thể **phụ lục** hoặc SRS UI riêng dưới `frontend/docs/srs/` theo template FE.
 
@@ -108,7 +109,7 @@ BA_SQL | Task=<TaskXXX> | Doc=<tên file trong frontend/docs/api/> | Mode=draft|
 
 | Mode | Hành vi |
 | :--- | :--- |
-| **`draft`** | Tạo/cập nhật SRS theo **[`../docs/srs/SRS_TEMPLATE.md`](../docs/srs/SRS_TEMPLATE.md)** (mẫu mới): đủ quy trình mục 2 (A→I); mục **§8 JSON** + **§7 actor** + **§4 OQ**; DB: `grep` / `Read` có giới hạn trên `backend/smart-erp/.../db/migration` + UC doc — không full quét `schema.sql` trừ khi Owner yêu cầu. |
+| **`draft`** | Tạo/cập nhật SRS theo **[`../docs/srs/SRS_TEMPLATE.md`](../docs/srs/SRS_TEMPLATE.md)** (mẫu mới): đủ quy trình mục 2 (A→I); mục **§1.1 Giao diện** (khi có mini-erp) + **§8 JSON** + **§7 actor** + **§4 OQ**; DB: `grep` / `Read` có giới hạn trên `backend/smart-erp/.../db/migration` + UC doc — không full quét `schema.sql` trừ khi Owner yêu cầu. |
 | **`verify`** | So khớp API ↔ SRS ↔ Flyway + liệt kê GAP/OQ; **không** ghi file SRS. |
 
 **Bỏ `Doc`** khi task đã có trong bảng đăng ký (agent dùng `Doc` đã ghi):

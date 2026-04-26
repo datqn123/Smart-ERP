@@ -112,3 +112,151 @@ export function getStockReceiptList(params: GetStockReceiptListParams) {
     auth: true,
   })
 }
+
+/** Task014 — `POST /api/v1/stock-receipts` — `frontend/docs/api/API_Task014_stock_receipts_post.md` §5–6. */
+export type StockReceiptCreateSaveMode = "draft" | "pending"
+
+export type StockReceiptCreateDetailBody = {
+  productId: number
+  unitId: number
+  quantity: number
+  costPrice: number
+  batchNumber?: string | null
+  expiryDate?: string | null
+}
+
+export type StockReceiptCreateBody = {
+  supplierId: number
+  receiptDate: string
+  invoiceNumber?: string
+  notes?: string
+  saveMode: StockReceiptCreateSaveMode
+  details: StockReceiptCreateDetailBody[]
+}
+
+export type StockReceiptLineViewResponse = {
+  id: number
+  receiptId: number
+  productId: number
+  productName: string
+  skuCode: string
+  unitId: number
+  unitName: string
+  quantity: number
+  costPrice: number | string
+  batchNumber: string | null
+  expiryDate: string | null
+  lineTotal: number | string
+}
+
+export type StockReceiptViewResponse = {
+  id: number
+  receiptCode: string
+  supplierId: number
+  supplierName: string
+  staffId: number
+  staffName: string
+  receiptDate: string
+  status: string
+  invoiceNumber: string | null
+  totalAmount: number | string
+  notes: string | null
+  approvedBy: number | null
+  approvedByName: string | null
+  approvedAt: string | null
+  reviewedBy: number | null
+  reviewedByName: string | null
+  reviewedAt: string | null
+  rejectionReason: string | null
+  createdAt: string
+  updatedAt: string
+  details: StockReceiptLineViewResponse[]
+}
+
+/** Task015 — map `StockReceiptViewData` → model UI (`ReceiptDetailDialog`, form sửa). */
+export function mapStockReceiptViewToUi(v: StockReceiptViewResponse): StockReceipt {
+  const details = (v.details ?? []).map((d) => ({
+    id: d.id,
+    receiptId: d.receiptId,
+    productId: d.productId,
+    productName: d.productName,
+    skuCode: d.skuCode,
+    unitId: d.unitId,
+    unitName: d.unitName,
+    quantity: d.quantity,
+    costPrice: asNumber(d.costPrice),
+    batchNumber: d.batchNumber ?? undefined,
+    expiryDate: d.expiryDate ?? undefined,
+    lineTotal: asNumber(d.lineTotal),
+  }))
+  const lineCount = details.length
+  const st = v.status
+  const status: StockReceipt["status"] =
+    st === "Draft" || st === "Pending" || st === "Approved" || st === "Rejected" ? st : "Draft"
+  return {
+    id: v.id,
+    receiptCode: v.receiptCode,
+    supplierId: v.supplierId,
+    supplierName: v.supplierName,
+    staffId: v.staffId,
+    staffName: v.staffName?.trim() ? v.staffName : "—",
+    receiptDate: v.receiptDate,
+    status,
+    invoiceNumber: v.invoiceNumber ?? undefined,
+    totalAmount: asNumber(v.totalAmount),
+    notes: v.notes ?? undefined,
+    approvedBy: v.approvedBy ?? undefined,
+    approvedByName: v.approvedByName ?? undefined,
+    approvedAt: v.approvedAt ?? undefined,
+    reviewedBy: v.reviewedBy ?? undefined,
+    reviewedByName: v.reviewedByName ?? undefined,
+    reviewedAt: v.reviewedAt ?? undefined,
+    rejectionReason: v.rejectionReason ?? undefined,
+    createdAt: v.createdAt,
+    updatedAt: v.updatedAt,
+    lineCount,
+    details,
+  }
+}
+
+/** Task015 — `GET /api/v1/stock-receipts/{id}` — `frontend/docs/api/API_Task015_stock_receipts_get_by_id.md` §5–6. */
+export function getStockReceiptById(id: number) {
+  return apiJson<StockReceiptViewResponse>(`/api/v1/stock-receipts/${id}`, {
+    method: "GET",
+    auth: true,
+  })
+}
+
+export function postStockReceipt(body: StockReceiptCreateBody) {
+  return apiJson<StockReceiptViewResponse>("/api/v1/stock-receipts", {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify(body),
+  })
+}
+
+/** Task016 — body khớp `StockReceiptPatchRequest` (partial; FE gửi đủ field khi lưu form Draft). */
+export type StockReceiptPatchBody = {
+  supplierId?: number
+  receiptDate?: string
+  invoiceNumber?: string | null
+  notes?: string | null
+  details?: StockReceiptCreateDetailBody[]
+}
+
+/** Task016 — `PATCH /api/v1/stock-receipts/{id}` — `frontend/docs/api/API_Task016_stock_receipts_patch.md` §4–5. */
+export function patchStockReceipt(id: number, body: StockReceiptPatchBody) {
+  return apiJson<StockReceiptViewResponse>(`/api/v1/stock-receipts/${id}`, {
+    method: "PATCH",
+    auth: true,
+    body: JSON.stringify(body),
+  })
+}
+
+/** Task017 — `DELETE /api/v1/stock-receipts/{id}` — `frontend/docs/api/API_Task017_stock_receipts_delete.md`. */
+export function deleteStockReceipt(id: number) {
+  return apiJson<null>(`/api/v1/stock-receipts/${id}`, {
+    method: "DELETE",
+    auth: true,
+  })
+}

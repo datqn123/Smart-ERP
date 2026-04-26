@@ -29,6 +29,8 @@ Tài liệu **SRS gắn triển khai backend** (API `smart-erp`, persistence, ma
 | [`SRS_Task008_inventory-bulk-patch.md`](SRS_Task008_inventory-bulk-patch.md) | `PATCH /api/v1/inventory/bulk` — **Draft**; API: [`../../../frontend/docs/api/API_Task008_inventory_bulk_patch.md`](../../../frontend/docs/api/API_Task008_inventory_bulk_patch.md) |
 | [`SRS_Task009_inventory-get-summary.md`](SRS_Task009_inventory-get-summary.md) | `GET /api/v1/inventory/summary` — **Draft** (đã triển khai BE); API: [`../../../frontend/docs/api/API_Task009_inventory_get_summary.md`](../../../frontend/docs/api/API_Task009_inventory_get_summary.md) |
 | [`SRS_Task013_stock-receipts-get-list.md`](SRS_Task013_stock-receipts-get-list.md) | `GET /api/v1/stock-receipts` — **Draft**; API: [`../../../frontend/docs/api/API_Task013_stock_receipts_get_list.md`](../../../frontend/docs/api/API_Task013_stock_receipts_get_list.md) |
+| [`SRS_Task014-020_stock-receipts-lifecycle.md`](SRS_Task014-020_stock-receipts-lifecycle.md) | **Gộp** Task014–020 — tạo/sửa/xóa/submit/approve/reject phiếu nhập; API: `API_Task014` … `API_Task020` trong [`../../../frontend/docs/api/`](../../../frontend/docs/api/) |
+| [`SRS_Task021-028_inventory-audit-sessions.md`](SRS_Task021-028_inventory-audit-sessions.md) | **Gộp** Task021–028 — đợt kiểm kê kho (list/create/detail/patch/lines/complete/cancel/apply-variance); API: `API_Task021` … `API_Task028` trong [`../../../frontend/docs/api/`](../../../frontend/docs/api/) |
 
 ## File liên quan dưới `backend/docs/taskNNN/`
 

@@ -60,7 +60,7 @@
 
 | Loại | File |
 | :--- | :--- |
-| API (nối BE) | `api/inventoryApi.ts` — Task005–009 tồn kho; `api/stockReceiptsApi.ts` — Task013 `GET /api/v1/stock-receipts` |
+| API (nối BE) | `api/inventoryApi.ts` — Task005–009 tồn kho; `api/stockReceiptsApi.ts` — Task013 list, Task014 `POST`, Task015 `GET …/{id}`, Task016 `PATCH …/{id}`, Task017 `DELETE …/{id}` |
 | Bảng / toolbar tồn | `components/StockTable.tsx`, `StockToolbar.tsx`, …; `pages/StockPage` — KPI qua Task009 (`getInventorySummary`); 20 bản ghi lần đầu, tải thêm khi **cuộn tới gần cuối** (`useInfiniteQuery`) |
 | Nhập kho | `pages/InboundPage.tsx` — list phiếu Task013 (`useInfiniteQuery` + `getStockReceiptList`); `components/ReceiptForm.tsx`, `ReceiptTable.tsx`, `ReceiptDetailPanel.tsx`, `ReceiptDetailDialog.tsx` |
 | Xuất / điều phối | `components/DispatchForm.tsx`, `DispatchTable.tsx`, `DispatchDetailDialog.tsx`, `DispatchDetailPanel.tsx` |

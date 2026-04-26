@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useInfiniteQuery } from "@tanstack/react-query"
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
 import { usePageTitle } from "@/context/PageTitleContext"
 import {
   Plus, Search, Calendar, Upload, Download, Camera
@@ -9,12 +9,17 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ReceiptTable } from "../components/ReceiptTable"
 import { ReceiptDetailDialog } from "../components/ReceiptDetailDialog"
-import { ReceiptForm } from "../components/ReceiptForm"
-import { createReceipt, updateReceipt, deleteReceipt } from "../inventoryCrudLogic"
+import { ReceiptForm, type ReceiptFormData } from "../components/ReceiptForm"
 import {
   getStockReceiptList,
+  getStockReceiptById,
   mapStockReceiptListItemToUi,
+  mapStockReceiptViewToUi,
+  patchStockReceipt,
+  postStockReceipt,
+  deleteStockReceipt,
   type GetStockReceiptListParams,
+  type StockReceiptCreateSaveMode,
 } from "../api/stockReceiptsApi"
 import { ApiRequestError } from "@/lib/api/http"
 import { toast } from "sonner"
@@ -41,6 +46,7 @@ function parseSupplierId(raw: string): number | undefined {
 
 // ─── Main Page ────────────────────────────────────────────
 export function InboundPage() {
+  const queryClient = useQueryClient()
   const { setTitle } = usePageTitle()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRootRef = useRef<HTMLDivElement>(null)
@@ -72,6 +78,22 @@ export function InboundPage() {
     () => ["stock-receipts", "v1", "list", debouncedSearch, statusFilter, dateFrom, dateTo, supplierIdParam ?? "", PAGE_SIZE] as const,
     [debouncedSearch, statusFilter, dateFrom, dateTo, supplierIdParam],
   )
+
+  const {
+    data: receiptDetail,
+    isPending: isDetailPending,
+    isError: isDetailError,
+    error: detailError,
+  } = useQuery({
+    queryKey: ["stock-receipts", "v1", "detail", selectedReceipt?.id],
+    queryFn: async () => {
+      const raw = await getStockReceiptById(selectedReceipt!.id)
+      return mapStockReceiptViewToUi(raw)
+    },
+    enabled: isPanelOpen && selectedReceipt != null,
+  })
+
+  const receiptForDialog = receiptDetail ?? selectedReceipt
 
   const { data, isPending, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: listQueryKey,
@@ -153,75 +175,133 @@ export function InboundPage() {
     }
   }, [isError, error])
 
+  useEffect(() => {
+    if (isDetailError && detailError instanceof ApiRequestError) {
+      toast.error(detailError.body?.message ?? "Không tải được chi tiết phiếu nhập")
+    }
+  }, [isDetailError, detailError])
+
   const handleCreateReceipt = () => {
     setEditingReceipt(undefined)
     setIsFormOpen(true)
   }
 
-  const handleEditReceipt = (receipt: StockReceipt) => {
-    setEditingReceipt(receipt)
-    setIsFormOpen(true)
-  }
-
-  const handleDeleteReceipt = (id: number) => {
-    if (confirm("Bạn có chắc chắn muốn xóa phiếu nhập này?")) {
-      deleteReceipt(id)
-      alert("Xóa phiếu nhập thành công!")
-      window.location.reload()
+  const handleEditReceipt = async (receipt: StockReceipt) => {
+    try {
+      const raw = await getStockReceiptById(receipt.id)
+      setEditingReceipt(mapStockReceiptViewToUi(raw))
+      setIsFormOpen(true)
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        toast.error(e.body?.message ?? "Không tải được chi tiết phiếu để sửa")
+      } else {
+        toast.error("Không tải được chi tiết phiếu để sửa")
+      }
     }
   }
 
-  const handleFormSubmit = async (data: any) => {
-    const supplierMap: Record<number, string> = {
-      1: "Công ty TNHH Vinamilk",
-      2: "Nhà phân phối PepsiCo",
-      3: "Công ty Hàng Tiêu Dùng",
-      4: "Công ty Masan",
-      5: "Đại lý Unilever",
+  const handleDeleteReceipt = async (id: number) => {
+    if (!confirm("Bạn có chắc chắn muốn xóa phiếu nhập này?")) {
+      return
     }
+    try {
+      await deleteStockReceipt(id)
+      toast.success("Đã xóa phiếu nhập kho")
+      if (selectedReceipt?.id === id) {
+        setIsPanelOpen(false)
+        setSelectedReceipt(null)
+      }
+      await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "list"] })
+      await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "detail", id] })
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        const det = e.body?.details
+        if (det && typeof det === "object") {
+          const desc = Object.entries(det)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join("\n")
+          toast.error(e.body?.message ?? "Không xóa được phiếu nhập", { description: desc })
+        } else {
+          toast.error(e.body?.message ?? "Không xóa được phiếu nhập")
+        }
+      } else {
+        toast.error("Không xóa được phiếu nhập")
+      }
+    }
+  }
 
+  const handleFormSubmit = async (data: ReceiptFormData, saveMode: StockReceiptCreateSaveMode) => {
     if (editingReceipt) {
-      updateReceipt(editingReceipt.id, {
+      try {
+        await patchStockReceipt(editingReceipt.id, {
+          supplierId: data.supplierId,
+          receiptDate: data.receiptDate,
+          invoiceNumber: data.invoiceNumber?.trim() ?? "",
+          notes: data.notes?.trim() ? data.notes.trim() : null,
+          details: data.details.map((d) => ({
+            productId: d.productId,
+            unitId: d.unitId,
+            quantity: Math.floor(Number(d.quantity)),
+            costPrice: d.costPrice,
+            batchNumber: d.batchNumber?.trim() ? d.batchNumber.trim() : null,
+            expiryDate: d.expiryDate?.trim() ? d.expiryDate.trim() : null,
+          })),
+        })
+        toast.success("Đã cập nhật phiếu nhập kho")
+        await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "list"] })
+        await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "detail", editingReceipt.id] })
+      } catch (e) {
+        if (e instanceof ApiRequestError) {
+          const det = e.body?.details
+          if (det && typeof det === "object") {
+            const desc = Object.entries(det)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join("\n")
+            toast.error(e.body?.message ?? "Không cập nhật được phiếu nhập", { description: desc })
+          } else {
+            toast.error(e.body?.message ?? "Không cập nhật được phiếu nhập")
+          }
+        } else {
+          toast.error("Không cập nhật được phiếu nhập")
+        }
+        throw e
+      }
+      return
+    }
+
+    try {
+      await postStockReceipt({
         supplierId: data.supplierId,
-        supplierName: supplierMap[data.supplierId] || "",
         receiptDate: data.receiptDate,
-        invoiceNumber: data.invoiceNumber,
-        notes: data.notes,
-        details: data.details.map((d: any) => ({
+        invoiceNumber: data.invoiceNumber?.trim() || undefined,
+        notes: data.notes?.trim() || undefined,
+        saveMode,
+        details: data.details.map((d) => ({
           productId: d.productId,
-          productName: "",
-          skuCode: "",
-          unitId: 1,
-          unitName: "",
-          quantity: d.quantity,
+          unitId: d.unitId,
+          quantity: Math.floor(Number(d.quantity)),
           costPrice: d.costPrice,
-          batchNumber: d.batchNumber,
-          expiryDate: d.expiryDate,
-        }))
+          batchNumber: d.batchNumber?.trim() ? d.batchNumber.trim() : null,
+          expiryDate: d.expiryDate?.trim() ? d.expiryDate.trim() : null,
+        })),
       })
-      alert("Cập nhật phiếu nhập thành công!")
-      window.location.reload()
-    } else {
-      createReceipt({
-        supplierId: data.supplierId,
-        supplierName: supplierMap[data.supplierId] || "",
-        receiptDate: data.receiptDate,
-        invoiceNumber: data.invoiceNumber,
-        notes: data.notes,
-        details: data.details.map((d: any) => ({
-          productId: d.productId,
-          productName: "",
-          skuCode: "",
-          unitId: 1,
-          unitName: "",
-          quantity: d.quantity,
-          costPrice: d.costPrice,
-          batchNumber: d.batchNumber,
-          expiryDate: d.expiryDate,
-        }))
-      })
-      alert("Tạo phiếu nhập mới thành công!")
-      window.location.reload()
+      toast.success(saveMode === "draft" ? "Đã lưu nháp phiếu nhập kho" : "Đã gửi phiếu chờ duyệt")
+      await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "list"] })
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        const det = e.body?.details
+        if (det && typeof det === "object") {
+          const desc = Object.entries(det)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join("\n")
+          toast.error(e.body?.message ?? "Không tạo được phiếu nhập", { description: desc })
+        } else {
+          toast.error(e.body?.message ?? "Không tạo được phiếu nhập")
+        }
+      } else {
+        toast.error("Không tạo được phiếu nhập")
+      }
+      throw e
     }
   }
   const handleScanOCR = () => alert("Chức năng Quét hóa đơn (OCR) sẽ được triển khai khi có API Backend")
@@ -344,10 +424,14 @@ export function InboundPage() {
         </div>
 
         <ReceiptDetailDialog
-          receipt={selectedReceipt}
+          receipt={receiptForDialog}
           isOpen={isPanelOpen}
-          onClose={() => setIsPanelOpen(false)}
+          onClose={() => {
+            setIsPanelOpen(false)
+            setSelectedReceipt(null)
+          }}
           canApprove={true}
+          isLoadingDetail={isDetailPending}
         />
 
         <ReceiptForm

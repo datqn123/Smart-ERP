@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator"
 import { formatCurrency } from "../utils"
 import type { StockReceipt } from "../types"
 import { calculateReceiptTotal, isExpiryValid } from "../inboundLogic"
+import { RECEIPT_FORM_PRODUCTS, catalogUnitForProduct } from "../receiptFormCatalog"
 import { cn } from "@/lib/utils"
 import {
   FORM_LABEL_CLASS,
@@ -31,6 +32,7 @@ const receiptSchema = z.object({
   notes: z.string().optional(),
   details: z.array(z.object({
     productId: z.number().min(1, "Chọn sản phẩm"),
+    unitId: z.number().min(1, "Thiếu đơn vị (chọn lại sản phẩm)"),
     quantity: z.number().min(1, "Min = 1"),
     costPrice: z.number().min(0, "Min = 0"),
     batchNumber: z.string().optional(),
@@ -43,13 +45,13 @@ const receiptSchema = z.object({
   path: ["details"]
 })
 
-type ReceiptFormData = z.infer<typeof receiptSchema>
+export type ReceiptFormData = z.infer<typeof receiptSchema>
 
 interface ReceiptFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   receipt?: StockReceipt
-  onSubmit: (data: ReceiptFormData) => void
+  onSubmit: (data: ReceiptFormData, saveMode: "draft" | "pending") => void | Promise<void>
 }
 
 const mockSuppliers = [
@@ -58,14 +60,6 @@ const mockSuppliers = [
   { id: 3, name: "Công ty Hàng Tiêu Dùng" },
   { id: 4, name: "Công ty Masan" },
   { id: 5, name: "Đại lý Unilever" },
-]
-
-const mockProducts = [
-  { id: 1, name: "Sữa Ông Thọ Hộp Giấy", sku: "SP001", unit: "Hộp" },
-  { id: 2, name: "Nước Ngọt Pepsi 330ml", sku: "SP002", unit: "Lon" },
-  { id: 3, name: "Bánh Quy Oreo", sku: "SP003", unit: "Gói" },
-  { id: 4, name: "Mì Gói Hảo Hảo", sku: "SP004", unit: "Thùng" },
-  { id: 5, name: "Dầu ăn Tường An 1L", sku: "SP005", unit: "Chai" },
 ]
 
 export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFormProps) {
@@ -80,6 +74,7 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
       notes: receipt.notes || "",
       details: receipt.details.map(d => ({
         productId: d.productId,
+        unitId: d.unitId > 0 ? d.unitId : (catalogUnitForProduct(d.productId) ?? 0),
         quantity: d.quantity,
         costPrice: d.costPrice,
         batchNumber: d.batchNumber || "",
@@ -90,7 +85,7 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
       receiptDate: new Date().toISOString().split("T")[0],
       invoiceNumber: "",
       notes: "",
-      details: [{ productId: 0 as unknown as number, quantity: 1, costPrice: 0, batchNumber: "", expiryDate: "" }]
+      details: [{ productId: 0 as unknown as number, unitId: 0 as unknown as number, quantity: 1, costPrice: 0, batchNumber: "", expiryDate: "" }]
     }
   })
 
@@ -102,15 +97,16 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
   const formValues = form.watch()
   const totalAmount = useMemo(() => calculateReceiptTotal(formValues.details || []), [formValues.details])
 
-  const handleSubmit = async (data: ReceiptFormData) => {
-    setIsSubmitting(true)
-    try {
-      await onSubmit(data)
-      onOpenChange(false)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
+  const submitWithMode = (saveMode: "draft" | "pending") =>
+    form.handleSubmit(async (data) => {
+      setIsSubmitting(true)
+      try {
+        await onSubmit(data, saveMode)
+        onOpenChange(false)
+      } finally {
+        setIsSubmitting(false)
+      }
+    })
 
   const isEditable = !receipt || receipt.status === "Draft"
 
@@ -135,7 +131,14 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
-          <form id="receipt-form" onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
+          <form
+            id="receipt-form"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void submitWithMode("draft")()
+            }}
+            className="space-y-8"
+          >
             {/* Header Info Section */}
             <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-4">
@@ -211,7 +214,7 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => append({ productId: 0 as unknown as number, quantity: 1, costPrice: 0, batchNumber: "", expiryDate: "" })}
+                    onClick={() => append({ productId: 0 as unknown as number, unitId: 0 as unknown as number, quantity: 1, costPrice: 0, batchNumber: "", expiryDate: "" })}
                     className="h-9 border-slate-300 bg-white hover:bg-slate-50 text-slate-700"
                   >
                     <Plus className="h-4 w-4 mr-2" /> Thêm mặt hàng
@@ -237,7 +240,7 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
                   <TableBody className="divide-y divide-slate-100">
                     {fields.map((field, index) => {
                       const detail = formValues.details[index]
-                      const product = mockProducts.find(p => p.id === detail?.productId)
+                      const product = RECEIPT_FORM_PRODUCTS.find(p => p.productId === detail?.productId)
                       const lineTotal = (detail?.quantity || 0) * (detail?.costPrice || 0)
 
                       return (
@@ -248,15 +251,22 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
                           <TableCell className="px-2 py-1.5 focus-within:z-10">
                             <Select
                               value={detail?.productId?.toString() || ""}
-                              onValueChange={(val) => form.setValue(`details.${index}.productId`, parseInt(val))}
+                              onValueChange={(val) => {
+                                const pid = parseInt(val, 10)
+                                form.setValue(`details.${index}.productId`, pid)
+                                const uid = catalogUnitForProduct(pid)
+                                if (uid != null) {
+                                  form.setValue(`details.${index}.unitId`, uid)
+                                }
+                              }}
                               disabled={!isEditable}
                             >
                               <SelectTrigger className={cn(FORM_INPUT_CLASS, "h-10 group-hover:bg-white focus:bg-white transition-all shadow-none")}>
                                 <SelectValue placeholder="Chọn sản phẩm..." />
                               </SelectTrigger>
                               <SelectContent>
-                                {mockProducts.map(p => (
-                                  <SelectItem key={p.id} value={p.id.toString()}>
+                                {RECEIPT_FORM_PRODUCTS.map((p) => (
+                                  <SelectItem key={p.productId} value={p.productId.toString()}>
                                     <div className="flex flex-col text-left">
                                         <span className={TABLE_CELL_PRIMARY_CLASS}>{p.name}</span>
                                         <span className={cn(TABLE_CELL_MONO_CLASS, "text-[10px] text-slate-400")}>SKU: {p.sku}</span>
@@ -352,13 +362,11 @@ export function ReceiptForm({ open, onOpenChange, receipt, onSubmit }: ReceiptFo
           <div className="flex-1" />
           {isEditable && (
             <>
-              <Button form="receipt-form" type="submit" variant="outline" disabled={isSubmitting} className="h-11 border-slate-300 bg-white">
+              <Button type="button" variant="outline" disabled={isSubmitting} className="h-11 border-slate-300 bg-white" onClick={() => void submitWithMode("draft")()}>
                 <Save className="h-4 w-4 mr-2" />
                 Lưu bản nháp
               </Button>
-              <Button form="receipt-form" type="submit" disabled={isSubmitting} className="h-11 bg-slate-900 hover:bg-slate-800 text-white min-w-[140px]" onClick={() => {
-                form.setValue("invoiceNumber", form.getValues("invoiceNumber") || "")
-              }}>
+              <Button type="button" disabled={isSubmitting} className="h-11 bg-slate-900 hover:bg-slate-800 text-white min-w-[140px]" onClick={() => void submitWithMode("pending")()}>
                 <Send className="h-4 w-4 mr-2" />
                 Gửi yêu cầu duyệt
               </Button>

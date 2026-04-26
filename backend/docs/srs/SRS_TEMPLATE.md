@@ -25,6 +25,16 @@
 - **Mục tiêu nghiệp vụ:** …
 - **Đối tượng / persona:** …
 
+### 1.1 Giao diện Mini-ERP (bắt buộc khi API được gọi từ `mini-erp`)
+
+> BA tra [`../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md`](../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md) và/hoặc mục UI trong `frontend/docs/api/API_Task*.md`.
+
+| Nhãn menu (Sidebar) | Route | Page (export) | Component / vùng chính | File (dưới `frontend/mini-erp/src/features/`) |
+| :--- | :--- | :--- | :--- | :--- |
+| *vd. Kiểm kê* | *vd. `/inventory/audit`* | *vd. `AuditPage`* | *vd. `AuditSessionsTable`* | *vd. `inventory/pages/AuditPage.tsx`* |
+
+- Nếu **không** có màn `mini-erp` (batch, webhook, …): ghi *“§1.1 không áp dụng.”*
+
 ---
 
 ## 2. Bóc tách nghiệp vụ (capabilities)

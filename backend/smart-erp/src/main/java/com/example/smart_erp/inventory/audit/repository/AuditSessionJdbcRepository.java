@@ -67,9 +67,7 @@ public class AuditSessionJdbcRepository {
 				FROM inventoryauditsessions s
 				INNER JOIN users uc ON uc.id = s.created_by
 				LEFT JOIN users uf ON uf.id = s.completed_by
-				""" + f.joins + f.where + """
-				 ORDER BY s.id ASC
-				 LIMIT """ + q.limit() + " OFFSET " + offset;
+				""" + f.joins + f.where + " ORDER BY s.id ASC LIMIT " + q.limit() + " OFFSET " + offset;
 		return namedJdbc.query(sql, f.source, LIST_ROW);
 	}
 

@@ -256,6 +256,77 @@ export function patchAuditSessionLines(sessionId: number, body: AuditLinesPatchB
   })
 }
 
+/**
+ * Task026 — `POST /api/v1/inventory/audit-sessions/{id}/complete` — `frontend/docs/api/API_Task026_inventory_audit_sessions_complete.md` §5–6.
+ * BE: chỉ khi **In Progress** → chuyển **Pending Owner Approval** (gửi chờ Owner), không set Completed tại bước này.
+ */
+export type AuditSessionCompleteBody = {
+  requireAllCounted?: boolean
+}
+
+export function postAuditSessionComplete(sessionId: number, body: AuditSessionCompleteBody = {}) {
+  const requireAllCounted = body.requireAllCounted !== false
+  return apiJson<AuditSessionDetailData>(`/api/v1/inventory/audit-sessions/${sessionId}/complete`, {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify({ requireAllCounted }),
+  })
+}
+
+/**
+ * Task027 — `POST /api/v1/inventory/audit-sessions/{id}/cancel` — `frontend/docs/api/API_Task027_inventory_audit_sessions_cancel.md` §4.
+ * BE: `AuditSessionCancelRequest` — `cancelReason` bắt buộc, max 1000 ký tự.
+ */
+export type AuditSessionCancelBody = {
+  cancelReason: string
+}
+
+export function postAuditSessionCancel(sessionId: number, body: AuditSessionCancelBody) {
+  return apiJson<AuditSessionDetailData>(`/api/v1/inventory/audit-sessions/${sessionId}/cancel`, {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify({ cancelReason: body.cancelReason.trim() }),
+  })
+}
+
+/**
+ * GAP SRS Task030 — `POST …/{id}/approve` — BE: `AuditSessionApproveRequest` (`notes` tuỳ chọn max 500); `assertOwnerOnly`.
+ */
+export type AuditSessionOwnerNotesBody = {
+  notes?: string | null
+}
+
+export function postAuditSessionApprove(sessionId: number, body: AuditSessionOwnerNotesBody = {}) {
+  const n = body.notes?.trim()
+  const payload = n && n.length > 0 ? { notes: n.slice(0, 500) } : {}
+  return apiJson<AuditSessionDetailData>(`/api/v1/inventory/audit-sessions/${sessionId}/approve`, {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify(payload),
+  })
+}
+
+/** GAP SRS Task031 — `POST …/{id}/reject` — BE: `AuditSessionRejectRequest` (`notes` tuỳ chọn); `assertOwnerOnly`. */
+export function postAuditSessionReject(sessionId: number, body: AuditSessionOwnerNotesBody = {}) {
+  const n = body.notes?.trim()
+  const payload = n && n.length > 0 ? { notes: n.slice(0, 500) } : {}
+  return apiJson<AuditSessionDetailData>(`/api/v1/inventory/audit-sessions/${sessionId}/reject`, {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify(payload),
+  })
+}
+
+/**
+ * GAP SRS Task029 — `DELETE …/{id}` — xóa mềm; BE: `assertOwnerOnly`; 200 `data: null`.
+ */
+export function deleteAuditSessionSoft(sessionId: number) {
+  return apiJson<null>(`/api/v1/inventory/audit-sessions/${sessionId}`, {
+    method: "DELETE",
+    auth: true,
+  })
+}
+
 export function postAuditSession(body: AuditSessionCreateBody) {
   const payload = {
     title: body.title.trim(),

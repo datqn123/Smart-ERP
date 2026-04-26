@@ -10,11 +10,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { StatusBadge } from "./StatusBadge"
 import { formatDate, formatDateTime } from "../utils"
 import type { AuditItem, AuditSession } from "../types"
-import type { AuditLinesPatchBody } from "../api/auditSessionsApi"
+import type {
+  AuditLinesPatchBody,
+  AuditSessionCompleteBody,
+  AuditSessionOwnerNotesBody,
+} from "../api/auditSessionsApi"
 import { toast } from "sonner"
 import {
   DATA_TABLE_ROOT_CLASS,
@@ -40,6 +45,17 @@ export interface AuditSessionDetailDialogProps {
   /** Task025 — ghi `actualQuantity` / `notes` từng dòng (In Progress / Re-check). */
   onPatchLines?: (sessionId: number, body: AuditLinesPatchBody) => Promise<void>
   linesPatchPending?: boolean
+  /** Task026 — gửi hoàn tất (In Progress → chờ Owner duyệt). */
+  onCompleteSession?: (sessionId: number, body: AuditSessionCompleteBody) => Promise<void>
+  completePending?: boolean
+  /** GAP SRS 029–031 — JWT role Owner (khớp `StockReceiptAccessPolicy.assertOwnerOnly`). */
+  isOwner?: boolean
+  onOwnerApprove?: (sessionId: number, body: AuditSessionOwnerNotesBody) => Promise<void>
+  onOwnerReject?: (sessionId: number, body: AuditSessionOwnerNotesBody) => Promise<void>
+  onOwnerSoftDelete?: (sessionId: number) => Promise<void>
+  approveOwnerPending?: boolean
+  rejectOwnerPending?: boolean
+  softDeleteOwnerPending?: boolean
 }
 
 function readOnlyClass(disabled: boolean) {
@@ -146,6 +162,180 @@ function LineCountEditorRow({ row, sessionId, onPatchLines, disabled }: LineCoun
   )
 }
 
+interface AuditSessionCompleteSectionProps {
+  session: AuditSession
+  onComplete: (sessionId: number, body: AuditSessionCompleteBody) => Promise<void>
+  disabled: boolean
+}
+
+function AuditSessionCompleteSection({ session, onComplete, disabled }: AuditSessionCompleteSectionProps) {
+  const [requireAllCounted, setRequireAllCounted] = useState(true)
+  if (session.status !== "In Progress") return null
+
+  return (
+    <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-4 space-y-3">
+      <p className="text-sm text-slate-800">
+        <strong className="font-medium">Hoàn tất kiểm kê (Task026):</strong> gửi đợt sang{" "}
+        <strong className="font-medium">chờ Owner duyệt</strong> — chưa áp chênh lệch vào tồn (Task028).
+      </p>
+      <div className="flex items-start gap-3">
+        <Checkbox
+          id="audit-complete-require-all"
+          checked={requireAllCounted}
+          onCheckedChange={(v) => setRequireAllCounted(v === true)}
+          disabled={disabled}
+          className="mt-0.5"
+        />
+        <label htmlFor="audit-complete-require-all" className="text-sm text-slate-600 leading-snug cursor-pointer">
+          Bắt buộc đã đếm đủ mọi dòng (<span className="font-mono text-xs">requireAllCounted: true</span>). Bỏ chọn nếu
+          cho phép gửi khi còn dòng chưa đếm (BE có thể vẫn 409 tùy policy).
+        </label>
+      </div>
+      <Button
+        type="button"
+        className="h-11 bg-emerald-700 hover:bg-emerald-800 text-white"
+        disabled={disabled}
+        onClick={() => void onComplete(session.id, { requireAllCounted })}
+      >
+        Gửi chờ Owner duyệt
+      </Button>
+    </div>
+  )
+}
+
+interface AuditSessionOwnerActionsBlockProps {
+  session: AuditSession
+  isOwner: boolean
+  onApprove?: (sessionId: number, body: AuditSessionOwnerNotesBody) => Promise<void>
+  onReject?: (sessionId: number, body: AuditSessionOwnerNotesBody) => Promise<void>
+  onSoftDelete?: (sessionId: number) => Promise<void>
+  approvePending: boolean
+  rejectPending: boolean
+  softDeletePending: boolean
+}
+
+function AuditSessionOwnerActionsBlock({
+  session,
+  isOwner,
+  onApprove,
+  onReject,
+  onSoftDelete,
+  approvePending,
+  rejectPending,
+  softDeletePending,
+}: AuditSessionOwnerActionsBlockProps) {
+  const [ownerNotes, setOwnerNotes] = useState("")
+  const [softDeleteOpen, setSoftDeleteOpen] = useState(false)
+
+  if (!isOwner || (!onApprove && !onReject && !onSoftDelete)) {
+    return null
+  }
+
+  const ownerBusy = approvePending || rejectPending || softDeletePending
+  const notesPayload = (): AuditSessionOwnerNotesBody => {
+    const t = ownerNotes.trim()
+    return t ? { notes: t.slice(0, 500) } : {}
+  }
+
+  const showApproveReject = session.status === "Pending Owner Approval" && onApprove && onReject
+
+  return (
+    <>
+      <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-4 space-y-3">
+        <p className="text-sm font-semibold text-violet-950">Thao tác Owner</p>
+        <p className="text-xs text-violet-900/80">
+          Duyệt / Từ chối khi đợt <strong className="font-medium">chờ Owner duyệt</strong>. Xóa mềm chỉ Owner (SRS GAP 029,
+          BR-12).
+        </p>
+        {showApproveReject && (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="audit-owner-notes" className={FORM_LABEL_CLASS}>
+                Ghi chú Owner (tuỳ chọn)
+              </Label>
+              <Textarea
+                id="audit-owner-notes"
+                className={cn(FORM_INPUT_CLASS, "min-h-[72px]")}
+                maxLength={500}
+                placeholder="Ghi chú kèm duyệt hoặc từ chối…"
+                value={ownerNotes}
+                onChange={(e) => setOwnerNotes(e.target.value)}
+                disabled={ownerBusy}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                className="h-10 bg-violet-700 hover:bg-violet-800 text-white"
+                disabled={ownerBusy}
+                onClick={() => void onApprove(session.id, notesPayload())}
+              >
+                {approvePending ? "Đang duyệt…" : "Duyệt hoàn thành"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 border-amber-300 text-amber-950 hover:bg-amber-50"
+                disabled={ownerBusy}
+                onClick={() => void onReject(session.id, notesPayload())}
+              >
+                {rejectPending ? "Đang từ chối…" : "Từ chối — trả lại đang kiểm"}
+              </Button>
+            </div>
+          </>
+        )}
+        {onSoftDelete && (
+          <Button
+            type="button"
+            variant="destructive"
+            className="h-10"
+            disabled={ownerBusy}
+            onClick={() => setSoftDeleteOpen(true)}
+          >
+            Xóa mềm đợt kiểm kê
+          </Button>
+        )}
+      </div>
+
+      {onSoftDelete && (
+        <Dialog open={softDeleteOpen} onOpenChange={setSoftDeleteOpen}>
+          <DialogContent className="sm:max-w-md" aria-describedby="audit-soft-delete-desc">
+            <DialogHeader>
+              <DialogTitle>Xác nhận xóa mềm</DialogTitle>
+              <DialogDescription id="audit-soft-delete-desc">
+                Đợt <span className="font-mono font-medium text-slate-900">{session.auditCode}</span> sẽ ẩn khỏi danh sách
+                (deleted_at). Chỉ tài khoản Owner thực hiện được trên server.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setSoftDeleteOpen(false)} disabled={softDeletePending}>
+                Hủy
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={softDeletePending}
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      await onSoftDelete(session.id)
+                      setSoftDeleteOpen(false)
+                    } catch {
+                      /* toast từ mutation */
+                    }
+                  })()
+                }}
+              >
+                {softDeletePending ? "Đang xóa…" : "Xác nhận xóa mềm"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  )
+}
+
 export function AuditSessionDetailDialog({
   open,
   onClose,
@@ -156,6 +346,15 @@ export function AuditSessionDetailDialog({
   errorMessage,
   onPatchLines,
   linesPatchPending = false,
+  onCompleteSession,
+  completePending = false,
+  isOwner = false,
+  onOwnerApprove,
+  onOwnerReject,
+  onOwnerSoftDelete,
+  approveOwnerPending = false,
+  rejectOwnerPending = false,
+  softDeleteOwnerPending = false,
 }: AuditSessionDetailDialogProps) {
   const header = session ?? listHint
   const lines = session?.items ?? []
@@ -163,6 +362,7 @@ export function AuditSessionDetailDialog({
   const showPendingHint = session?.status === "Pending" && lines.length > 0 && Boolean(onPatchLines)
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-full sm:max-w-4xl max-h-[90vh] overflow-y-auto gap-4">
         <DialogHeader>
@@ -219,6 +419,27 @@ export function AuditSessionDetailDialog({
               </div>
             )}
           </div>
+        )}
+
+        {!isLoading && !isError && session && isOwner && (onOwnerApprove || onOwnerReject || onOwnerSoftDelete) && (
+          <AuditSessionOwnerActionsBlock
+            session={session}
+            isOwner={isOwner}
+            onApprove={onOwnerApprove}
+            onReject={onOwnerReject}
+            onSoftDelete={onOwnerSoftDelete}
+            approvePending={approveOwnerPending}
+            rejectPending={rejectOwnerPending}
+            softDeletePending={softDeleteOwnerPending}
+          />
+        )}
+
+        {!isLoading && !isError && session && onCompleteSession && (
+          <AuditSessionCompleteSection
+            session={session}
+            onComplete={onCompleteSession}
+            disabled={completePending || linesPatchPending}
+          />
         )}
 
         <div className="space-y-2">
@@ -313,5 +534,6 @@ export function AuditSessionDetailDialog({
         </div>
       </DialogContent>
     </Dialog>
+    </>
   )
 }

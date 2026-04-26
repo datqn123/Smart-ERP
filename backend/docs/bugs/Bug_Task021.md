@@ -87,3 +87,21 @@ Chọn **A + B**: bật BE, xem log một request list — nếu thấy `column 
 
 ## Open questions
 - Log console BE **đầy đủ** cho một request 500 (20–40 dòng quanh `PSQLException` / `BadSqlGrammarException`) — để khóa 100% nếu không phải thiếu cột.
+
+---
+
+## Kết quả Developer — phương án A + B (tham chiếu `DEVELOPER_AGENT_INSTRUCTIONS.md`)
+
+**B — Xác minh Flyway (`flyway:info`, JDBC trùng `pom.xml`):** DB `jdbc:postgresql://localhost:5432/smart_erp` đang **schema version 14**; migration **V12** (*inventory audit sessions v2 status softdelete events*) trạng thái **Success** (cùng các bản V11, V13).
+
+**A — Đồng bộ:** `flyway:migrate` → *Schema is up to date. No migration necessary.*
+
+**Kết luận:** Trên cùng máy/DB với cấu hình Maven mặc định, lỗi 500 **không** do thiếu migration V12. Nếu môi trường Owner vẫn 500, kiểm tra nhanh:
+
+1. BE có đang bật **`spring.profiles.active=postgres`** (mặc định trong `application.properties`) hay lỡ **`local`** (H2 + `flyway=false` → schema audit không đủ).
+2. `spring.datasource.url` khi chạy app có **trùng** DB đã migrate (không trỏ DB khác rỗng/cũ).
+3. Dán stack trace một request thất bại (server log) vào mục Open questions ở trên.
+
+**Ghi chú repo:** Đã bổ sung cảnh báo trong `application-local.properties` về giới hạn profile `local` với API kiểm kê.
+
+**RCA cuối (log `BadSqlGrammarException`):** Chuỗi SQL bị dính `IS NULLORDER` và `LIMIT20` — do **text block Java** (JEP 378) **strip khoảng trắng cuối dòng**; phần `LIMIT ` trước `"""` mất space → nối số trang thành `LIMIT20`. **Sửa mã:** `AuditSessionJdbcRepository.loadListPage` — đuôi `ORDER BY` / `LIMIT` / `OFFSET` nối bằng literal `" ORDER BY s.id ASC LIMIT " + q.limit() + " OFFSET " + offset` (không phụ thuộc space cuối dòng text block).

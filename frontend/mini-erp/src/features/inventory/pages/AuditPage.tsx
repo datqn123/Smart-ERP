@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { AuditSessionsTable } from "../components/AuditSessionsTable"
 import { AuditSessionCreateForm } from "../components/AuditSessionCreateForm"
+import { AuditSessionCancelDialog } from "../components/AuditSessionCancelDialog"
 import { AuditSessionDetailDialog } from "../components/AuditSessionDetailDialog"
 import { AuditSessionPatchDialog } from "../components/AuditSessionPatchDialog"
 import { toast } from "sonner"
@@ -18,11 +19,20 @@ import {
   patchAuditSession,
   patchAuditSessionLines,
   postAuditSession,
+  postAuditSessionApprove,
+  postAuditSessionCancel,
+  postAuditSessionComplete,
+  postAuditSessionReject,
+  deleteAuditSessionSoft,
   type AuditLinesPatchBody,
+  type AuditSessionCancelBody,
+  type AuditSessionCompleteBody,
+  type AuditSessionOwnerNotesBody,
   type AuditSessionPatchBody,
   type GetAuditSessionListParams,
 } from "../api/auditSessionsApi"
 import { ApiRequestError } from "@/lib/api/http"
+import { useAuthStore } from "@/features/auth/store/useAuthStore"
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 400
@@ -39,6 +49,7 @@ const statusOptions = [
 
 export function AuditPage() {
   const queryClient = useQueryClient()
+  const isOwner = useAuthStore((s) => s.user?.role === "Owner")
   const { setTitle } = usePageTitle()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRootRef = useRef<HTMLDivElement>(null)
@@ -54,6 +65,7 @@ export function AuditPage() {
   const [viewListHint, setViewListHint] = useState<AuditSession | null>(null)
   const [editSessionId, setEditSessionId] = useState<number | null>(null)
   const [editListHint, setEditListHint] = useState<AuditSession | null>(null)
+  const [cancelDialogSession, setCancelDialogSession] = useState<AuditSession | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), SEARCH_DEBOUNCE_MS)
@@ -183,6 +195,140 @@ export function AuditPage() {
     await linesPatchMutation.mutateAsync({ sessionId, body })
   }
 
+  const completeMutation = useMutation({
+    mutationFn: ({ sessionId, body }: { sessionId: number; body: AuditSessionCompleteBody }) =>
+      postAuditSessionComplete(sessionId, body),
+    onSuccess: (detail) => {
+      const s = mapAuditSessionDetailToUi(detail)
+      if (s.status === "Pending Owner Approval") {
+        toast.success("Đã gửi đợt kiểm kê chờ Owner duyệt")
+      } else if (s.status === "Completed") {
+        toast.success("Đợt kiểm kê đã hoàn thành")
+      } else {
+        toast.success(`Đã cập nhật trạng thái: ${s.status}`)
+      }
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "list"] })
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "detail"] })
+    },
+    onError: (e) => {
+      if (e instanceof ApiRequestError) {
+        const det = e.body.details
+        if (det && typeof det === "object") {
+          const desc = Object.entries(det)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join("\n")
+          toast.error(e.body.message ?? "Không hoàn tất được đợt kiểm kê", { description: desc })
+        } else {
+          toast.error(e.body?.message ?? "Không hoàn tất được đợt kiểm kê")
+        }
+      } else {
+        toast.error("Không hoàn tất được đợt kiểm kê")
+      }
+    },
+  })
+
+  const handleCompleteSession = async (sessionId: number, body: AuditSessionCompleteBody) => {
+    await completeMutation.mutateAsync({ sessionId, body })
+  }
+
+  const cancelMutation = useMutation({
+    mutationFn: ({ sessionId, body }: { sessionId: number; body: AuditSessionCancelBody }) =>
+      postAuditSessionCancel(sessionId, body),
+    onSuccess: () => {
+      toast.success("Đã hủy đợt kiểm kê")
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "list"] })
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "detail"] })
+      setCancelDialogSession(null)
+    },
+    onError: (e) => {
+      if (e instanceof ApiRequestError) {
+        const det = e.body.details
+        if (det && typeof det === "object") {
+          const desc = Object.entries(det)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join("\n")
+          toast.error(e.body.message ?? "Không hủy được đợt kiểm kê", { description: desc })
+        } else {
+          toast.error(e.body?.message ?? "Không hủy được đợt kiểm kê")
+        }
+      } else {
+        toast.error("Không hủy được đợt kiểm kê")
+      }
+    },
+  })
+
+  const handleRequestCancel = (session: AuditSession) => {
+    setCancelDialogSession(session)
+  }
+
+  const handleConfirmCancel = async (cancelReason: string) => {
+    if (cancelDialogSession == null) return
+    await cancelMutation.mutateAsync({ sessionId: cancelDialogSession.id, body: { cancelReason } })
+  }
+
+  const approveOwnerMutation = useMutation({
+    mutationFn: ({ sessionId, body }: { sessionId: number; body: AuditSessionOwnerNotesBody }) =>
+      postAuditSessionApprove(sessionId, body),
+    onSuccess: () => {
+      toast.success("Owner đã duyệt — đợt chuyển Hoàn thành")
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "list"] })
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "detail"] })
+    },
+    onError: (e) => {
+      if (e instanceof ApiRequestError) {
+        toast.error(e.body?.message ?? "Không duyệt được đợt kiểm kê")
+      } else {
+        toast.error("Không duyệt được đợt kiểm kê")
+      }
+    },
+  })
+
+  const rejectOwnerMutation = useMutation({
+    mutationFn: ({ sessionId, body }: { sessionId: number; body: AuditSessionOwnerNotesBody }) =>
+      postAuditSessionReject(sessionId, body),
+    onSuccess: () => {
+      toast.success("Owner đã từ chối — đợt trở lại Đang kiểm")
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "list"] })
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "detail"] })
+    },
+    onError: (e) => {
+      if (e instanceof ApiRequestError) {
+        toast.error(e.body?.message ?? "Không từ chối được đợt kiểm kê")
+      } else {
+        toast.error("Không từ chối được đợt kiểm kê")
+      }
+    },
+  })
+
+  const softDeleteOwnerMutation = useMutation({
+    mutationFn: (sessionId: number) => deleteAuditSessionSoft(sessionId),
+    onSuccess: () => {
+      toast.success("Đã xóa mềm đợt kiểm kê (Owner)")
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "list"] })
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "detail"] })
+      closeDetail()
+    },
+    onError: (e) => {
+      if (e instanceof ApiRequestError) {
+        toast.error(e.body?.message ?? "Không xóa mềm được đợt kiểm kê")
+      } else {
+        toast.error("Không xóa mềm được đợt kiểm kê")
+      }
+    },
+  })
+
+  const handleOwnerApprove = async (sessionId: number, body: AuditSessionOwnerNotesBody) => {
+    await approveOwnerMutation.mutateAsync({ sessionId, body })
+  }
+
+  const handleOwnerReject = async (sessionId: number, body: AuditSessionOwnerNotesBody) => {
+    await rejectOwnerMutation.mutateAsync({ sessionId, body })
+  }
+
+  const handleOwnerSoftDelete = async (sessionId: number) => {
+    await softDeleteOwnerMutation.mutateAsync(sessionId)
+  }
+
   const createMutation = useMutation({
     mutationFn: postAuditSession,
     onSuccess: (detail) => {
@@ -282,10 +428,6 @@ export function AuditPage() {
   const handlePatchSubmit = async (body: AuditSessionPatchBody) => {
     if (editSessionId == null) return
     await patchMutation.mutateAsync({ id: editSessionId, body })
-  }
-
-  const handleDelete = (id: number) => {
-    toast.error(`Yêu cầu xóa đợt kiểm ID: ${id}`)
   }
 
   const showEmpty = !isPending && !isError && serverTotal === 0
@@ -412,7 +554,7 @@ export function AuditPage() {
                   sessions={mergedRows}
                   onView={handleView}
                   onEdit={handleEdit}
-                  onDelete={handleDelete}
+                  onRequestCancel={handleRequestCancel}
                 />
                 {isFetchingNextPage && (
                   <div className="flex justify-center p-4">
@@ -443,6 +585,15 @@ export function AuditPage() {
         errorMessage={detailError instanceof ApiRequestError ? detailError.body.message : undefined}
         onPatchLines={handlePatchLines}
         linesPatchPending={linesPatchMutation.isPending}
+        onCompleteSession={handleCompleteSession}
+        completePending={completeMutation.isPending}
+        isOwner={isOwner}
+        onOwnerApprove={isOwner ? handleOwnerApprove : undefined}
+        onOwnerReject={isOwner ? handleOwnerReject : undefined}
+        onOwnerSoftDelete={isOwner ? handleOwnerSoftDelete : undefined}
+        approveOwnerPending={approveOwnerMutation.isPending}
+        rejectOwnerPending={rejectOwnerMutation.isPending}
+        softDeleteOwnerPending={softDeleteOwnerMutation.isPending}
       />
 
       <AuditSessionPatchDialog
@@ -462,6 +613,16 @@ export function AuditPage() {
         onOpenChange={setCreateOpen}
         isSubmitting={createMutation.isPending}
         onSubmit={(body) => createMutation.mutateAsync(body)}
+      />
+
+      <AuditSessionCancelDialog
+        open={cancelDialogSession != null}
+        onOpenChange={(o) => {
+          if (!o) setCancelDialogSession(null)
+        }}
+        session={cancelDialogSession}
+        isSubmitting={cancelMutation.isPending}
+        onConfirm={handleConfirmCancel}
       />
     </div>
   )

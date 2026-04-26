@@ -9,5 +9,6 @@ import jakarta.validation.constraints.Size;
 public record AuditSessionPatchRequest(
 		@JsonProperty("title") @Size(min = 1, max = 255) String title,
 		@JsonProperty("notes") @Size(max = 2000) String notes,
+		@JsonProperty("ownerNotes") @Size(max = 2000) String ownerNotes,
 		@JsonProperty("status") String status) {
 }

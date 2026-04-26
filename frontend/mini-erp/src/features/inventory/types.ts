@@ -130,7 +130,13 @@ export interface StockDispatch {
 
 // --- Inventory Audit (Task007) ---
 
-export type AuditStatus = "Pending" | "In Progress" | "Completed" | "Cancelled";
+export type AuditStatus =
+  | "Pending"
+  | "In Progress"
+  | "Pending Owner Approval"
+  | "Completed"
+  | "Cancelled"
+  | "Re-check";
 
 export interface AuditItem {
   id: number;
@@ -167,6 +173,10 @@ export interface AuditSession {
   createdAt: string;
   updatedAt: string;
   items: AuditItem[];
+  /** Task021 list API — khi có thì bảng dùng thay vì đếm từ `items`. */
+  totalLines?: number;
+  countedLines?: number;
+  varianceLines?: number;
 }
 
 export interface AdjustmentRecord {

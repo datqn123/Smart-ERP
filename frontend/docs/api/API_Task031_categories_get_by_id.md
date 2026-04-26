@@ -8,7 +8,7 @@
 
 ## 1. Mục tiêu Task
 
-- Trả về **một** danh mục theo `id`, kèm **đường dẫn cha** (breadcrumb) và `productCount` tùy policy.
+- Trả về **một** danh mục theo `id`, kèm **đường dẫn cha** (breadcrumb) và **`productCount`** — **đồng bộ Task029**: đếm sản phẩm gán **trực tiếp** `category_id = id` (không cộng dồn theo cây con).
 
 ---
 

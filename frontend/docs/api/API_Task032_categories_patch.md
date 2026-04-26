@@ -68,21 +68,43 @@
 
 ## 6. Thành công — `200 OK`
 
-Trả object danh mục đầy đủ (giống Task031, có thể bỏ `breadcrumb` nếu không cần).
+Trả **một** object danh mục cùng shape **POST Task030** (camelCase): `id`, `categoryCode`, `name`, `description`, `parentId`, `sortOrder`, `status`, `createdAt`, `updatedAt`, `productCount`, **`children`** (mảng, thường `[]` sau PATCH). **Không** bắt buộc `breadcrumb` (breadcrumb chỉ GET Task031).
+
+Ví dụ:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 2,
+    "categoryCode": "CAT001-01A",
+    "name": "Đồ khô cao cấp",
+    "description": "Mô tả mới",
+    "parentId": 1,
+    "sortOrder": 2,
+    "status": "Inactive",
+    "createdAt": "2026-01-11T09:00:00Z",
+    "updatedAt": "2026-04-26T12:00:00Z",
+    "productCount": 5,
+    "children": []
+  },
+  "message": "Đã cập nhật danh mục"
+}
+```
 
 ---
 
 ## 7. Logic DB (Step-by-Step)
 
 1. **JWT** → **401** / **403**.
-2. **`SELECT … FROM Categories WHERE id = ? FOR UPDATE`** — không có → **404**.
+2. **`SELECT … FROM categories WHERE id = ? FOR UPDATE`** — không có → **404**.
 3. Merge patch; validate → **400**.
-4. Nếu đổi `parentId`: kiểm tra FK tồn tại; kiểm tra **không** tạo cycle (tập con của `id` không được chứa `parentId` mới) → vi phạm → **409** `CATEGORY_CYCLE`.
+4. Nếu đổi `parentId`: nếu giá trị mới **không null** — kiểm tra tồn tại `categories.id = parentId`; không có → **400** + `details.parentId`. Kiểm tra **không** tạo cycle (tập con của `id` không được chứa `parentId` mới) → vi phạm → **409** `CATEGORY_CYCLE`.
 5. **`UPDATE Categories SET …, updated_at = NOW()`** `WHERE id = ?`.
 6. (Tuỳ chọn) **SystemLogs**.
 
 ```sql
-UPDATE Categories
+UPDATE categories
 SET name = COALESCE($2, name),
     category_code = COALESCE($3, category_code),
     description = COALESCE($4, description),
@@ -97,7 +119,7 @@ WHERE id = $1;
 
 ## 8. Lỗi
 
-- **400**: body rỗng / validation.
+- **400**: body rỗng / validation; `parentId` trỏ tới id không tồn tại.
 - **404**: không tìm thấy.
 - **409**: trùng `category_code`; **chu trình** `parent_id`.
 - **401** / **403** / **500**.

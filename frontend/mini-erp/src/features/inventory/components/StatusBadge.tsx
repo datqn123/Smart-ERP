@@ -22,8 +22,10 @@ const dispatchConfig: Record<string, { label: string; bg: string; text: string }
 const auditConfig: Record<string, { label: string; bg: string; text: string }> = {
   Pending: { label: "Chờ kiểm", bg: "bg-amber-50", text: "text-amber-700" },
   "In Progress": { label: "Đang kiểm", bg: "bg-blue-50", text: "text-blue-700" },
+  "Pending Owner Approval": { label: "Chờ duyệt Owner", bg: "bg-violet-50", text: "text-violet-700" },
   Completed: { label: "Hoàn thành", bg: "bg-green-50", text: "text-green-700" },
   Cancelled: { label: "Đã hủy", bg: "bg-slate-100", text: "text-slate-600" },
+  "Re-check": { label: "Kiểm lại", bg: "bg-orange-50", text: "text-orange-700" },
 };
 
 const inventoryConfig: Record<string, { label: string; bg: string; text: string }> = {

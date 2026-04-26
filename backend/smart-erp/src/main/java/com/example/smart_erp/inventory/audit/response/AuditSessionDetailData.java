@@ -23,5 +23,7 @@ public record AuditSessionDetailData(
 		@JsonProperty("cancelReason") String cancelReason,
 		@JsonProperty("createdAt") Instant createdAt,
 		@JsonProperty("updatedAt") Instant updatedAt,
+		@JsonProperty("ownerNotes") String ownerNotes,
+		@JsonProperty("events") List<AuditSessionEventItemData> events,
 		@JsonProperty("items") List<AuditSessionLineItemData> items) {
 }

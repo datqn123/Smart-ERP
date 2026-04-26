@@ -89,13 +89,13 @@
 
 1. **JWT** → **401** / **403**.
 2. **Validate body** → **400** + `details`.
-3. Nếu `parentId` có giá trị: **`SELECT id FROM Categories WHERE id = ?`** → không có → **404** hoặc **400** (policy thống nhất với Task032).
+3. Nếu `parentId` có giá trị: **`SELECT id FROM categories WHERE id = ?`** → không có → **400** + `details.parentId` (cha không phải resource có URI riêng; đồng bộ Task032).
 4. **`INSERT INTO Categories`** (`category_code`, `name`, `description`, `parent_id`, `sort_order`, `status`, `created_at`, `updated_at`).
 5. (Tuỳ chọn) **`INSERT SystemLogs`**.
 6. Trả bản ghi mới (có thể `JOIN` `product_count = 0`).
 
 ```sql
-INSERT INTO Categories (category_code, name, description, parent_id, sort_order, status)
+INSERT INTO categories (category_code, name, description, parent_id, sort_order, status)
 VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, category_code, name, description, parent_id, sort_order, status, created_at, updated_at;
 ```
@@ -109,8 +109,7 @@ RETURNING id, category_code, name, description, parent_id, sort_order, status, c
 
 ## 8. Lỗi
 
-- **400**: validation.
-- **404**: `parentId` không tồn tại (nếu chọn mã lỗi này).
+- **400**: validation; `parentId` không tồn tại.
 - **409**: trùng `category_code`.
 - **401** / **403** / **500**.
 

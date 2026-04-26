@@ -74,6 +74,7 @@ flowchart LR
 - **Nếu task không** có REST cho UI (batch nội bộ, migration-only, …) → **bỏ** nhánh `API_BRIDGE`.  
 - **Chi tiết prompt & checklist** → **§3.1** (copy-paste điều phối — đây là “tự động hoá” theo nghĩa **chuẩn hoá handoff**, không cần công cụ riêng).  
 - **SRS Task014–020 (stock-receipts):** sau khi controller đủ Path Task014–020, Owner dán lần lượt các khối **§3.1** (hoặc mục **7.1** trong `API_BRIDGE_AGENT_INSTRUCTIONS.md`) với `Task=Task014`…`Task020` và đúng `Path=` — không gộp một prompt “làm hết SRS” thay cho API_BRIDGE.
+- **SRS Task021–028 (inventory-audit-sessions):** PO đã trả lời OQ (Draft vẫn triển khai theo chỉ đạo Owner). Flyway **V12** (status mở rộng, `deleted_at`, `owner_notes`, `inventory_audit_session_events`). BE: Task021–028 + GAP **DELETE** soft (029), **POST …/approve** (030), **POST …/reject** (031); sau **G-DEV** (`mvn verify` xanh) → API_BRIDGE từng Path có `API_Task021`…
 
 ---
 

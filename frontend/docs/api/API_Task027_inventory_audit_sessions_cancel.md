@@ -7,14 +7,14 @@
 
 ## 1. Mục tiêu Task
 
-- **`Pending` hoặc `In Progress` → `Cancelled`**.  
+- **`Pending`**, **`In Progress`** hoặc **`Pending Owner Approval`** → `Cancelled` (SRS OQ-15).  
 - **`Completed`** → **409** (trừ khi PM cho phép reverse — không mặc định).
 
 ---
 
 ## 2. Mục đích Endpoint
 
-**`POST /api/v1/inventory/audit-sessions/{id}/cancel`** — body optional `{ "reason": "…" }`.
+**`POST /api/v1/inventory/audit-sessions/{id}/cancel`** — body bắt buộc `{ "cancelReason": "…" }` (OQ-18 / SRS).
 
 ---
 
@@ -29,10 +29,10 @@
 
 ---
 
-## 4. Request body (optional)
+## 4. Request body (bắt buộc)
 
 ```json
-{ "reason": "Đổi kế hoạch kiểm kê" }
+{ "cancelReason": "Đổi kế hoạch kiểm kê" }
 ```
 
 ---

@@ -16,6 +16,7 @@ import org.springframework.stereotype.Repository;
 import com.example.smart_erp.inventory.audit.query.AuditSessionListQuery;
 import com.example.smart_erp.inventory.audit.query.AuditSessionStatusFilter;
 import com.example.smart_erp.inventory.audit.response.AuditSessionDetailData;
+import com.example.smart_erp.inventory.audit.response.AuditSessionEventItemData;
 import com.example.smart_erp.inventory.audit.response.AuditSessionLineItemData;
 import com.example.smart_erp.inventory.audit.response.AuditSessionListItemData;
 import com.example.smart_erp.inventory.repository.InventoryListJdbcRepository;
@@ -111,7 +112,7 @@ public class AuditSessionJdbcRepository {
 	}
 
 	public Optional<SessionLockRow> lockSession(int sessionId) {
-		String sql = "SELECT id, status FROM inventoryauditsessions WHERE id = :id FOR UPDATE";
+		String sql = "SELECT id, status FROM inventoryauditsessions WHERE id = :id AND deleted_at IS NULL FOR UPDATE";
 		var list = namedJdbc.query(sql, new MapSqlParameterSource("id", sessionId),
 				(rs, i) -> new SessionLockRow(rs.getInt("id"), rs.getString("status")));
 		return list.isEmpty() ? Optional.empty() : Optional.of(list.getFirst());
@@ -121,7 +122,7 @@ public class AuditSessionJdbcRepository {
 		String sql = """
 				SELECT EXISTS(
 				  SELECT 1 FROM inventoryauditsessions s
-				  WHERE s.status = 'In Progress' AND s.id <> :ex
+				  WHERE s.status = 'In Progress' AND s.deleted_at IS NULL AND s.id <> :ex
 				)
 				""";
 		Boolean b = namedJdbc.queryForObject(sql, new MapSqlParameterSource("ex", excludeSessionId), Boolean.class);
@@ -200,7 +201,13 @@ public class AuditSessionJdbcRepository {
 				new MapSqlParameterSource("id", sessionId).addValue("st", newStatus));
 	}
 
-	public void completeSession(int sessionId, int completedByUserId) {
+	public void submitForOwnerApproval(int sessionId) {
+		namedJdbc.update(
+				"UPDATE inventoryauditsessions SET status = 'Pending Owner Approval', updated_at = CURRENT_TIMESTAMP WHERE id = :id",
+				new MapSqlParameterSource("id", sessionId));
+	}
+
+	public void approveSession(int sessionId, int completedByUserId) {
 		String sql = """
 				UPDATE inventoryauditsessions SET
 				  status = 'Completed',
@@ -210,6 +217,67 @@ public class AuditSessionJdbcRepository {
 				WHERE id = :id
 				""";
 		namedJdbc.update(sql, new MapSqlParameterSource("id", sessionId).addValue("uid", completedByUserId));
+	}
+
+	public void rejectFromOwnerApproval(int sessionId) {
+		namedJdbc.update(
+				"UPDATE inventoryauditsessions SET status = 'In Progress', updated_at = CURRENT_TIMESTAMP WHERE id = :id",
+				new MapSqlParameterSource("id", sessionId));
+	}
+
+	public void softDeleteSession(int sessionId) {
+		namedJdbc.update(
+				"UPDATE inventoryauditsessions SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :id AND deleted_at IS NULL",
+				new MapSqlParameterSource("id", sessionId));
+	}
+
+	public int countLinesWithVarianceApplied(int sessionId) {
+		Integer c = namedJdbc.queryForObject(
+				"SELECT COUNT(*)::int FROM inventoryauditlines WHERE session_id = :id AND variance_applied_at IS NOT NULL",
+				new MapSqlParameterSource("id", sessionId), Integer.class);
+		return c != null ? c : 0;
+	}
+
+	public void transitionCompletedToRecheck(int sessionId, String ownerNotes) {
+		String sql = """
+				UPDATE inventoryauditsessions SET
+				  status = 'Re-check',
+				  owner_notes = :on,
+				  completed_at = NULL,
+				  completed_by = NULL,
+				  updated_at = CURRENT_TIMESTAMP
+				WHERE id = :id
+				""";
+		namedJdbc.update(sql, new MapSqlParameterSource("id", sessionId).addValue("on", ownerNotes, Types.VARCHAR));
+	}
+
+	public void insertEvent(int sessionId, String eventType, String payloadJson, int createdBy) {
+		if (payloadJson != null) {
+			String sql = """
+					INSERT INTO inventory_audit_session_events (session_id, event_type, payload, created_by)
+					VALUES (:sid, :etype, CAST(:payload AS jsonb), :uid)
+					""";
+			namedJdbc.update(sql, new MapSqlParameterSource("sid", sessionId).addValue("etype", eventType)
+					.addValue("payload", payloadJson).addValue("uid", createdBy));
+		}
+		else {
+			String sql = """
+					INSERT INTO inventory_audit_session_events (session_id, event_type, payload, created_by)
+					VALUES (:sid, :etype, NULL, :uid)
+					""";
+			namedJdbc.update(sql,
+					new MapSqlParameterSource("sid", sessionId).addValue("etype", eventType).addValue("uid", createdBy));
+		}
+	}
+
+	public List<AuditSessionEventItemData> listEvents(int sessionId) {
+		String sql = """
+				SELECT id, event_type, payload::text AS payload_text, created_by, created_at
+				FROM inventory_audit_session_events
+				WHERE session_id = :sid
+				ORDER BY id ASC
+				""";
+		return namedJdbc.query(sql, new MapSqlParameterSource("sid", sessionId), EVENT_ROW);
 	}
 
 	public void cancelSession(int sessionId, String cancelReason) {
@@ -300,11 +368,11 @@ public class AuditSessionJdbcRepository {
 		String hsql = """
 				SELECT s.id, s.audit_code, s.title, s.audit_date, s.status, s.location_filter, s.category_filter, s.notes,
 				  s.created_by, uc.full_name AS created_by_name, s.completed_at, uf.full_name AS completed_by_name,
-				  s.cancel_reason, s.created_at, s.updated_at
+				  s.cancel_reason, s.created_at, s.updated_at, s.owner_notes
 				FROM inventoryauditsessions s
 				INNER JOIN users uc ON uc.id = s.created_by
 				LEFT JOIN users uf ON uf.id = s.completed_by
-				WHERE s.id = :id
+				WHERE s.id = :id AND s.deleted_at IS NULL
 				""";
 		List<HeaderRow> headers = namedJdbc.query(hsql, new MapSqlParameterSource("id", sessionId), HEADER_ROW);
 		if (headers.isEmpty()) {
@@ -324,21 +392,25 @@ public class AuditSessionJdbcRepository {
 				ORDER BY l.id
 				""";
 		List<AuditSessionLineItemData> lines = namedJdbc.query(lsql, new MapSqlParameterSource("sid", sessionId), DETAIL_LINE);
+		List<AuditSessionEventItemData> events = listEvents(sessionId);
 		return Optional.of(new AuditSessionDetailData(hr.id(), hr.auditCode(), hr.title(), hr.auditDate(), hr.status(), hr.locationFilter(),
 				hr.categoryFilter(), hr.notes(), hr.createdBy(), hr.createdByName(), hr.completedAt(), hr.completedByName(), hr.cancelReason(),
-				hr.createdAt(), hr.updatedAt(), lines));
+				hr.createdAt(), hr.updatedAt(), hr.ownerNotes(), events, lines));
 	}
 
 	private record HeaderRow(long id, String auditCode, String title, LocalDate auditDate, String status, String locationFilter,
 			String categoryFilter, String notes, int createdBy, String createdByName, Instant completedAt, String completedByName,
-			String cancelReason, Instant createdAt, Instant updatedAt) {
+			String cancelReason, Instant createdAt, Instant updatedAt, String ownerNotes) {
 	}
 
 	private static final RowMapper<HeaderRow> HEADER_ROW = (rs, i) -> new HeaderRow(rs.getLong("id"), rs.getString("audit_code"),
 			rs.getString("title"), rs.getObject("audit_date", LocalDate.class), rs.getString("status"), rs.getString("location_filter"),
 			rs.getString("category_filter"), rs.getString("notes"), rs.getInt("created_by"), rs.getString("created_by_name"),
 			toInstant(rs.getTimestamp("completed_at")), rs.getString("completed_by_name"), rs.getString("cancel_reason"),
-			toInstantNonNull(rs.getTimestamp("created_at")), toInstantNonNull(rs.getTimestamp("updated_at")));
+			toInstantNonNull(rs.getTimestamp("created_at")), toInstantNonNull(rs.getTimestamp("updated_at")), rs.getString("owner_notes"));
+
+	private static final RowMapper<AuditSessionEventItemData> EVENT_ROW = (rs, i) -> new AuditSessionEventItemData(rs.getLong("id"),
+			rs.getString("event_type"), rs.getString("payload_text"), rs.getInt("created_by"), toInstantNonNull(rs.getTimestamp("created_at")));
 
 	private static final RowMapper<AuditSessionListItemData> LIST_ROW = (rs, i) -> new AuditSessionListItemData(rs.getLong("id"),
 			rs.getString("audit_code"), rs.getString("title"), rs.getObject("audit_date", LocalDate.class), rs.getString("status"),
@@ -378,7 +450,7 @@ public class AuditSessionJdbcRepository {
 	}
 
 	private Filter buildFilter(AuditSessionListQuery q) {
-		StringBuilder where = new StringBuilder(" WHERE 1=1");
+		StringBuilder where = new StringBuilder(" WHERE s.deleted_at IS NULL");
 		var src = new MapSqlParameterSource();
 		if (q.status() != AuditSessionStatusFilter.ALL) {
 			where.append(" AND s.status = :_status");

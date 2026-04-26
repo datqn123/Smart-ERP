@@ -31,6 +31,7 @@ Tài liệu **SRS gắn triển khai backend** (API `smart-erp`, persistence, ma
 | [`SRS_Task013_stock-receipts-get-list.md`](SRS_Task013_stock-receipts-get-list.md) | `GET /api/v1/stock-receipts` — **Draft**; API: [`../../../frontend/docs/api/API_Task013_stock_receipts_get_list.md`](../../../frontend/docs/api/API_Task013_stock_receipts_get_list.md) |
 | [`SRS_Task014-020_stock-receipts-lifecycle.md`](SRS_Task014-020_stock-receipts-lifecycle.md) | **Gộp** Task014–020 — tạo/sửa/xóa/submit/approve/reject phiếu nhập; API: `API_Task014` … `API_Task020` trong [`../../../frontend/docs/api/`](../../../frontend/docs/api/) |
 | [`SRS_Task021-028_inventory-audit-sessions.md`](SRS_Task021-028_inventory-audit-sessions.md) | **Gộp** Task021–028 — đợt kiểm kê kho (list/create/detail/patch/lines/complete/cancel/apply-variance); API: `API_Task021` … `API_Task028` trong [`../../../frontend/docs/api/`](../../../frontend/docs/api/) |
+| [`SRS_Task029-033_categories-management.md`](SRS_Task029-033_categories-management.md) | **Gộp** Task029–033 — danh mục sản phẩm (list tree/flat, CRUD, xóa an toàn); API: [`../../../frontend/docs/api/API_Task029_categories_get_list.md`](../../../frontend/docs/api/API_Task029_categories_get_list.md) … `API_Task033` |
 
 ## File liên quan dưới `backend/docs/taskNNN/`
 

@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
 import { usePageTitle } from "@/context/PageTitleContext"
-import {
-  Plus, Search, Calendar, Upload, Download, Camera
-} from "lucide-react"
+import { Plus, Search, Calendar } from "lucide-react"
 import type { StockReceipt } from "../types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,7 +49,6 @@ export function InboundPage() {
   const queryClient = useQueryClient()
   const { setTitle } = usePageTitle()
   const userCanApprove = useAuthStore((s) => s.user?.role === "Owner" && s.menuPermissions.can_approve)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRootRef = useRef<HTMLDivElement>(null)
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
 
@@ -313,14 +310,6 @@ export function InboundPage() {
       throw e
     }
   }
-  const handleScanOCR = () => alert("Chức năng Quét hóa đơn (OCR) sẽ được triển khai khi có API Backend")
-  const handleExportExcel = () => alert("Chức năng Export Excel sẽ được triển khai khi có API")
-  const handleImportExcel = () => fileInputRef.current?.click()
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) alert(`Đã chọn file: ${file.name}. Chức năng Import Excel sẽ được triển khai.`)
-  }
-
   const showEmpty = !isPending && !isError && displayRows.length === 0
   const listLoaded = displayRows.length > 0
 
@@ -335,16 +324,6 @@ export function InboundPage() {
           <Button onClick={handleCreateReceipt} className="h-11 bg-slate-900 hover:bg-slate-800 text-white">
             <Plus className="h-4 w-4 mr-2" /> Tạo phiếu nhập
           </Button>
-          <Button onClick={handleScanOCR} variant="outline" className="h-11">
-            <Camera className="h-4 w-4 mr-2" /> Quét hóa đơn
-          </Button>
-          <Button onClick={handleExportExcel} variant="outline" className="h-11">
-            <Download className="h-4 w-4 mr-2" /> Export
-          </Button>
-          <Button onClick={handleImportExcel} variant="outline" className="h-11">
-            <Upload className="h-4 w-4 mr-2" /> Import
-          </Button>
-          <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
         </div>
       </div>
 

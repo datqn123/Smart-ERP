@@ -60,11 +60,11 @@
 
 | Loại | File |
 | :--- | :--- |
-| API (nối BE) | `api/inventoryApi.ts` — Task005–009 tồn kho; `api/stockReceiptsApi.ts` — Task013–017 + submit + approve (Task019) + **reject** `POST …/{id}/reject` (Task020) |
+| API (nối BE) | `api/inventoryApi.ts` — Task005–009 tồn kho; `api/stockReceiptsApi.ts` — Task013–017 + submit + approve (Task019) + **reject** `POST …/{id}/reject` (Task020); `api/auditSessionsApi.ts` — Task021 `GET …/audit-sessions` (list) + Task022 `POST …/audit-sessions` (tạo đợt) |
 | Bảng / toolbar tồn | `components/StockTable.tsx`, `StockToolbar.tsx`, …; `pages/StockPage` — KPI qua Task009 (`getInventorySummary`); 20 bản ghi lần đầu, tải thêm khi **cuộn tới gần cuối** (`useInfiniteQuery`) |
 | Nhập kho | `pages/InboundPage.tsx` — list phiếu Task013 (`useInfiniteQuery` + `getStockReceiptList`); `components/ReceiptForm.tsx`, `ReceiptTable.tsx`, `ReceiptDetailPanel.tsx`, `ReceiptDetailDialog.tsx` |
 | Xuất / điều phối | `components/DispatchForm.tsx`, `DispatchTable.tsx`, `DispatchDetailDialog.tsx`, `DispatchDetailPanel.tsx` |
-| Kiểm kê | `components/AuditSessionsTable.tsx` |
+| Kiểm kê | `components/AuditSessionsTable.tsx`, `components/AuditSessionCreateForm.tsx` (Task022 — tạo đợt) |
 | Kho vị trí | `components/LocationTable.tsx`, `LocationToolbar.tsx` |
 | Badge trạng thái | `components/StatusBadge.tsx` |
 

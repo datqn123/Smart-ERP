@@ -23,6 +23,22 @@ import {
 } from "lucide-react"
 import { formatDate } from "../utils"
 import type { AuditSession, AuditItem } from "../types"
+
+/** Tiến độ / lệch: ưu tiên aggregate Task021 list; fallback mock / chi tiết Task023. */
+export function auditSessionLineMetrics(session: AuditSession) {
+  const hasApi =
+    session.totalLines != null && session.countedLines != null && session.varianceLines != null
+  if (hasApi) {
+    return {
+      total: session.totalLines!,
+      counted: session.countedLines!,
+      variance: session.varianceLines!,
+    }
+  }
+  const counted = session.items.filter((i) => i.isCounted).length
+  const variance = session.items.filter((i) => i.isCounted && i.variance !== 0).length
+  return { total: session.items.length, counted, variance }
+}
 import { StatusBadge } from "./StatusBadge"
 import { cn } from "@/lib/utils"
 import {
@@ -61,15 +77,14 @@ function VarianceBadge({ variance, variancePercent }: { variance: number; varian
 function AuditSessionItemsPanel({ session }: { session: AuditSession }) {
   const [editingItem, setEditingItem] = useState<number | null>(null)
   const [actualQty, setActualQty] = useState("")
-  const countedCount = session.items.filter((i) => i.isCounted).length
-  const varianceCount = session.items.filter((i) => i.isCounted && i.variance !== 0).length
+  const { total: lineTotal, counted: countedCount, variance: varianceCount } = auditSessionLineMetrics(session)
 
   return (
     <div className="space-y-4 border-t border-slate-100 bg-slate-50/40 px-4 py-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white p-3 text-center rounded-md border border-slate-100">
           <p className="text-xs text-slate-500">Tổng hàng</p>
-          <p className="text-lg font-semibold">{session.items.length}</p>
+          <p className="text-lg font-semibold">{lineTotal}</p>
         </div>
         <div className="bg-green-50 p-3 text-center rounded-md border border-green-100">
           <p className="text-xs text-green-600">Đã kiểm</p>
@@ -77,7 +92,7 @@ function AuditSessionItemsPanel({ session }: { session: AuditSession }) {
         </div>
         <div className="bg-white p-3 text-center rounded-md border border-slate-100">
           <p className="text-xs text-slate-500">Chưa kiểm</p>
-          <p className="text-lg font-semibold">{session.items.length - countedCount}</p>
+          <p className="text-lg font-semibold">{lineTotal - countedCount}</p>
         </div>
         <div className="bg-amber-50 p-3 text-center rounded-md border border-amber-100">
           <p className="text-xs text-amber-600">Chênh lệch</p>
@@ -88,18 +103,23 @@ function AuditSessionItemsPanel({ session }: { session: AuditSession }) {
         <div className="flex justify-between text-xs mb-1 text-slate-600">
           <span>Tiến độ</span>
           <span>
-            {session.items.length > 0 ? Math.round((countedCount / session.items.length) * 100) : 0}%
+            {lineTotal > 0 ? Math.round((countedCount / lineTotal) * 100) : 0}%
           </span>
         </div>
         <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
           <div
             className="bg-green-500 h-2 transition-all rounded-full"
             style={{
-              width: `${session.items.length > 0 ? (countedCount / session.items.length) * 100 : 0}%`,
+              width: `${lineTotal > 0 ? (countedCount / lineTotal) * 100 : 0}%`,
             }}
           />
         </div>
       </div>
+      {session.items.length === 0 && (
+        <p className="text-xs text-slate-500 bg-white border border-slate-200 rounded-md p-3">
+          Danh sách dòng kiểm không kèm trong API danh sách (Task021). Mở chi tiết đợt kiểm kê sẽ tải đầy đủ dòng (Task023).
+        </p>
+      )}
       {session.items.length > 0 && (
         <div className="space-y-2">
           {session.items.map((item: AuditItem) => (
@@ -200,10 +220,9 @@ export function AuditSessionsTable({ sessions, onView, onEdit, onDelete }: Audit
   const rows = useMemo(
     () =>
       sessions.map((session) => {
-        const countedCount = session.items.filter((i) => i.isCounted).length
-        const varianceCount = session.items.filter((i) => i.isCounted && i.variance !== 0).length
+        const m = auditSessionLineMetrics(session)
         const isOpen = expanded.has(session.id)
-        return { session, countedCount, varianceCount, isOpen }
+        return { session, countedCount: m.counted, varianceCount: m.variance, lineTotal: m.total, isOpen }
       }),
     [sessions, expanded]
   )
@@ -223,7 +242,7 @@ export function AuditSessionsTable({ sessions, onView, onEdit, onDelete }: Audit
         </TableRow>
       </TableHeader>
       <TableBody>
-        {rows.map(({ session, countedCount, varianceCount, isOpen }) => (
+        {rows.map(({ session, countedCount, varianceCount, lineTotal, isOpen }) => (
           <Fragment key={session.id}>
             <TableRow
               className="group hover:bg-slate-50/50 cursor-pointer border-b border-slate-100"
@@ -248,7 +267,7 @@ export function AuditSessionsTable({ sessions, onView, onEdit, onDelete }: Audit
               </TableCell>
               <TableCell className={cn(AUDIT_SESSION_TABLE_COL.progress, "text-center", TABLE_CELL_NUMBER_CLASS)}>
                 <span className="tabular-nums font-mono">
-                  {countedCount}/{session.items.length}
+                  {countedCount}/{lineTotal}
                 </span>
               </TableCell>
               <TableCell className={cn(AUDIT_SESSION_TABLE_COL.varianceHint, "text-center", TABLE_CELL_NUMBER_CLASS, "tabular-nums font-mono")}>

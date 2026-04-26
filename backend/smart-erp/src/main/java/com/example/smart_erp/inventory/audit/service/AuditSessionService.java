@@ -20,10 +20,12 @@ import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.inventory.audit.AuditApplyVarianceRequest;
 import com.example.smart_erp.inventory.audit.AuditLinesPatchRequest;
 import com.example.smart_erp.inventory.audit.AuditScopeBody;
+import com.example.smart_erp.inventory.audit.AuditSessionApproveRequest;
 import com.example.smart_erp.inventory.audit.AuditSessionCancelRequest;
 import com.example.smart_erp.inventory.audit.AuditSessionCompleteRequest;
 import com.example.smart_erp.inventory.audit.AuditSessionCreateRequest;
 import com.example.smart_erp.inventory.audit.AuditSessionPatchRequest;
+import com.example.smart_erp.inventory.audit.AuditSessionRejectRequest;
 import com.example.smart_erp.inventory.audit.query.AuditSessionListQuery;
 import com.example.smart_erp.inventory.audit.repository.AuditSessionJdbcRepository;
 import com.example.smart_erp.inventory.audit.repository.AuditSessionJdbcRepository.InventorySnapRow;
@@ -41,8 +43,17 @@ public class AuditSessionService {
 
 	private static final String ST_PENDING = "Pending";
 	private static final String ST_IN_PROGRESS = "In Progress";
+	private static final String ST_PENDING_OWNER = "Pending Owner Approval";
 	private static final String ST_COMPLETED = "Completed";
 	private static final String ST_CANCELLED = "Cancelled";
+	private static final String ST_RECHECK = "Re-check";
+
+	private static final String EVT_SUBMITTED = "SUBMITTED_FOR_APPROVAL";
+	private static final String EVT_APPROVED = "APPROVED";
+	private static final String EVT_REJECTED = "REJECTED";
+	private static final String EVT_OWNER_RECHECK = "OWNER_RECHECK";
+	private static final String EVT_SOFT_DELETED = "SOFT_DELETED";
+	private static final String EVT_CANCELLED = "CANCELLED";
 
 	private static final int REF_NOTE_MAX = 255;
 
@@ -153,31 +164,65 @@ public class AuditSessionService {
 	}
 
 	@Transactional
-	public AuditSessionDetailData patch(long id, AuditSessionPatchRequest req) {
+	public AuditSessionDetailData patch(long id, AuditSessionPatchRequest req, Jwt jwt) {
 		int sid = Math.toIntExact(id);
-		if (req.title() == null && req.notes() == null && req.status() == null) {
+		if (req.title() == null && req.notes() == null && req.status() == null && req.ownerNotes() == null) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Cần ít nhất một trường để cập nhật");
 		}
 		SessionLockRow lock = repo.lockSession(sid).orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND, "Không tìm thấy đợt kiểm kê"));
 		String st = lock.status();
-		if (ST_COMPLETED.equals(st) || ST_CANCELLED.equals(st)) {
-			throw new BusinessException(ApiErrorCode.CONFLICT, "Không thể cập nhật đợt đã hoàn tất hoặc đã hủy");
+		if (ST_CANCELLED.equals(st)) {
+			throw new BusinessException(ApiErrorCode.CONFLICT, "Không thể cập nhật đợt đã hủy");
 		}
-		if (req.status() != null && !ST_IN_PROGRESS.equals(req.status())) {
-			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Giá trị status không được hỗ trợ qua PATCH",
-					Map.of("status", "Chỉ cho phép chuyển sang In Progress"));
-		}
-		if (req.status() != null && ST_IN_PROGRESS.equals(req.status())) {
-			if (ST_PENDING.equals(st)) {
-				if (repo.existsOtherInProgress(sid)) {
-					throw new BusinessException(ApiErrorCode.CONFLICT, "Đã tồn tại đợt kiểm kê đang In Progress");
+		if (ST_COMPLETED.equals(st)) {
+			if (ST_RECHECK.equals(req.status())) {
+				StockReceiptAccessPolicy.assertOwnerOnly(jwt);
+				if (repo.countLinesWithVarianceApplied(sid) > 0) {
+					throw new BusinessException(ApiErrorCode.CONFLICT, "Đã áp chênh lệch: không thể mở Re-check");
 				}
-				repo.updateSessionStatus(sid, ST_IN_PROGRESS);
+				String on = req.ownerNotes();
+				if (!StringUtils.hasText(on)) {
+					throw new BusinessException(ApiErrorCode.BAD_REQUEST, "ownerNotes là bắt buộc khi chuyển sang Re-check",
+							Map.of("ownerNotes", "Nhập lý do / ghi chú Owner"));
+				}
+				int uid = StockReceiptAccessPolicy.parseUserId(jwt);
+				repo.transitionCompletedToRecheck(sid, on.trim());
+				repo.insertEvent(sid, EVT_OWNER_RECHECK, jsonNotesPayload(on.trim()), uid);
+				return getById(id);
 			}
-			else if (!ST_IN_PROGRESS.equals(st)) {
-				throw new BusinessException(ApiErrorCode.CONFLICT, "Chuyển trạng thái không hợp lệ");
+			if (req.title() != null || req.notes() != null || req.status() != null || req.ownerNotes() != null) {
+				throw new BusinessException(ApiErrorCode.CONFLICT,
+						"Đợt đã Completed: chỉ Owner chuyển sang Re-check (PATCH status=Re-check + ownerNotes)");
 			}
 		}
+		if (StringUtils.hasText(req.ownerNotes()) && !ST_COMPLETED.equals(st)) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "ownerNotes chỉ dùng khi Owner chuyển Completed → Re-check");
+		}
+		if (ST_PENDING_OWNER.equals(st)) {
+			if (req.status() != null) {
+				throw new BusinessException(ApiErrorCode.CONFLICT, "Đang chờ Owner duyệt: không đổi status qua PATCH; dùng approve/reject");
+			}
+			applyMetaPatch(sid, req);
+			return getById(id);
+		}
+		if (ST_RECHECK.equals(st)) {
+			if (req.status() != null) {
+				throw new BusinessException(ApiErrorCode.CONFLICT, "Trạng thái Re-check: không đổi status qua PATCH");
+			}
+			applyMetaPatch(sid, req);
+			return getById(id);
+		}
+		if (!ST_PENDING.equals(st) && !ST_IN_PROGRESS.equals(st)) {
+			throw new BusinessException(ApiErrorCode.CONFLICT, "Không thể cập nhật đợt ở trạng thái hiện tại");
+		}
+		if (req.status() != null) {
+			handleStaffStatusTransition(sid, st, req.status());
+		}
+		applyMetaPatch(sid, req);
+		return getById(id);
+	}
+
+	private void applyMetaPatch(int sid, AuditSessionPatchRequest req) {
 		if (req.title() != null) {
 			String t = req.title().trim();
 			if (t.isEmpty()) {
@@ -193,7 +238,36 @@ public class AuditSessionService {
 		else if (req.notes() != null) {
 			repo.updateSessionMeta(sid, null, true, req.notes());
 		}
-		return getById(id);
+	}
+
+	private void handleStaffStatusTransition(int sid, String current, String requested) {
+		if (!ST_PENDING.equals(requested) && !ST_IN_PROGRESS.equals(requested)) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Giá trị status không được hỗ trợ qua PATCH",
+					Map.of("status", "Chỉ Pending hoặc In Progress"));
+		}
+		if (ST_IN_PROGRESS.equals(requested)) {
+			if (ST_PENDING.equals(current)) {
+				if (repo.existsOtherInProgress(sid)) {
+					throw new BusinessException(ApiErrorCode.CONFLICT, "Đã tồn tại đợt kiểm kê đang In Progress");
+				}
+				repo.updateSessionStatus(sid, ST_IN_PROGRESS);
+			}
+			else if (!ST_IN_PROGRESS.equals(current)) {
+				throw new BusinessException(ApiErrorCode.CONFLICT, "Chuyển trạng thái không hợp lệ");
+			}
+		}
+		else if (ST_PENDING.equals(requested)) {
+			if (ST_IN_PROGRESS.equals(current)) {
+				repo.updateSessionStatus(sid, ST_PENDING);
+			}
+			else if (!ST_PENDING.equals(current)) {
+				throw new BusinessException(ApiErrorCode.CONFLICT, "Chuyển trạng thái không hợp lệ");
+			}
+		}
+	}
+
+	private static String jsonNotesPayload(String s) {
+		return "{\"notes\":\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\r", "").replace("\n", "\\n") + "\"}";
 	}
 
 	@Transactional
@@ -201,8 +275,11 @@ public class AuditSessionService {
 		int sid = Math.toIntExact(id);
 		SessionLockRow lock = repo.lockSession(sid).orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND, "Không tìm thấy đợt kiểm kê"));
 		String st = lock.status();
-		if (!ST_PENDING.equals(st) && !ST_IN_PROGRESS.equals(st)) {
-			throw new BusinessException(ApiErrorCode.CONFLICT, "Chỉ được ghi số khi đợt ở trạng thái Pending hoặc In Progress");
+		if (!ST_IN_PROGRESS.equals(st) && !ST_RECHECK.equals(st)) {
+			throw new BusinessException(ApiErrorCode.CONFLICT, "Chỉ được ghi số khi đợt đang In Progress hoặc Re-check");
+		}
+		if (ST_RECHECK.equals(st) && repo.countLinesWithVarianceApplied(sid) > 0) {
+			throw new BusinessException(ApiErrorCode.CONFLICT, "Đã áp chênh lệch: không chỉnh dòng kiểm kê");
 		}
 		var lines = req.lines();
 		var seen = new HashSet<Long>();
@@ -235,20 +312,62 @@ public class AuditSessionService {
 		if (req.requireAllCountedOrDefault() && repo.countUncountedLines(sid) > 0) {
 			throw new BusinessException(ApiErrorCode.CONFLICT, "Còn dòng chưa đếm (is_counted)");
 		}
-		repo.completeSession(sid, userId);
+		repo.submitForOwnerApproval(sid);
+		repo.insertEvent(sid, EVT_SUBMITTED, null, userId);
 		return getById(id);
 	}
 
 	@Transactional
-	public AuditSessionDetailData cancel(long id, AuditSessionCancelRequest req) {
+	public AuditSessionDetailData approve(long id, AuditSessionApproveRequest req, Jwt jwt) {
+		StockReceiptAccessPolicy.assertOwnerOnly(jwt);
+		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
+		int sid = Math.toIntExact(id);
+		SessionLockRow lock = repo.lockSession(sid).orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND, "Không tìm thấy đợt kiểm kê"));
+		if (!ST_PENDING_OWNER.equals(lock.status())) {
+			throw new BusinessException(ApiErrorCode.CONFLICT, "Chỉ duyệt khi đợt đang chờ Owner (Pending Owner Approval)");
+		}
+		repo.approveSession(sid, uid);
+		String payload = req != null && StringUtils.hasText(req.notes()) ? jsonNotesPayload(req.notes().trim()) : null;
+		repo.insertEvent(sid, EVT_APPROVED, payload, uid);
+		return getById(id);
+	}
+
+	@Transactional
+	public AuditSessionDetailData reject(long id, AuditSessionRejectRequest req, Jwt jwt) {
+		StockReceiptAccessPolicy.assertOwnerOnly(jwt);
+		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
+		int sid = Math.toIntExact(id);
+		SessionLockRow lock = repo.lockSession(sid).orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND, "Không tìm thấy đợt kiểm kê"));
+		if (!ST_PENDING_OWNER.equals(lock.status())) {
+			throw new BusinessException(ApiErrorCode.CONFLICT, "Chỉ từ chối khi đợt đang chờ Owner (Pending Owner Approval)");
+		}
+		repo.rejectFromOwnerApproval(sid);
+		String payload = req != null && StringUtils.hasText(req.notes()) ? jsonNotesPayload(req.notes().trim()) : null;
+		repo.insertEvent(sid, EVT_REJECTED, payload, uid);
+		return getById(id);
+	}
+
+	@Transactional
+	public void softDelete(long id, Jwt jwt) {
+		StockReceiptAccessPolicy.assertOwnerOnly(jwt);
+		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
+		int sid = Math.toIntExact(id);
+		repo.lockSession(sid).orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND, "Không tìm thấy đợt kiểm kê"));
+		repo.insertEvent(sid, EVT_SOFT_DELETED, null, uid);
+		repo.softDeleteSession(sid);
+	}
+
+	@Transactional
+	public AuditSessionDetailData cancel(long id, AuditSessionCancelRequest req, Jwt jwt) {
+		int userId = StockReceiptAccessPolicy.parseUserId(jwt);
 		int sid = Math.toIntExact(id);
 		SessionLockRow lock = repo.lockSession(sid).orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND, "Không tìm thấy đợt kiểm kê"));
 		String st = lock.status();
-		if (!ST_PENDING.equals(st) && !ST_IN_PROGRESS.equals(st)) {
-			throw new BusinessException(ApiErrorCode.CONFLICT, "Chỉ được hủy khi đợt Pending hoặc In Progress");
+		if (!ST_PENDING.equals(st) && !ST_IN_PROGRESS.equals(st) && !ST_PENDING_OWNER.equals(st)) {
+			throw new BusinessException(ApiErrorCode.CONFLICT, "Chỉ được hủy khi đợt Pending, In Progress hoặc chờ Owner duyệt");
 		}
-		String reason = req != null ? req.reason() : null;
-		repo.cancelSession(sid, reason);
+		repo.cancelSession(sid, req.cancelReason());
+		repo.insertEvent(sid, EVT_CANCELLED, jsonNotesPayload(req.cancelReason().trim()), userId);
 		return getById(id);
 	}
 

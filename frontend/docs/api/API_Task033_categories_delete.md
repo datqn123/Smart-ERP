@@ -39,7 +39,9 @@
 
 ---
 
-## 5. Thành công — `200 OK` hoặc `204 No Content`
+## 5. Thành công — `200 OK`
+
+Chốt **`200 OK`** + envelope [`API_RESPONSE_ENVELOPE.md`](../../../frontend/docs/api/API_RESPONSE_ENVELOPE.md) (không dùng `204 No Content` để tránh lệch `ApiSuccessResponse`).
 
 ```json
 {

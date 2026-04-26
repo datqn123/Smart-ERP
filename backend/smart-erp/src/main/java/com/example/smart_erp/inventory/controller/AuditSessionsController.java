@@ -7,6 +7,7 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,10 +22,12 @@ import com.example.smart_erp.common.api.ApiSuccessResponse;
 import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.inventory.audit.AuditApplyVarianceRequest;
 import com.example.smart_erp.inventory.audit.AuditLinesPatchRequest;
+import com.example.smart_erp.inventory.audit.AuditSessionApproveRequest;
 import com.example.smart_erp.inventory.audit.AuditSessionCancelRequest;
 import com.example.smart_erp.inventory.audit.AuditSessionCompleteRequest;
 import com.example.smart_erp.inventory.audit.AuditSessionCreateRequest;
 import com.example.smart_erp.inventory.audit.AuditSessionPatchRequest;
+import com.example.smart_erp.inventory.audit.AuditSessionRejectRequest;
 import com.example.smart_erp.inventory.audit.query.AuditSessionListQuery;
 import com.example.smart_erp.inventory.audit.response.AuditApplyVarianceData;
 import com.example.smart_erp.inventory.audit.response.AuditSessionDetailData;
@@ -88,8 +91,8 @@ public class AuditSessionsController {
 	@PreAuthorize("hasAuthority('can_manage_inventory')")
 	public ResponseEntity<ApiSuccessResponse<AuditSessionDetailData>> patch(Authentication authentication,
 			@PathVariable("id") @Positive long id, @Valid @RequestBody AuditSessionPatchRequest body) {
-		requireJwt(authentication);
-		AuditSessionDetailData data = auditSessionService.patch(id, body);
+		Jwt jwt = requireJwt(authentication);
+		AuditSessionDetailData data = auditSessionService.patch(id, body, jwt);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã cập nhật đợt kiểm kê"));
 	}
 
@@ -109,15 +112,43 @@ public class AuditSessionsController {
 		Jwt jwt = requireJwt(authentication);
 		AuditSessionCompleteRequest b = body != null ? body : new AuditSessionCompleteRequest(null);
 		AuditSessionDetailData data = auditSessionService.complete(id, b, jwt);
-		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã hoàn tất đợt kiểm kê"));
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã gửi đợt kiểm kê chờ Owner duyệt"));
+	}
+
+	@PostMapping("/{id}/approve")
+	@PreAuthorize("hasAuthority('can_manage_inventory')")
+	public ResponseEntity<ApiSuccessResponse<AuditSessionDetailData>> approve(Authentication authentication,
+			@PathVariable("id") @Positive long id, @Valid @RequestBody(required = false) AuditSessionApproveRequest body) {
+		Jwt jwt = requireJwt(authentication);
+		AuditSessionApproveRequest b = body != null ? body : new AuditSessionApproveRequest(null);
+		AuditSessionDetailData data = auditSessionService.approve(id, b, jwt);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Owner đã duyệt hoàn thành"));
+	}
+
+	@PostMapping("/{id}/reject")
+	@PreAuthorize("hasAuthority('can_manage_inventory')")
+	public ResponseEntity<ApiSuccessResponse<AuditSessionDetailData>> reject(Authentication authentication,
+			@PathVariable("id") @Positive long id, @Valid @RequestBody(required = false) AuditSessionRejectRequest body) {
+		Jwt jwt = requireJwt(authentication);
+		AuditSessionRejectRequest b = body != null ? body : new AuditSessionRejectRequest(null);
+		AuditSessionDetailData data = auditSessionService.reject(id, b, jwt);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Owner đã từ chối — trả về In Progress"));
+	}
+
+	@DeleteMapping("/{id}")
+	@PreAuthorize("hasAuthority('can_manage_inventory')")
+	public ResponseEntity<ApiSuccessResponse<Void>> softDelete(Authentication authentication, @PathVariable("id") @Positive long id) {
+		Jwt jwt = requireJwt(authentication);
+		auditSessionService.softDelete(id, jwt);
+		return ResponseEntity.ok(ApiSuccessResponse.of(null, "Đã xóa mềm đợt kiểm kê"));
 	}
 
 	@PostMapping("/{id}/cancel")
 	@PreAuthorize("hasAuthority('can_manage_inventory')")
 	public ResponseEntity<ApiSuccessResponse<AuditSessionDetailData>> cancel(Authentication authentication,
-			@PathVariable("id") @Positive long id, @Valid @RequestBody(required = false) AuditSessionCancelRequest body) {
-		requireJwt(authentication);
-		AuditSessionDetailData data = auditSessionService.cancel(id, body);
+			@PathVariable("id") @Positive long id, @Valid @RequestBody AuditSessionCancelRequest body) {
+		Jwt jwt = requireJwt(authentication);
+		AuditSessionDetailData data = auditSessionService.cancel(id, body, jwt);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã hủy đợt kiểm kê"));
 	}
 

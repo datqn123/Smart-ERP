@@ -1,48 +1,153 @@
-import { useEffect, useState, useRef, useMemo } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { usePageTitle } from "@/context/PageTitleContext"
 import { ClipboardCheck, Plus, Search, Calendar, Download, Upload } from "lucide-react"
-import { mockAuditSessions } from "../mockData"
 import type { AuditSession } from "../types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { AuditSessionsTable } from "../components/AuditSessionsTable"
+import { AuditSessionCreateForm } from "../components/AuditSessionCreateForm"
 import { toast } from "sonner"
+import {
+  getAuditSessionList,
+  mapAuditSessionListItemToUi,
+  postAuditSession,
+  type GetAuditSessionListParams,
+} from "../api/auditSessionsApi"
+import { ApiRequestError } from "@/lib/api/http"
+
+const PAGE_SIZE = 20
+const SEARCH_DEBOUNCE_MS = 400
 
 const statusOptions = [
   { value: "all", label: "Tất cả trạng thái" },
   { value: "Pending", label: "Chờ kiểm" },
   { value: "In Progress", label: "Đang kiểm" },
+  { value: "Pending Owner Approval", label: "Chờ duyệt Owner" },
   { value: "Completed", label: "Hoàn thành" },
   { value: "Cancelled", label: "Đã hủy" },
+  { value: "Re-check", label: "Kiểm lại" },
 ]
 
 export function AuditPage() {
+  const queryClient = useQueryClient()
   const { setTitle } = usePageTitle()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [sessions] = useState<AuditSession[]>(mockAuditSessions)
+  const scrollRootRef = useRef<HTMLDivElement>(null)
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
+
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [createOpen, setCreateOpen] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [search])
 
   useEffect(() => {
     setTitle("Kiểm kê kho")
   }, [setTitle])
 
-  const filteredSessions = useMemo(() => {
-    return sessions.filter((s) => {
-      const q = search.trim().toLowerCase()
-      const matchesSearch =
-        !q ||
-        s.auditCode.toLowerCase().includes(q) ||
-        s.title.toLowerCase().includes(q) ||
-        s.createdByName.toLowerCase().includes(q)
-      const matchesStatus = statusFilter === "all" || s.status === statusFilter
-      const matchesFrom = !dateFrom || s.auditDate >= dateFrom
-      const matchesTo = !dateTo || s.auditDate <= dateTo
-      return matchesSearch && matchesStatus && matchesFrom && matchesTo
-    })
-  }, [sessions, search, statusFilter, dateFrom, dateTo])
+  const listQueryKey = useMemo(
+    () =>
+      ["inventory", "audit-sessions", "v1", "list", debouncedSearch, statusFilter, dateFrom, dateTo, PAGE_SIZE] as const,
+    [debouncedSearch, statusFilter, dateFrom, dateTo],
+  )
+
+  const { data, isPending, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: listQueryKey,
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => {
+      const base: GetAuditSessionListParams = {
+        search: debouncedSearch.trim() || undefined,
+        status: statusFilter as GetAuditSessionListParams["status"],
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        page: pageParam,
+        limit: PAGE_SIZE,
+      }
+      return getAuditSessionList(base)
+    },
+    getNextPageParam: (lastPage) => {
+      if (lastPage.items.length < lastPage.limit) {
+        return undefined
+      }
+      if (lastPage.page * lastPage.limit >= lastPage.total) {
+        return undefined
+      }
+      return lastPage.page + 1
+    },
+  })
+
+  const mergedRows: AuditSession[] = useMemo(
+    () => (data?.pages ? data.pages.flatMap((p) => p.items.map(mapAuditSessionListItemToUi)) : []),
+    [data],
+  )
+
+  const firstPage = data?.pages[0]
+  const serverTotal = firstPage?.total ?? 0
+
+  const createMutation = useMutation({
+    mutationFn: postAuditSession,
+    onSuccess: (detail) => {
+      toast.success(`Đã tạo đợt kiểm kê ${detail.auditCode}`)
+      void queryClient.invalidateQueries({ queryKey: ["inventory", "audit-sessions", "v1", "list"] })
+      setCreateOpen(false)
+    },
+    onError: (e) => {
+      if (e instanceof ApiRequestError) {
+        const det = e.body.details
+        if (det && typeof det === "object") {
+          const desc = Object.entries(det)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join("\n")
+          toast.error(e.body.message ?? "Không tạo được đợt kiểm kê", { description: desc })
+        } else {
+          toast.error(e.body?.message ?? "Không tạo được đợt kiểm kê")
+        }
+      } else {
+        toast.error("Không tạo được đợt kiểm kê")
+      }
+    },
+  })
+
+  useEffect(() => {
+    const root = scrollRootRef.current
+    const sentinel = loadMoreSentinelRef.current
+    if (!root || !sentinel) {
+      return
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const e = entries[0]
+        if (e?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage()
+        }
+      },
+      { root, rootMargin: "80px", threshold: 0 },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, data?.pages])
+
+  useEffect(() => {
+    if (isError && error instanceof ApiRequestError) {
+      const dr = error.body?.details?.dateRange
+      if (error.status === 400 && dr) {
+        toast.error(dr)
+        return
+      }
+      if (error.status === 401 || error.status === 403) {
+        toast.error(error.body?.message ?? "Bạn chưa đủ quyền xem kiểm kê kho (can_manage_inventory).")
+      } else {
+        toast.error(error.body?.message ?? "Không tải được danh sách đợt kiểm kê")
+      }
+    }
+  }, [isError, error])
 
   const handleExportExcel = () => {
     toast.info("Đang xuất dữ liệu Excel...")
@@ -55,7 +160,7 @@ export function AuditPage() {
     if (file) toast.success(`Đã chọn file: ${file.name}. Đang xử lý import...`)
   }
   const handleCreateAudit = () => {
-    toast.info("Mở form tạo đợt kiểm kê")
+    setCreateOpen(true)
   }
 
   const handleView = (session: AuditSession) => {
@@ -69,6 +174,11 @@ export function AuditPage() {
   const handleDelete = (id: number) => {
     toast.error(`Yêu cầu xóa đợt kiểm ID: ${id}`)
   }
+
+  const showEmpty = !isPending && !isError && serverTotal === 0
+  const listLoaded = mergedRows.length > 0
+  const noFilters =
+    debouncedSearch.trim() === "" && statusFilter === "all" && !dateFrom && !dateTo
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden p-4 md:p-6 lg:p-8 gap-4 md:gap-5">
@@ -113,7 +223,7 @@ export function AuditPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-11 px-3 border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 w-full sm:w-[180px] rounded-md"
+            className="h-11 px-3 border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 w-full sm:w-[200px] rounded-md"
           >
             {statusOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -144,39 +254,78 @@ export function AuditPage() {
           </div>
         </div>
         <p className="text-xs text-slate-500">
-          Hiển thị <span className="font-medium text-slate-700">{filteredSessions.length}</span> /{" "}
-          <span className="font-medium text-slate-700">{sessions.length}</span> đợt kiểm kê
+          Đã tải <span className="font-medium text-slate-700">{mergedRows.length}</span>
+          {" · "}
+          Tổng server: <span className="font-medium text-slate-700">{serverTotal}</span> đợt kiểm kê
         </p>
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 bg-transparent">
-        {sessions.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center py-12 bg-white border border-slate-200 rounded-xl">
-            <ClipboardCheck className="h-12 w-12 text-slate-300 mb-3" />
-            <p className="text-slate-500 text-sm mb-4">Chưa có đợt kiểm kê nào</p>
-            <Button onClick={handleCreateAudit} className="h-11 bg-slate-900 hover:bg-slate-800 text-white">
-              <Plus className="h-4 w-4 mr-2" /> Tạo đợt kiểm kê
-            </Button>
-          </div>
-        ) : (
-          <div className="flex-1 flex flex-col min-h-0 bg-white border border-slate-200/60 rounded-xl overflow-hidden shadow-md">
-            <div className="flex-1 overflow-y-auto relative scroll-smooth [scrollbar-gutter:stable] min-h-0">
-              {filteredSessions.length === 0 ? (
-                <div className="text-center py-16 px-4 text-slate-500 text-sm">
-                  Không có đợt kiểm kê khớp bộ lọc. Thử đổi từ khóa hoặc khoảng ngày.
-                </div>
-              ) : (
-                <AuditSessionsTable 
-                  sessions={filteredSessions} 
+        <div className="flex-1 flex flex-col min-h-0 bg-white border border-slate-200/60 rounded-xl overflow-hidden shadow-md">
+          <div
+            ref={scrollRootRef}
+            data-testid="audit-session-list-container"
+            className="flex-1 overflow-y-auto relative scroll-smooth [scrollbar-gutter:stable] min-h-0"
+          >
+            {isPending && (
+              <div className="flex justify-center py-20">
+                <div className="animate-spin h-8 w-8 border-2 border-slate-300 border-t-slate-900 rounded-full" />
+              </div>
+            )}
+            {isError && (
+              <div className="text-center py-16 px-4 text-slate-600 text-sm">
+                Không tải được danh sách. Kiểm tra đăng nhập và quyền <code className="text-xs">can_manage_inventory</code>.
+              </div>
+            )}
+            {showEmpty && (
+              <div className="flex-1 flex flex-col items-center justify-center text-center py-12 px-4">
+                <ClipboardCheck className="h-12 w-12 text-slate-300 mb-3" />
+                <p className="text-slate-600 text-sm mb-1 font-medium">
+                  {noFilters ? "Chưa có đợt kiểm kê nào" : "Không có đợt kiểm kê khớp bộ lọc"}
+                </p>
+                {!noFilters && (
+                  <p className="text-slate-500 text-xs mb-4">Thử đổi từ khóa hoặc khoảng ngày.</p>
+                )}
+                {noFilters && (
+                  <Button onClick={handleCreateAudit} className="h-11 mt-4 bg-slate-900 hover:bg-slate-800 text-white">
+                    <Plus className="h-4 w-4 mr-2" /> Tạo đợt kiểm kê
+                  </Button>
+                )}
+              </div>
+            )}
+            {listLoaded && (
+              <>
+                <AuditSessionsTable
+                  sessions={mergedRows}
                   onView={handleView}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                 />
-              )}
-            </div>
+                {isFetchingNextPage && (
+                  <div className="flex justify-center p-4">
+                    <div className="animate-spin h-6 w-6 border-2 border-slate-300 border-t-slate-900 rounded-full" />
+                  </div>
+                )}
+                {hasNextPage && !isFetchingNextPage && (
+                  <div ref={loadMoreSentinelRef} className="h-4" />
+                )}
+                {!hasNextPage && mergedRows.length > 0 && (
+                  <p className="text-center text-xs text-slate-400 py-6">
+                    — Đã tải {mergedRows.length} / {serverTotal} đợt —
+                  </p>
+                )}
+              </>
+            )}
           </div>
-        )}
+        </div>
       </div>
+
+      <AuditSessionCreateForm
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        isSubmitting={createMutation.isPending}
+        onSubmit={(body) => createMutation.mutateAsync(body)}
+      />
     </div>
   )
 }

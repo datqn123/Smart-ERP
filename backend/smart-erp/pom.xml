@@ -28,6 +28,10 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!-- Flyway CLI từ Maven: ghi đè bằng -Dflyway.url=... khi khác môi trường -->
+		<flyway.url>jdbc:postgresql://localhost:5432/smart_erp</flyway.url>
+		<flyway.user>myuser</flyway.user>
+		<flyway.password>mypassword</flyway.password>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -128,6 +132,19 @@
 							<artifactId>lombok</artifactId>
 						</exclude>
 					</excludes>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.flywaydb</groupId>
+				<artifactId>flyway-maven-plugin</artifactId>
+				<configuration>
+					<url>${flyway.url}</url>
+					<user>${flyway.user}</user>
+					<password>${flyway.password}</password>
+					<locations>
+						<location>filesystem:${project.basedir}/src/main/resources/db/migration</location>
+					</locations>
+					<cleanDisabled>true</cleanDisabled>
 				</configuration>
 			</plugin>
 			<plugin>

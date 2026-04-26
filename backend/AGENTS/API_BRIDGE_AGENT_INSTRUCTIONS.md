@@ -20,25 +20,6 @@ API_BRIDGE | Task=<TaskXXX> | Path=/api/v1/... | Mode=verify|wire-fe|fix-doc|fix
 | **`wire-fe`** | Giống `verify` + **sửa/tạo code** chỉ dưới `frontend/mini-erp/src/**` theo **Bước 0** + **Định vị UI** + **Luồng nối dây** (tuân `FE_API_CONNECTION_GUIDE.md`). |
 | `fix-doc` / `fix-fe` / `fix-be` | Sửa **tối thiểu** loại file đã chỉ ra trong bảng `BRIDGE_*` hoặc ticket. |
 
-### 1.1 Điểm vào từ **WORKFLOW_RULE** (sau triển khai BE, SRS/API đã Approved)
-
-Khi **Developer** đã đạt **G-DEV** (`mvn verify` xanh) và task có **REST cho `mini-erp`** theo `frontend/docs/api/API_TaskXXX_*.md`, điều phối **bắt buộc** chạy ít nhất một phiên **`Mode=verify`** — không thay BA/PM chốt hợp đồng; chỉ đối chiếu BE ↔ doc ↔ FE và ghi `BRIDGE_*.md`.
-
-- **Chuỗi & gate:** [`WORKFLOW_RULE.md`](WORKFLOW_RULE.md) **§0.3** (sơ đồ), **§2** gate **G-BRIDGE**, **§3.1** (khối prompt **HANDOFF_API_BRIDGE** copy-paste).  
-- **Mục đích “tự động hoá”:** Owner/PM/Dev dán nguyên khối §3.1 vào chat Cursor (hoặc mô tả PR) — agent nhận đủ context, không cần plugin riêng.
-
-### 1.2 SRS gom nhiều REST (ví dụ Task014–020 / một file SRS)
-
-Khi **PM/BA** giao **một file SRS** (vd. `backend/docs/srs/SRS_Task014-020_stock-receipts-lifecycle.md`) dẫn tới **nhiều** hợp đồng `frontend/docs/api/API_Task014_*.md` … `API_Task020_*.md`:
-
-| Giai đoạn | Agent / tài liệu | Ghi chú |
-| :--- | :--- | :--- |
-| Thiết kế & code BE | **Developer** + SRS + từng `API_Task*.md` | API_BRIDGE **không** thay bước này. |
-| Sau **`mvn verify` xanh** (G-DEV) | **API_BRIDGE** `Mode=verify` | **Bắt buộc** theo [`WORKFLOW_RULE.md`](WORKFLOW_RULE.md) **§0.3**: một phiên **một Path** (mục 7 dưới) lặp cho đủ các endpoint trong SRS; output `frontend/docs/api/bridge/BRIDGE_TaskYYY_<slug>.md` từng task. |
-| Nối UI | **API_BRIDGE** `Mode=wire-fe` | Khi ticket yêu cầu; vẫn tuân **Bước 0** + index UI. |
-
-**Không** dùng một prompt kiểu “triển khai cả SRS Task014–020” thay cho chuỗi API_BRIDGE verify — sẽ thiếu bảng BRIDGE/G-BRIDGE và dễ bỏ sót Path.
-
 ---
 
 ## 2. Bước 0 — **Một** tài liệu Frontend (bắt buộc trước khi vào `frontend/`)
@@ -49,7 +30,6 @@ Khi **PM/BA** giao **một file SRS** (vd. `backend/docs/srs/SRS_Task014-020_sto
 
 - File này quy định: `VITE_API_BASE_URL`, layout `src/lib/api/`, `apiJson`, `features/*/api`, envelope, Bearer — **không** tự đặt quy ước khác trong phiên.  
 - Sau khi đọc xong mới `Grep` / `Read` thêm trong `frontend/mini-erp/src`.
-- **Context7 (tùy chọn, sau Bước 0):** chỉ khi `wire-fe` cần doc **thư viện FE** (React, TanStack Query, …) theo đúng phiên bản lockfile — `use context7` + câu hỏi hẹp hoặc `use library /<id>`; **không** thay `FE_API_CONNECTION_GUIDE.md` làm nguồn quy ước nối API dự án.
 
 ---
 

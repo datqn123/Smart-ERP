@@ -71,7 +71,7 @@ class AuditSessionsControllerWebMvcTest {
 	void create_returns201() throws Exception {
 		var detail = new AuditSessionDetailData(1L, "KK-2026-0001", "Kỳ 1", java.time.LocalDate.parse("2026-04-01"), "Pending", null,
 				null, null, 1, "NV", null, null, null, java.time.Instant.parse("2026-04-01T08:00:00Z"),
-				java.time.Instant.parse("2026-04-01T09:00:00Z"), List.of());
+				java.time.Instant.parse("2026-04-01T09:00:00Z"), null, List.of(), List.of());
 		when(auditSessionService.create(any(), any())).thenReturn(detail);
 
 		String json = """
@@ -89,7 +89,7 @@ class AuditSessionsControllerWebMvcTest {
 	void getById_returns200() throws Exception {
 		var detail = new AuditSessionDetailData(2L, "KK-2026-0002", "Kỳ 2", java.time.LocalDate.parse("2026-04-02"), "In Progress", "WH01",
 				null, "Ghi chú", 1, "NV", null, null, null, java.time.Instant.parse("2026-04-02T08:00:00Z"),
-				java.time.Instant.parse("2026-04-02T09:00:00Z"), List.of());
+				java.time.Instant.parse("2026-04-02T09:00:00Z"), null, List.of(), List.of());
 		when(auditSessionService.getById(eq(2L))).thenReturn(detail);
 
 		mockMvc.perform(get("/api/v1/inventory/audit-sessions/2")

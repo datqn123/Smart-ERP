@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useInfiniteQuery } from "@tanstack/react-query"
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { usePageTitle } from "@/context/PageTitleContext"
 import { Package, AlertTriangle, CalendarClock, TrendingUp } from "lucide-react"
 import { formatCurrency } from "../utils"
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import type { InventoryItem, InventoryFilters, InventoryKPIs } from "../types"
 import { toast } from "sonner"
 import {
+  getInventoryById,
   getInventoryList,
   mapListItemToUi,
   mapSummaryToKpis,
@@ -146,6 +147,12 @@ export function StockPage() {
   const [actionItems, setActionItems] = useState<InventoryItem[]>([])
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [itemsToEdit, setItemsToEdit] = useState<InventoryItem[]>([])
+
+  const detailQuery = useQuery({
+    queryKey: ["inventory", "v1", "detail", selectedBatchItem?.id, "related"],
+    enabled: isDialogOpen && selectedBatchItem != null,
+    queryFn: () => getInventoryById(selectedBatchItem!.id, { includeRelatedLines: true }),
+  })
 
   useEffect(() => { setTitle("Tồn kho") }, [setTitle])
 
@@ -313,8 +320,14 @@ export function StockPage() {
 
       <StockBatchDetailsDialog
         isOpen={isDialogOpen}
-        onClose={() => setIsDialogOpen(false)}
-        item={selectedBatchItem}
+        onClose={() => {
+          setIsDialogOpen(false)
+          setSelectedBatchItem(null)
+        }}
+        listItem={selectedBatchItem}
+        detail={detailQuery.data ?? null}
+        isDetailPending={detailQuery.isPending}
+        isDetailError={detailQuery.isError}
       />
 
       <StockActionDialog

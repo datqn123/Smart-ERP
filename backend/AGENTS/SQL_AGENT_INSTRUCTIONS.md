@@ -58,4 +58,4 @@ Khi BA đang soạn SRS có thao tác DB:
 WORKFLOW_RULE: BA + SQL — BA giữ owner SRS; SQL bổ sung mục "Dữ liệu & SQL tham chiếu" theo @backend/AGENTS/SQL_AGENT_INSTRUCTIONS.md
 ```
 
-**SRS + SQL từ API:** `BA_SQL | Task=… | Mode=draft` — [`BA_AGENT_INSTRUCTIONS.md`](BA_AGENT_INSTRUCTIONS.md) mục 6.
+**SRS + SQL từ API:** `BA_SQL | Task=… | Mode=draft` — [`BA_AGENT_INSTRUCTIONS.md`](BA_AGENT_INSTRUCTIONS.md) mục 8.

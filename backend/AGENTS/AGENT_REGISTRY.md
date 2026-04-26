@@ -18,7 +18,7 @@
 
 | Agent | Artifact |
 | :--- | :--- |
-| BA | SRS / spec kỹ thuật — **Spring (`smart-erp`)**: [`../docs/srs/README.md`](../docs/srs/README.md); **UI Mini-ERP**: [`../../frontend/docs/srs/README.md`](../../frontend/docs/srs/README.md) |
+| BA | SRS / spec kỹ thuật — **Spring (`smart-erp`)**: [`../docs/srs/README.md`](../docs/srs/README.md) + template [`../docs/srs/SRS_TEMPLATE.md`](../docs/srs/SRS_TEMPLATE.md); **UI Mini-ERP**: [`../../frontend/docs/srs/README.md`](../../frontend/docs/srs/README.md) |
 | SQL | Mục **Dữ liệu & SQL tham chiếu** trong SRS (đồng soạn với BA); không thay BA làm owner file |
 | PM | `TASKS/Task*.md` + nhánh `develop` |
 | Tech Lead | `docs/adr/ADR-*.md` |

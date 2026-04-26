@@ -11,11 +11,16 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.smart_erp.common.api.ApiErrorCode;
+import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.inventory.query.InventoryListQuery;
 import com.example.smart_erp.inventory.repository.InventoryListJdbcRepository;
 import com.example.smart_erp.inventory.repository.InventoryListJdbcRepository.InventoryListRow;
+import com.example.smart_erp.inventory.repository.InventoryListJdbcRepository.InventoryRelatedLineRow;
+import com.example.smart_erp.inventory.response.InventoryByIdData;
 import com.example.smart_erp.inventory.response.InventoryListItemData;
 import com.example.smart_erp.inventory.response.InventoryListPageData;
+import com.example.smart_erp.inventory.response.InventoryRelatedLineData;
 import com.example.smart_erp.inventory.response.InventorySummaryData;
 
 /**
@@ -37,10 +42,33 @@ public class InventoryListService {
 		InventorySummaryData summary = listRepo.loadSummary(q);
 		long total = listRepo.countRows(q);
 		List<InventoryListRow> rows = listRepo.loadPage(q);
-		LocalDate today = LocalDate.now(ZoneOffset.UTC);
-		LocalDate thirtyAhead = today.plusDays(EXPIRY_SOON_DAYS);
+		LocalDate thirtyAhead = LocalDate.now(ZoneOffset.UTC).plusDays(EXPIRY_SOON_DAYS);
 		var items = rows.stream().map(r -> toItem(r, thirtyAhead)).collect(Collectors.toList());
 		return new InventoryListPageData(summary, items, q.page(), q.limit(), total);
+	}
+
+	/** Task006 — chi tiết một dòng; {@code includeRelatedLines} theo query {@code include=relatedLines}. */
+	@Transactional(readOnly = true)
+	public InventoryByIdData getById(long inventoryId, boolean includeRelatedLines) {
+		var row = listRepo.findById(inventoryId)
+				.orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND, "Không tìm thấy dòng tồn kho yêu cầu"));
+		LocalDate thirtyAhead = LocalDate.now(ZoneOffset.UTC).plusDays(EXPIRY_SOON_DAYS);
+		InventoryListItemData item = toItem(row, thirtyAhead);
+		List<InventoryRelatedLineData> related = includeRelatedLines
+				? listRepo.findRelatedLines(row.productId(), inventoryId).stream().map(InventoryListService::toRelatedLine)
+						.collect(Collectors.toList())
+				: List.of();
+		return InventoryByIdData.fromItem(item, related);
+	}
+
+	private static InventoryRelatedLineData toRelatedLine(InventoryRelatedLineRow r) {
+		return new InventoryRelatedLineData(
+				r.id(),
+				r.batchNumber(),
+				r.quantity(),
+				r.expiryDate(),
+				r.warehouseCode(),
+				r.shelfCode());
 	}
 
 	private static InventoryListItemData toItem(InventoryListRow r, LocalDate thirtyAhead) {

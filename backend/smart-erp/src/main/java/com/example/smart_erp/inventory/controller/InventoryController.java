@@ -1,11 +1,14 @@
 package com.example.smart_erp.inventory.controller;
 
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,6 +17,7 @@ import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.api.ApiSuccessResponse;
 import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.inventory.query.InventoryListQuery;
+import com.example.smart_erp.inventory.response.InventoryByIdData;
 import com.example.smart_erp.inventory.response.InventoryListPageData;
 import com.example.smart_erp.inventory.service.InventoryListService;
 
@@ -48,6 +52,52 @@ public class InventoryController {
 		InventoryListQuery q = InventoryListQuery.of(search, stockLevel, locationId, categoryId, page, limit, sort);
 		InventoryListPageData data = inventoryListService.list(q);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
+	}
+
+	/** Task006 — chi tiết một dòng tồn (+ {@code relatedLines} khi {@code include=relatedLines}). */
+	@GetMapping("/inventory/{id}")
+	@PreAuthorize("hasAuthority('can_manage_inventory')")
+	public ResponseEntity<ApiSuccessResponse<InventoryByIdData>> getById(Authentication authentication,
+			@PathVariable("id") String idRaw, @RequestParam(name = "include", required = false) String include) {
+		requireJwt(authentication);
+		long id = parsePositiveInventoryId(idRaw);
+		boolean includeRelated = parseIncludeRelatedLines(include);
+		InventoryByIdData data = inventoryListService.getById(id, includeRelated);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
+	}
+
+	private static long parsePositiveInventoryId(String raw) {
+		if (raw == null || raw.isBlank()) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Tham số yêu cầu không hợp lệ",
+					Map.of("id", "Giá trị phải là số nguyên dương"));
+		}
+		try {
+			long v = Long.parseLong(raw.trim());
+			if (v <= 0L) {
+				throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Tham số yêu cầu không hợp lệ",
+						Map.of("id", "Giá trị phải là số nguyên dương"));
+			}
+			return v;
+		}
+		catch (NumberFormatException e) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Tham số yêu cầu không hợp lệ",
+					Map.of("id", "Giá trị phải là số nguyên dương"));
+		}
+	}
+
+	private static boolean parseIncludeRelatedLines(String include) {
+		if (include == null) {
+			return false;
+		}
+		String t = include.trim();
+		if (t.isEmpty()) {
+			return false;
+		}
+		if ("relatedLines".equals(t)) {
+			return true;
+		}
+		throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Tham số yêu cầu không hợp lệ",
+				Map.of("include", "Giá trị hợp lệ: relatedLines (hoặc bỏ qua tham số)"));
 	}
 
 	private static Jwt requireJwt(Authentication authentication) {

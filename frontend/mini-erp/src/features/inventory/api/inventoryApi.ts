@@ -4,6 +4,7 @@ import type { InventoryItem, InventoryKPIs } from "../types"
 /**
  * Task005 — `GET /api/v1/inventory` (màn Tồn kho) — hợp đồng
  * `frontend/docs/api/API_Task005_inventory_get_list.md` §7.
+ * Task006 — `GET /api/v1/inventory/{id}` — `frontend/docs/api/API_Task006_inventory_get_by_id.md`.
  */
 export type InventoryListSummary = {
   totalSkus: number
@@ -113,4 +114,36 @@ export function mapSummaryToKpis(s: InventoryListSummary): InventoryKPIs {
     lowStockCount: s.lowStockCount,
     expiringSoonCount: s.expiringSoonCount,
   }
+}
+
+/** Dòng lô liên quan (cùng SP, khác id; BE chỉ trả lô còn hàng). */
+export type InventoryRelatedLineResponse = {
+  id: number
+  batchNumber: string | null
+  quantity: number
+  expiryDate: string | null
+  warehouseCode: string
+  shelfCode: string
+}
+
+export type InventoryDetailResponse = InventoryListItemResponse & {
+  relatedLines: InventoryRelatedLineResponse[]
+}
+
+export type GetInventoryByIdOptions = {
+  /** Khi true gửi `?include=relatedLines` (SRS Task006 / PO OQ-2). */
+  includeRelatedLines?: boolean
+}
+
+export function getInventoryById(id: number, opts?: GetInventoryByIdOptions) {
+  const q = new URLSearchParams()
+  if (opts?.includeRelatedLines) {
+    q.set("include", "relatedLines")
+  }
+  const qs = q.toString()
+  const path = qs ? `/api/v1/inventory/${id}?${qs}` : `/api/v1/inventory/${id}`
+  return apiJson<InventoryDetailResponse>(path, {
+    method: "GET",
+    auth: true,
+  })
 }

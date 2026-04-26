@@ -9,8 +9,9 @@ Tài liệu **SRS gắn triển khai backend** (API `smart-erp`, persistence, ma
 ## Quy ước
 
 - Đặt tên: `SRS_TaskXXX_<slug>.md` trong **`backend/docs/srs/`** (hoặc `backend/docs/taskXXX/00-ba/` nếu team tách theo task).
-- `BA_SQL | Task=… | Doc=API_…` → file SRS output: **`backend/docs/srs/SRS_TaskNNN_<slug-kebab>.md`** — xem [`../../AGENTS/BA_AGENT_INSTRUCTIONS.md`](../../AGENTS/BA_AGENT_INSTRUCTIONS.md) mục 6.
-- Template đầy đủ UI/UX (nếu cần): [`../../../frontend/docs/srs/SRS_TEMPLATE.md`](../../../frontend/docs/srs/SRS_TEMPLATE.md).
+- `BA_SQL | Task=… | Doc=API_…` → file SRS output: **`backend/docs/srs/SRS_TaskNNN_<slug-kebab>.md`** — xem [`../../AGENTS/BA_AGENT_INSTRUCTIONS.md`](../../AGENTS/BA_AGENT_INSTRUCTIONS.md) mục 8.
+- **Template SRS backend / API (mặc định):** [`SRS_TEMPLATE.md`](SRS_TEMPLATE.md) — bóc tách nghiệp vụ, OQ cho PO, scope tệp, actor + mermaid, JSON request/response đầy đủ, SQL.
+- Template **UI Mini-ERP** (bảng, breakpoint, component): [`../../../frontend/docs/srs/SRS_TEMPLATE.md`](../../../frontend/docs/srs/SRS_TEMPLATE.md) — dùng khi task chủ yếu là FE hoặc phụ lục UI.
 
 ## File trong `backend/docs/srs/`
 
@@ -22,6 +23,8 @@ Tài liệu **SRS gắn triển khai backend** (API `smart-erp`, persistence, ma
 | [`SRS_Task100_auth-session-registry-stale-access.md`](SRS_Task100_auth-session-registry-stale-access.md) | Session map — [`../task100/README.md`](../task100/README.md) |
 | [`SRS_Task101_role-based-side-menu-visibility.md`](SRS_Task101_role-based-side-menu-visibility.md) | Side menu theo `Roles.permissions` (Task101); chưa có `Doc` API riêng — tham chiếu code + Flyway V1 |
 | [`SRS_Task101_1_api-permission-per-request.md`](SRS_Task101_1_api-permission-per-request.md) | Task101_1 — kiểm tra quyền từng request API; phụ bản từ [SRS_Task101](SRS_Task101_role-based-side-menu-visibility.md) mục 7.1 |
+| [`SRS_Task005_inventory-get-list.md`](SRS_Task005_inventory-get-list.md) | `GET /api/v1/inventory` — danh sách + KPI; API: [`../../../frontend/docs/api/API_Task005_inventory_get_list.md`](../../../frontend/docs/api/API_Task005_inventory_get_list.md) |
+| [`SRS_Task006_inventory-get-by-id.md`](SRS_Task006_inventory-get-by-id.md) | `GET /api/v1/inventory/{id}` — **Approved** 25/04/2026; API: [`../../../frontend/docs/api/API_Task006_inventory_get_by_id.md`](../../../frontend/docs/api/API_Task006_inventory_get_by_id.md) |
 
 ## File liên quan dưới `backend/docs/taskNNN/`
 

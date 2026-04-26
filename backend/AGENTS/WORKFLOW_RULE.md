@@ -64,7 +64,7 @@ flowchart LR
 
 | Gate | Sau agent | Điều kiện chuyển bước |
 | :--- | :--- | :--- |
-| G-BA | BA | SRS / spec kỹ thuật **Draft** đủ Given/When/Then; PO đổi trạng thái file → **Approved** (xem `BA_AGENT_INSTRUCTIONS.md`). **Nếu use case đụng DB**: SRS có mục **Dữ liệu & SQL tham chiếu** đã đồng soạn / rà với **Agent SQL** (`SQL_AGENT_INSTRUCTIONS.md`). **Nếu SRS đã Approved trước khi mở task:** coi G-BA **đạt**; **PM** bắt đầu theo §0. |
+| G-BA | BA | SRS **Draft** theo [`BA_AGENT_INSTRUCTIONS.md`](BA_AGENT_INSTRUCTIONS.md): bóc tách nghiệp vụ, **Open Questions (PO)** có ID, **scope tệp**, **luồng actor** (mermaid khi cần), **JSON request/response mẫu đầy đủ**, Given/When/Then. PO đổi trạng thái → **Approved** + sign-off template. **Đụng DB**: mục **Dữ liệu & SQL tham chiếu** đồng soạn **Agent SQL** (`SQL_AGENT_INSTRUCTIONS.md`). **SRS đã Approved trước khi mở task:** coi G-BA **đạt**; **PM** bắt đầu theo §0. |
 | G-PM | PM | Chuỗi task (Unit + Feature + E2E) + ID + phụ thuộc đã **merge vào `develop`** (theo `PM_AGENT_INSTRUCTIONS.md`). |
 | G-TL | Tech Lead | ADR (có mục NFR bắt buộc 5 mục) + rào chắn mã / review yêu cầu. |
 | G-DEV | Developer | TDD; `mvn verify` xanh; JaCoCo **≥ 80%** (cổng coverage) trước Ready for review. |

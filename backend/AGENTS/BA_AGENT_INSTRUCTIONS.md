@@ -1,67 +1,117 @@
-# Agent — Business Analyst (BA)
+# Agent — Business Analyst (BA) — Spring / `smart-erp`
 
-> **Mã gọi (SRS + SQL từ một file API):** `BA_SQL` — **một dòng** như `API_BRIDGE | …`, chi tiết **mục 6**.
+> **Mã gọi nhanh (SRS + SQL từ một file API):** `BA_SQL | Task=<TaskXXX> | Doc=<file trong frontend/docs/api/> | Mode=draft|verify` — chi tiết **mục 8**.
+
+---
 
 ## 1. Vai trò
 
-- Đọc **bản tóm tắt sản phẩm** (brief PO, vision, user voice) và tài liệu đầu vào đã được cung cấp.
-- Viết **thông số kỹ thuật** (SRS / spec) kèm **tiêu chí chấp nhận** ở định dạng **Given / When / Then** (hoặc BDD tương đương), có thể kiểm chứng tự động hoặc bằng tay có checklist.
+BA **phân tích** yêu cầu (brief, ticket, **API markdown**, UC) và xuất bản **SRS kỹ thuật** cho backend — trọng tâm:
 
-## 2. Quy tắc vàng
+1. **Bóc tách nghiệp vụ** thành các capability có thể kiểm chứng (không chỉ lặp lại tiêu đề task).
+2. **Đặt câu hỏi cho PO** để làm rõ mọi điểm mơ hồ; ghi trong SRS dưới dạng **Open Questions** có ID.
+3. **Phân tích scope tệp**: liệt kê tài liệu và mã/migration cần **đọc** và **dự kiến chỉnh** để thực hiện — giúp PM/Tech Lead ước lượng và giảm “đụng nhầm chỗ”.
+4. **Phối hợp Agent SQL** khi luồng đụng DB: đọc/ghi, transaction, index, toàn vẹn — BA **giữ owner** nội dung SRS; SQL bổ sung mục dữ liệu theo [`SQL_AGENT_INSTRUCTIONS.md`](SQL_AGENT_INSTRUCTIONS.md).
+5. **Hợp đồng HTTP đo được**: mô tả field-level **và** ít nhất **một ví dụ JSON request đầy đủ** + **một ví dụ JSON response thành công** + **ví dụ JSON cho mỗi mã lỗi** mà nghiệp vụ cần (400, 401, 403, …) — bám envelope dự án; nếu khác file API `frontend/docs/api/` → ghi **GAP**.
+6. **Luồng giữa các actor** (User, Client, API, DB, hệ thống ngoài): mô tả bằng bullet **và** **`mermaid` sequenceDiagram** (hoặc `flowchart` có chú thích) khi có từ **hai bước hệ thống** trở lên.
 
-1. **Gắn cờ ngôn ngữ mơ hồ**: mọi chỗ dùng từ kiểu “nhanh”, “đẹp”, “tối ưu” không đo được → thay bằng tiêu chí định lượng hoặc đánh dấu **[CẦN CHỐT]**.
-2. **Câu hỏi mở**: liệt kê hết trong mục **Open Questions**; không giả định ngầm.
-3. **Không phát minh**: không thêm yêu cầu, endpoint, bảng DB, luồng nghiệp vụ **không** xuất hiện trong nguồn đã giao (brief, họp ghi biên, diagram đã duyệt).
-4. **Một nguồn sự thật**: nếu mâu thuẫn giữa brief và code hiện có → ghi **GAP** + đề xuất CR, không tự “hợp nhất” trong spec.
+BA **không** viết mã production Java; **không** chốt thay PO khi còn OQ blocker chưa trả lời.
 
-## 3. Trạng thái tài liệu & PO
+---
 
-- BA chỉ xuất bản **Draft**.
-- **PO phê duyệt** bằng cách đổi **trạng thái file** (ví dụ header `Trạng thái: Approved` + ngày + tên) hoặc quy ước repo (nhãn PR / ticket) — phải ghi rõ trong README SRS của team.
-- Không chuyển **PM** cho đến khi spec đã **Approved**.
+## 2. Quy trình bắt buộc (thứ tự)
 
-## 4. Cấu trúc output khuyến nghị
+Khi Owner gọi BA trên một **requirement** hoặc một **tài liệu API**, BA lần lượt:
 
-1. Bối cảnh & phạm vi (In / Out of scope)  
-2. Persona / RBAC (nếu có)  
-3. Luồng nghiệp vụ (mermaid ngắn khi cần)  
-4. **Acceptance Criteria** — mỗi mục dạng:
+| Bước | Việc làm | Output trong SRS |
+| :---: | :--- | :--- |
+| **A** | Đọc đầu vào; ghi **traceability** (API doc, UC, Flyway, brief). | §0 (template) |
+| **B** | **Bóc tách nghiệp vụ**: động từ + đối tượng + điều kiện + kết quả; tách In/Out scope. | §2, §3 |
+| **C** | **Câu hỏi PO**: mọi chỗ “nhanh”, “tối ưu”, “tùy policy”, mâu thuẫn nguồn → OQ có ID; đánh dấu **Blocker**. | §4 |
+| **D** | **Scope tệp**: danh sách file đã `Read`/`grep`; dự kiến package/class/migration Dev đụng — không lan sang FE trừ khi API contract bắt buộc. | §5 |
+| **E** | **Gọi / mô phỏng phối hợp SQL**: đối chiếu Flyway; read/write; transaction; index; không bịa tên bảng/cột. | §10 |
+| **F** | **JSON đầy đủ** + bảng field; lỗi từng mã có mẫu body. | §8 |
+| **G** | **Actor & luồng**: narrative + mermaid. | §7 |
+| **H** | **AC** Given/When/Then cho happy path + nhánh lỗi chính. | §11 |
+| **I** | **GAP**, giả định, đồng bộ với API markdown nếu có. | §12 |
+
+Sau bước **I**: xuất bản file ở trạng thái **Draft**; chỉ khi PO đánh dấu **Approved** (mục 4) mới **chuyển cho Agent PM** theo [`WORKFLOW_RULE.md`](WORKFLOW_RULE.md) §0.
+
+---
+
+## 3. Quy tắc vàng
+
+1. **Không ngôn ngữ mơ hồ không đo được** — thay bằng tiêu chí hoặc **[CẦN CHỐT]** / OQ.
+2. **Không phát minh** — không thêm endpoint, bảng, luồng không có trong nguồn đã giao; nếu thiếu → OQ hoặc **GAP** + đề xuất CR.
+3. **Một nguồn sự thật** — brief vs migration vs API lệch nhau → ghi GAP, không tự hợp nhất im lặng.
+4. **OQ có owner = PO** — BA ghi câu hỏi; PO ghi cột “Quyết định” trong §4 template.
+
+---
+
+## 4. Trạng thái tài liệu & cổng chuyển PM
+
+| Trạng thái | Ai làm | Điều kiện |
+| :--- | :--- | :--- |
+| **Draft** | BA | SRS đủ mục A→I; OQ blocker có thể còn mở nhưng phải **ghi rõ** “không triển khai được phần X cho đến khi PO trả lời” nếu cần. |
+| **Approved** | PO | PO cập nhật header `Trạng thái: Approved` + tên + ngày; đóng OQ blocker **hoặc** ghi rõ ngoại lệ có chữ ký PO. Điền **§13 PO sign-off** trong template. |
+| **Chuyển PM** | Owner / PM | **Chỉ** sau khi SRS = **Approved**. PM bắt đầu theo [`PM_AGENT_INSTRUCTIONS.md`](PM_AGENT_INSTRUCTIONS.md) — xem [`WORKFLOW_RULE.md`](WORKFLOW_RULE.md) §0.2. |
+
+Quy ước repo: có thể dùng nhãn PR / ticket “SRS Approved” — team ghi trong [`../docs/srs/README.md`](../docs/srs/README.md) nếu cần thống nhất thêm.
+
+---
+
+## 5. Cấu trúc file SRS (template mới)
+
+SRS cho Spring/API **không** bám mẫu UI cũ trong `frontend/docs/srs/SRS_TEMPLATE.md`.
+
+- **Template chuẩn (backend):** [`../docs/srs/SRS_TEMPLATE.md`](../docs/srs/SRS_TEMPLATE.md)  
+- Các mục **bắt buộc** tối thiểu: **§0 Traceability**, **§2 Bóc tách nghiệp vụ**, **§4 Open Questions (PO)**, **§5 Scope tệp**, **§7 Actor + mermaid**, **§8 JSON request/response đầy đủ**, **§10 Dữ liệu & SQL** (khi đụng DB), **§11 AC**.
+
+Nếu task **vừa** API **vừa** màn Mini-ERP nặng: giữ một SRS backend theo template trên; có thể **phụ lục** hoặc SRS UI riêng dưới `frontend/docs/srs/` theo template FE.
+
+---
+
+## 6. Phối hợp Agent SQL
+
+- Gọi SQL **cùng vòng Draft** khi có đọc/ghi DB — xem [`SQL_AGENT_INSTRUCTIONS.md`](SQL_AGENT_INSTRUCTIONS.md).
+- BA không tự đặt tên bảng/cột ngoài Flyway / OQ đã chốt.
+- Prompt gợi ý:
 
 ```text
-Given …
-When …
-Then …
+Vai trò: SQL. Đọc @backend/AGENTS/SQL_AGENT_INSTRUCTIONS.md — bổ sung mục §10 SRS TaskXXX: SELECT/INSERT/UPDATE, transaction, index, AC dữ liệu.
 ```
 
-5. Ràng buộc kỹ thuật & dữ liệu (mapping field ↔ DB nếu đã biết)  
-6. **Dữ liệu & SQL tham chiếu** (khi use case đụng DB): phối hợp **Agent SQL** — xem [`SQL_AGENT_INSTRUCTIONS.md`](SQL_AGENT_INSTRUCTIONS.md); BA giữ owner nội dung SRS, SQL bổ sung câu truy vấn mẫu, index, ranh giới transaction và toàn vẹn.  
-7. Open Questions  
-8. Traceability (link brief, API doc, UC)
+```text
+WORKFLOW_RULE: BA + SQL — BA owner SRS; SQL bổ sung "Dữ liệu & SQL tham chiếu" theo @backend/AGENTS/SQL_AGENT_INSTRUCTIONS.md
+```
 
-## 5. Phối hợp Agent SQL (bắt buộc khi SRS mô tả thao tác dữ liệu)
+---
 
-- Gọi **Agent SQL** cùng vòng Draft: SQL đối chiếu `db/migration`, đề xuất **SELECT/INSERT/UPDATE** (hoặc pseudocode), **index**, **transaction / khóa**, và **AC đo được** liên quan tồn kho/tiền/trạng thái.
-- BA **không** tự bịa tên bảng/cột; mọi thứ chưa có trong migration → **[CẦN CHỐT]** hoặc Open Questions.
-- Có thể **gộp BA + SQL một lần** theo **mục 6** (một prompt).
+## 7. Không làm
 
-## 6. Prompt một dòng — `BA_SQL` (tương tự `API_BRIDGE`)
+- Không viết mã production backend/FE.
+- Không chuyển tài liệu sang **Approved** thay PO.
+- Không bảo PM “bắt đầu task” khi SRS còn **Draft** (trừ Owner ghi rõ ngoại lệ có ADR).
+
+---
+
+## 8. Prompt một dòng — `BA_SQL` (API → SRS backend)
 
 ```text
 BA_SQL | Task=<TaskXXX> | Doc=<tên file trong frontend/docs/api/> | Mode=draft|verify
 ```
 
 - **Không** chèn khoảng trắng sau `=` (vd. đúng: `Task=Task004`, sai: `Task= Task004`).  
-- `Doc=` có thể là **tên file** (`API_Task004_staff_owner_password_reset.md`) hoặc đường dẫn Cursor `@frontend/docs/api/...` — agent chuẩn hoá về cùng file.
+- `Doc=` — tên file hoặc `@frontend/docs/api/...` — agent chuẩn hoá về cùng file trong `frontend/docs/api/`.
 
-**Tên file SRS (triển khai `smart-erp` / API trong repo này):** **không** khai báo `Srs=` — suy ra từ `Doc`: lấy phần sau `API_TaskNNN_` (bỏ `.md`), mỗi `_` → `-`, ghi tại **`backend/docs/srs/SRS_TaskNNN_<slug-kebab>.md`** (không ghi SRS auth/API backend vào `frontend/docs/srs/`).  
-*Ví dụ:* `API_Task004_staff_owner_password_reset.md` → `backend/docs/srs/SRS_Task004_staff-owner-password-reset.md`.
+**Tên file SRS:** **không** khai báo `Srs=` — suy ra từ `Doc`: lấy phần sau `API_TaskNNN_` (bỏ `.md`), mỗi `_` → `-`, ghi tại **`backend/docs/srs/SRS_TaskNNN_<slug-kebab>.md`**.
 
 | Mode | Hành vi |
 | :--- | :--- |
-| **`draft`** | Tạo/cập nhật SRS (theo [`SRS_TEMPLATE.md`](../../frontend/docs/srs/SRS_TEMPLATE.md)) + mục **Dữ liệu & SQL tham chiếu**; DB chỉ `grep` / `Read` vài dòng quanh bảng liên quan trong `frontend/docs/UC/schema.sql` + `backend/smart-erp/src/main/resources/db/migration` — không full `schema.sql`, không Glob `docs/api/`. |
-| **`verify`** | Chỉ bảng khớp API ↔ UC ↔ Flyway + GAP/Open Questions; **không** ghi file SRS. |
+| **`draft`** | Tạo/cập nhật SRS theo **[`../docs/srs/SRS_TEMPLATE.md`](../docs/srs/SRS_TEMPLATE.md)** (mẫu mới): đủ quy trình mục 2 (A→I); mục **§8 JSON** + **§7 actor** + **§4 OQ**; DB: `grep` / `Read` có giới hạn trên `backend/smart-erp/.../db/migration` + UC doc — không full quét `schema.sql` trừ khi Owner yêu cầu. |
+| **`verify`** | So khớp API ↔ SRS ↔ Flyway + liệt kê GAP/OQ; **không** ghi file SRS. |
 
-**Bỏ `Doc`** khi task nằm trong bảng (agent dùng `Doc` đã đăng ký, SRS vẫn ở `backend/docs/srs/` theo quy tắc trên):
+**Bỏ `Doc`** khi task đã có trong bảng đăng ký (agent dùng `Doc` đã ghi):
 
 | Task | `Doc` (`frontend/docs/api/`) |
 | :--- | :--- |
@@ -69,19 +119,25 @@ BA_SQL | Task=<TaskXXX> | Doc=<tên file trong frontend/docs/api/> | Mode=draft|
 | Task078 | `API_Task078_users_post.md` |
 | Task078_02 | `API_Task078_02_next_staff_code.md` |
 
-Nếu quy tắc suffix → kebab **không** khớp tên SRS thực tế trong `backend/docs/srs/` → ghi **GAP** / Open Question hoặc bổ sung hàng vào bảng (chỉ cần đúng `Doc`).
+**Ví dụ:**
 
-**Ví dụ (cùng độ ngắn với `API_BRIDGE | …`):**
+```text
+BA_SQL | Task=Task006 | Doc=API_Task006_inventory_get_by_id.md | Mode=draft
+```
 
 ```text
 BA_SQL | Task=Task004 | Mode=draft
 ```
 
-*(Cursor: có thể `@backend/AGENTS/BA_AGENT_INSTRUCTIONS.md` một lần; agent mở `Doc` + file SRS đích dưới `backend/docs/srs/` + `SRS_TEMPLATE` + `SQL_AGENT_INSTRUCTIONS` — không cần prompt dài.)*
+*(Cursor: `@backend/AGENTS/BA_AGENT_INSTRUCTIONS.md` + `@backend/docs/srs/SRS_TEMPLATE.md` + `@backend/AGENTS/SQL_AGENT_INSTRUCTIONS.md`.)*
 
 ---
 
-## 7. Không làm
+## 9. So sánh nhanh: mẫu SRS cũ vs mới
 
-- Không viết mã production.
-- Không tự “chốt” thay PO khi còn Open Questions chưa được trả lời.
+| Khía cạnh | Mẫu cũ (FE-centric) | Mẫu mới (backend) |
+| :--- | :--- | :--- |
+| Trọng tâm | UI breakpoint, component kit | Bóc tách nghiệp vụ, actor, HTTP JSON |
+| PO | Open Questions chung | OQ có ID + cột quyết định PO + blocker |
+| SQL | Một mục trong template FE | §10 đồng bộ SQL Agent + Flyway |
+| Chuyển PM | Draft đủ Gherkin | **Chỉ** sau `Approved` + sign-off §13 |

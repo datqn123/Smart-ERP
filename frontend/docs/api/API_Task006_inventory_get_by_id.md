@@ -1,6 +1,6 @@
 # 📄 API SPEC: `GET /api/v1/inventory/{id}` — Chi tiết một dòng tồn - Task006
 
-> **Trạng thái**: Draft  
+> **Trạng thái**: Draft *(SRS backend Approved 25/04/2026 — `backend/docs/srs/SRS_Task006_inventory-get-by-id.md`: `relatedLines` chỉ lô **còn hàng** `quantity > 0`; ngoài phạm vi dữ liệu → **404**.)*  
 > **Feature**: Inventory / UC6 — dialog **chi tiết lô** (`StockBatchDetailsDialog`)  
 > **Tags**: RESTful, Inventory, Read
 
@@ -72,11 +72,18 @@ Authorization: Bearer <your_access_token>
 
 | Tham số | Kiểu | Bắt buộc | Mặc định | Mô tả |
 | :------ | :--- | :------- | :------- | :---- |
-| `include` | string | Không | — | Ví dụ `relatedLines` để trả `data.relatedLines`; nếu bỏ qua, backend có thể vẫn trả `relatedLines: []` hoặc omit — **chốt một hành vi** khi implement |
+| `include` | string | Không | — | **Chốt:** chỉ nhận giá trị `relatedLines` (whitelist). **Không** có `include` hoặc để trống → backend **không** chạy truy vấn phụ, trả `relatedLines: []`. Giá trị khác whitelist → **400** + `details.include`. |
 
 ### 5.4 Request body
 
 _Không có_
+
+### 5.5 Ánh xạ UI → endpoint này
+
+| Khu vực UI | Nội dung | Ghi chú |
+| :----------- | :-------- | :------ |
+| Popup chi tiết lô (`StockBatchDetailsDialog`) | `GET …/inventory/{id}` | Hydrate từ server thay mock |
+| Khối “các lô cùng SP” trong dialog | `?include=relatedLines` | Tránh ghép tay từ `GET /inventory` (Task005) |
 
 ---
 
@@ -120,7 +127,7 @@ _Không có_
 }
 ```
 
-**`relatedLines`**: các bản ghi `Inventory` khác cùng `product_id` — có thể `[]`.
+**`relatedLines`**: các bản ghi `Inventory` khác cùng `product_id`, **`quantity > 0`** (lô hết hàng không nằm trong response này — UX “Xem thêm” / API bổ sung theo backlog). Có thể `[]`.
 
 ---
 
@@ -172,7 +179,7 @@ WHERE i.id = :id /* AND RBAC scope */;
 - Không có dòng → **404** (hoặc **403** nếu policy che giấu tồn tại).  
 - Map sang JSON `data` + cờ read-model (`isLowStock`, `isExpiringSoon`, `totalValue`).
 
-4. **`relatedLines` (khi `include` yêu cầu hoặc policy luôn trả)**
+4. **`relatedLines` (chỉ khi `include=relatedLines`)**
 
 ```sql
 SELECT
@@ -186,6 +193,7 @@ FROM Inventory i2
 JOIN WarehouseLocations wl2 ON wl2.id = i2.location_id
 WHERE i2.product_id = :product_id_from_step3
   AND i2.id <> :id
+  AND i2.quantity > 0
   AND /* RBAC */;
 ```
 
@@ -202,18 +210,21 @@ WHERE i2.product_id = :product_id_from_step3
 
 ## 8. Lỗi (Error Responses)
 
-#### 400 Bad Request (Định dạng `id` không hợp lệ)
+#### 400 Bad Request (Định dạng `id` hoặc `include` không hợp lệ)
 
 ```json
 {
   "success": false,
   "error": "BAD_REQUEST",
-  "message": "Mã định danh tồn kho không hợp lệ",
+  "message": "Tham số yêu cầu không hợp lệ",
   "details": {
-    "id": "Giá trị phải là số nguyên dương"
+    "id": "Giá trị phải là số nguyên dương",
+    "include": "Giá trị hợp lệ: relatedLines (hoặc bỏ qua tham số)"
   }
 }
 ```
+
+_(Một trong các khóa `details` có thể vắng tùy lỗi thực tế.)_
 
 #### 401 Unauthorized
 
@@ -263,7 +274,7 @@ _Không áp dụng_ cho `GET` chỉ đọc.
 
 ---
 
-## 9. Zod (path — FE)
+## 9. Zod (path + query — FE)
 
 ```typescript
 import { z } from "zod";
@@ -271,4 +282,16 @@ import { z } from "zod";
 export const InventoryIdParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
+
+/** Query tùy chọn; omit = không tải relatedLines (server trả []). */
+export const InventoryGetByIdQuerySchema = z.object({
+  include: z.literal("relatedLines").optional(),
+});
 ```
+
+---
+
+## 10. Ghi chú FE
+
+- Gọi chi tiết tối thiểu: `GET /api/v1/inventory/:id` — đủ render dialog; thêm `?include=relatedLines` khi cần danh sách lô liên quan.
+- Sau Task007 (PATCH), có thể gọi lại GET này để refresh dialog.

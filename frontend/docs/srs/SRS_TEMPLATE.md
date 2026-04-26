@@ -1,5 +1,7 @@
 # SRS - <Tên tính năng>
 
+> **SRS Spring / API (`smart-erp`):** dùng mẫu [`../../../backend/docs/srs/SRS_TEMPLATE.md`](../../../backend/docs/srs/SRS_TEMPLATE.md) (bóc tách nghiệp vụ, OQ PO, JSON HTTP, SQL). File này ưu tiên **UI Mini-ERP** (breakpoint, component, state).
+
 > **File**: `docs/srs/SRS_TaskXXX_<slug>.md`  
 > **Người viết**: Agent BA  
 > **Ngày cập nhật**: <DD/MM/YYYY>  

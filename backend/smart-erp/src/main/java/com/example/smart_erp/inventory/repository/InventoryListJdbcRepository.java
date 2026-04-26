@@ -5,6 +5,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -105,6 +106,59 @@ public class InventoryListJdbcRepository {
 		// page/limit đã validate; ghép số an toàn hơn mở rộng tên tham số
 		String sql = SELECT_LIST_COLUMNS + BASE_FROM + f.where + " ORDER BY " + order + " LIMIT " + q.limit() + " OFFSET " + offset;
 		return namedJdbc.query(sql, f.source, ROW);
+	}
+
+	/** Task006 — một dòng tồn (cùng cột với list). */
+	public Optional<InventoryListRow> findById(long id) {
+		String sql = SELECT_LIST_COLUMNS + BASE_FROM + " WHERE i.id = :_id";
+		var src = new MapSqlParameterSource("_id", id);
+		List<InventoryListRow> list = namedJdbc.query(sql, src, ROW);
+		return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
+	}
+
+	private static final String SELECT_RELATED = """
+			SELECT
+			  i2.id,
+			  i2.batch_number,
+			  i2.quantity,
+			  i2.expiry_date,
+			  wl2.warehouse_code,
+			  wl2.shelf_code
+			FROM inventory i2
+			INNER JOIN warehouselocations wl2 ON wl2.id = i2.location_id
+			WHERE i2.product_id = :_product_id
+			  AND i2.id <> :_exclude_id
+			  AND i2.quantity > 0
+			ORDER BY i2.expiry_date NULLS LAST, i2.id
+			""";
+
+	/** Task006 — các lô cùng SP, khác id, chỉ còn hàng (SRS OQ-2). */
+	public List<InventoryRelatedLineRow> findRelatedLines(long productId, long excludeInventoryId) {
+		var src = new MapSqlParameterSource("_product_id", productId).addValue("_exclude_id", excludeInventoryId);
+		return namedJdbc.query(SELECT_RELATED, src, RELATED_ROW);
+	}
+
+	private static final RowMapper<InventoryRelatedLineRow> RELATED_ROW = InventoryListJdbcRepository::mapRelatedRow;
+
+	private static InventoryRelatedLineRow mapRelatedRow(ResultSet rs, int i) throws SQLException {
+		var q = rs.getBigDecimal("quantity");
+		int qn = q != null ? q.intValue() : 0;
+		return new InventoryRelatedLineRow(
+				rs.getLong("id"),
+				rs.getString("batch_number"),
+				qn,
+				rs.getObject("expiry_date", LocalDate.class),
+				rs.getString("warehouse_code"),
+				rs.getString("shelf_code"));
+	}
+
+	public record InventoryRelatedLineRow(
+			long id,
+			String batchNumber,
+			int quantity,
+			LocalDate expiryDate,
+			String warehouseCode,
+			String shelfCode) {
 	}
 
 	private static final RowMapper<InventoryListRow> ROW = InventoryListJdbcRepository::mapListRow;

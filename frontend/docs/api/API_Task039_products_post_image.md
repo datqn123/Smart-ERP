@@ -56,7 +56,7 @@ Backend tải file lên Cloudinary khi gọi **multipart** và `app.cloudinary.e
 | `CLOUDINARY_FOLDER` / `app.cloudinary.folder` | Tiền tố folder trên Cloudinary (mặc định `smart-erp/products`; BE thêm `/{productId}`) |
 | `CLOUDINARY_MAX_BYTES` / `app.cloudinary.max-file-size-bytes` | Kích thước tối đa một file (mặc định 5242880) |
 
-Giới hạn Spring multipart: `spring.servlet.multipart.max-file-size` / `max-request-size` = **6MB** (root `application.properties`) — phải ≥ giới hạn nghiệp vụ.
+Giới hạn Spring multipart: `spring.servlet.multipart.max-file-size` / `max-request-size` = **5MB** mỗi part (root `application.properties`) — phải ≥ giới hạn nghiệp vụ ảnh.
 
 ---
 

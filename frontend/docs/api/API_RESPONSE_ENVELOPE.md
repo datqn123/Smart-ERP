@@ -14,6 +14,8 @@
 | `message` | Tiếng Việt, ngắn gọn, hiển thị được cho người dùng cuối (tránh stack trace). |
 | HTTP status | Luôn dùng mã HTTP đúng nghĩa RFC; **không** trả `200` kèm `success: false`. |
 
+**Nội dung `message` / giá trị trong `details` hiển thị cho người dùng cuối:** **không** tiết lộ cơ chế nội bộ phía server (vd. *multipart*, *servlet*, *JDBC*, *Cloudinary bật/tắt*, tên class, stack trace, tên biến cấu hình). Chỉ mô tả **điều không hợp lệ** (nghiệp vụ) và **gợi ý hành động** (giảm dung lượng, đổi định dạng, thử lại…). Chi tiết kỹ thuật ghi trong SRS, `API_Task*` (dev) hoặc log server — không đưa vào envelope trả về client.
+
 ---
 
 ## 2. Thành công (`2xx`)
@@ -75,8 +77,8 @@ Tên field con (`items`, `page`, …) có thể thay bằng tên domain nếu sp
 | :--- | :--- | :---: | :--- |
 | `success` | boolean | Có | Luôn `false`. |
 | `error` | string | Có | Mã máy đọc, **UPPER_SNAKE**; bảng §3.3. |
-| `message` | string | Có | Tiếng Việt — lý do tổng quát. |
-| `details` | object | Không | Map `tên_field` → `thông báo` (validation); chỉ gửi khi có. |
+| `message` | string | Có | Tiếng Việt — lý do tổng quát; tuân **§1** (không lộ cơ chế server). |
+| `details` | object | Không | Map `tên_field` → `thông báo` (validation); chỉ gửi khi có; **giá trị** từng key cũng tránh lộ cơ chế nội bộ nếu chuỗi đó hiển thị cho end-user. |
 
 ```json
 {

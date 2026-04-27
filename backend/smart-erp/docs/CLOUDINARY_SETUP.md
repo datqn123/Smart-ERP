@@ -37,7 +37,7 @@ $env:CLOUDINARY_API_SECRET = "<api_secret>"
 
 Sau đó chạy Spring Boot **cùng cửa sổ** đó, hoặc cấu hình tương đương trong IDE: **Run → Edit Configurations → Environment variables**.
 
-**Multipart:** `spring.servlet.multipart.max-file-size` / `max-request-size` đang **6MB** — file không nên vượt quá nếu chưa đổi cấu hình.
+**Multipart:** `spring.servlet.multipart.max-file-size` / `max-request-size` đang **5MB** mỗi part (khớp nghiệp vụ ảnh) — file không nên vượt quá nếu chưa đổi cấu hình.
 
 ---
 

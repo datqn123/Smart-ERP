@@ -62,6 +62,8 @@ export interface Supplier {
   createdAt: string;
   updatedAt: string;
   receiptCount?: number;
+  /** Task044 / `POST` tạo — chi tiết server. */
+  lastReceiptAt?: string;
 }
 
 // --- Customers (Task012) ---

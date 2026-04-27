@@ -1,6 +1,9 @@
 package com.example.smart_erp.catalog.controller;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -17,10 +20,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.example.smart_erp.catalog.dto.ProductCreateRequest;
 import com.example.smart_erp.catalog.dto.ProductImageCreateRequest;
@@ -37,7 +43,9 @@ import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.api.ApiSuccessResponse;
 import com.example.smart_erp.common.exception.BusinessException;
 
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Valid;
+import jakarta.validation.Validator;
 
 @RestController
 @RequestMapping("/api/v1/products")
@@ -52,10 +60,15 @@ public class ProductsController {
 
 	private final ProductImageService productImageService;
 	private final ProductService productService;
+	private final ObjectMapper objectMapper;
+	private final Validator validator;
 
-	public ProductsController(ProductImageService productImageService, ProductService productService) {
+	public ProductsController(ProductImageService productImageService, ProductService productService, ObjectMapper objectMapper,
+			Validator validator) {
 		this.productImageService = productImageService;
 		this.productService = productService;
+		this.objectMapper = objectMapper;
+		this.validator = validator;
 	}
 
 	@GetMapping
@@ -77,6 +90,45 @@ public class ProductsController {
 			@Valid @RequestBody ProductCreateRequest body) {
 		requireJwt(authentication);
 		ProductCreatedData data = productService.create(body);
+		return ResponseEntity.status(201).body(ApiSuccessResponse.of(data, "Đã tạo sản phẩm"));
+	}
+
+	/**
+	 * Tạo sản phẩm kèm nhiều file ảnh: part {@code metadata} = JSON (cùng schema {@link ProductCreateRequest}), part
+	 * {@code file} lặp lại — upload song song, all-or-nothing nếu lỗi — SRS §14.2.
+	 */
+	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	@PreAuthorize("hasAuthority('can_manage_products')")
+	public ResponseEntity<ApiSuccessResponse<ProductCreatedData>> createMultipart(Authentication authentication,
+			@RequestPart("metadata") String metadataJson,
+			@RequestParam(value = "file", required = false) MultipartFile[] fileArray,
+			@RequestParam(value = "primaryImageIndex", required = false) Integer primaryImageIndex) {
+		requireJwt(authentication);
+		ProductCreateRequest body;
+		try {
+			body = objectMapper.readValue(metadataJson, ProductCreateRequest.class);
+		}
+		catch (JsonProcessingException e) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "metadata không phải JSON hợp lệ",
+					Map.of("metadata", e.getMessage() != null ? e.getMessage() : "JSON lỗi cú pháp"));
+		}
+		Set<ConstraintViolation<ProductCreateRequest>> violations = validator.validate(body);
+		if (!violations.isEmpty()) {
+			Map<String, String> details = new java.util.HashMap<>();
+			for (ConstraintViolation<ProductCreateRequest> v : violations) {
+				details.put(v.getPropertyPath().toString(), v.getMessage() != null ? v.getMessage() : "Lỗi ràng buộc");
+			}
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Dữ liệu metadata không hợp lệ", details);
+		}
+		List<MultipartFile> useFiles = new ArrayList<>();
+		if (fileArray != null) {
+			for (MultipartFile f : fileArray) {
+				if (f != null && !f.isEmpty()) {
+					useFiles.add(f);
+				}
+			}
+		}
+		ProductCreatedData data = productService.createWithImageFiles(body, useFiles, primaryImageIndex);
 		return ResponseEntity.status(201).body(ApiSuccessResponse.of(data, "Đã tạo sản phẩm"));
 	}
 

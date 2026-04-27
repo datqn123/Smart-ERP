@@ -15,7 +15,8 @@ import com.example.smart_erp.config.PermitAllWebSecurityConfiguration;
 import com.example.smart_erp.config.SecurityBeansConfiguration;
 
 @WebMvcTest(controllers = ExceptionHandlerProbeController.class)
-@Import({ GlobalExceptionHandler.class, SecurityBeansConfiguration.class, PermitAllWebSecurityConfiguration.class })
+@Import({ GlobalExceptionHandler.class, MaxUploadSizeExceededAdvice.class, SecurityBeansConfiguration.class,
+		PermitAllWebSecurityConfiguration.class })
 class GlobalExceptionHandlerWebMvcTest {
 
 	@Autowired

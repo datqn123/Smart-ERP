@@ -96,6 +96,23 @@ COMMIT;
 
 ---
 
+## 6b. `multipart/form-data` — tạo kèm nhiều ảnh (SRS §14)
+
+| Thuộc tính | Giá trị |
+| :--------- | :------ |
+| **Content-Type** | `multipart/form-data` |
+| **Part `metadata`** | Chuỗi JSON — **cùng schema** mục §4 (Task035 `ProductCreateRequest`) |
+| **Part `file`** | Lặp lại nhiều lần (tối đa **10** tệp); MIME jpeg/png/webp; upload **song song** phía server (Cloudinary bắt buộc bật) |
+| **Param `primaryImageIndex`** | Tùy chọn, số nguyên **0-based** — ảnh chính trong danh sách `file`; mặc định `0` |
+
+- **201** — cùng shape JSON `201` ở trên (sản phẩm + `unitId`).
+- **All-or-nothing:** lỗi bất kỳ bước upload / lưu → rollback tạo sản phẩm (không dữ liệu nửa vời) — SRS §14.4.
+- **Khi không gửi `file`:** tương đương tạo JSON (chỉ `metadata`).
+
+**Client (mini-erp):** `postProductCreateMultipart` trong `features/product-management/api/productsApi.ts` — gọi khi bấm **Lưu** và có `File[]` đã chọn ở form (BR-10).
+
+---
+
 ## 7. Lỗi
 
 - **400**, **404** (category), **409** (SKU), **401**, **403**, **500**.

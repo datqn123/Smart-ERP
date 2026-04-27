@@ -108,16 +108,18 @@ public class ProductJdbcRepository {
 	}
 
 	public static String resolveListOrderBy(String sortRaw) {
-		String s = sortRaw == null || sortRaw.isBlank() ? "updatedAt:desc" : sortRaw.trim();
+		String s = sortRaw == null || sortRaw.isBlank() ? "id:asc" : sortRaw.trim();
 		return switch (s) {
-			case "name:asc" -> "p.name ASC";
-			case "name:desc" -> "p.name DESC";
-			case "skuCode:asc" -> "p.sku_code ASC";
-			case "skuCode:desc" -> "p.sku_code DESC";
-			case "updatedAt:asc" -> "p.updated_at ASC";
-			case "updatedAt:desc" -> "p.updated_at DESC";
-			case "createdAt:asc" -> "p.created_at ASC";
-			case "createdAt:desc" -> "p.created_at DESC";
+			case "id:asc" -> "p.id ASC";
+			case "id:desc" -> "p.id DESC";
+			case "name:asc" -> "p.name ASC, p.id ASC";
+			case "name:desc" -> "p.name DESC, p.id ASC";
+			case "skuCode:asc" -> "p.sku_code ASC, p.id ASC";
+			case "skuCode:desc" -> "p.sku_code DESC, p.id ASC";
+			case "updatedAt:asc" -> "p.updated_at ASC, p.id ASC";
+			case "updatedAt:desc" -> "p.updated_at DESC, p.id ASC";
+			case "createdAt:asc" -> "p.created_at ASC, p.id ASC";
+			case "createdAt:desc" -> "p.created_at DESC, p.id ASC";
 			default -> throw new IllegalArgumentException("sort");
 		};
 	}

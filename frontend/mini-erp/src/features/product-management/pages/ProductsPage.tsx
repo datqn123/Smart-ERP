@@ -18,12 +18,18 @@ import {
   type GetCategoryListParams,
 } from "../api/categoriesApi"
 import {
+  buildProductCreateBody,
   buildProductPatchBody,
   deleteProduct,
   getProductById,
   getProductList,
+  getStagedProductFilesTotalSizeError,
   mapProductListItemDtoToProduct,
   patchProduct,
+  postProduct,
+  postProductCreateMultipart,
+  postProductImageJson,
+  postProductImageMultipart,
   postProductsBulkDelete,
   productDetailToEditSnapshot,
   PRODUCT_LIST_SORT_WHITELIST,
@@ -31,6 +37,7 @@ import {
   type ProductEditSnapshot,
   type ProductImageDto,
   type ProductListSort,
+  type StagedProductImages,
 } from "../api/productsApi"
 
 const SEARCH_DEBOUNCE_MS = 400
@@ -57,7 +64,7 @@ function errToast(e: unknown) {
 
 /**
  * Task037 / Task032-style: **409** và **400** không có `details` → toast.
- * **400** + `details` (field): `ProductForm` gọi `setError` — không toast trùng.
+ * **400** + `details`: `ProductForm` map field + toast khi có `details` không thuộc form (vd. `file` kích thước) — onError bên dưới bỏ qua để tránh toast trùng với field validation.
  */
 function toastProductMutationEnvelope(e: unknown) {
   if (!(e instanceof ApiRequestError)) {
@@ -70,33 +77,8 @@ function toastProductMutationEnvelope(e: unknown) {
     return
   }
   if (status === 409) {
-    const parts = [body.message ?? e.message]
-    const d = body.details
-    if (d && (d.failedId != null || d.reason != null)) {
-      if (d.failedId != null) {
-        parts.push(`failedId: ${d.failedId}`)
-      }
-      if (d.reason != null) {
-        parts.push(`reason: ${d.reason}`)
-      }
-      for (const k of detailKeys) {
-        if (k === "failedId" || k === "reason") {
-          continue
-        }
-        const v = d[k]
-        if (v) {
-          parts.push(`${k}: ${v}`)
-        }
-      }
-    } else if (detailKeys.length > 0) {
-      parts.push(
-        ...detailKeys.map((k) => {
-          const v = body.details![k]
-          return v ? `${k}: ${v}` : k
-        }),
-      )
-    }
-    toast.error(parts.filter(Boolean).join(" — "))
+    // Chỉ hiển thị message từ server (đã là tiếng Việt, theo từng reason). Không nối failedId/reason thô — tránh toast kỹ thuật.
+    toast.error(body.message ?? e.message)
     return
   }
   if (status === 403) {
@@ -116,6 +98,7 @@ export function ProductsPage() {
   const isOwner = useAuthStore((s) => s.user?.role === "Owner")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const editSnapshotRef = useRef<ProductEditSnapshot | null>(null)
+  const [stagedImages, setStagedImages] = useState<StagedProductImages>({ files: [], urlAdds: [] })
 
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
@@ -230,6 +213,43 @@ export function ProductsPage() {
     if (!isProductDetailError) return
     errToast(productDetailError)
   }, [isProductDetailError, productDetailError])
+
+  useEffect(() => {
+    if (isFormOpen) {
+      setStagedImages({ files: [], urlAdds: [] })
+    }
+  }, [isFormOpen, editingProduct?.id])
+
+  const createProductMutation = useMutation({
+    mutationFn: async (args: { body: ReturnType<typeof buildProductCreateBody>; staged: StagedProductImages }) => {
+      const { body, staged } = args
+      if (staged.files.length > 0) {
+        const created = await postProductCreateMultipart(body, staged.files, { primaryImageIndex: 0 })
+        for (const u of staged.urlAdds) {
+          await postProductImageJson(created.id, {
+            url: u.url,
+            sortOrder: u.sortOrder,
+            isPrimary: u.isPrimary,
+          })
+        }
+        return created
+      }
+      const created = await postProduct(body)
+      for (const u of staged.urlAdds) {
+        await postProductImageJson(created.id, {
+          url: u.url,
+          sortOrder: u.sortOrder,
+          isPrimary: u.isPrimary,
+        })
+      }
+      return created
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["product-management", "products", "list"] })
+      toast.success("Đã tạo sản phẩm")
+    },
+    onError: toastProductMutationEnvelope,
+  })
 
   const patchMutation = useMutation({
     mutationFn: (args: { id: number; body: Record<string, unknown> }) => patchProduct(args.id, args.body),
@@ -505,6 +525,8 @@ export function ProductsPage() {
         hasProductDetailError={Boolean(editingProduct && isProductDetailError)}
         categories={formCategoryOptions}
         onImageAdded={handleProductImageAdded}
+        stagedImages={stagedImages}
+        onStagedImagesChange={setStagedImages}
         onSubmit={async (data: ProductFormData) => {
           if (editingProduct) {
             const snap = editSnapshotRef.current
@@ -528,14 +550,58 @@ export function ProductsPage() {
               costPrice: data.costPrice,
               priceEffectiveDate: data.priceEffectiveDate,
             })
-            if (Object.keys(body).length === 0) {
+            const hasFieldPatch = Object.keys(body).length > 0
+            const hasStaged =
+              stagedImages.files.length > 0 || stagedImages.urlAdds.length > 0
+            if (!hasFieldPatch && !hasStaged) {
               toast.info("Không có thay đổi để lưu")
               throw new ProductFormSubmitAborted()
             }
-            await patchMutation.mutateAsync({ id: editingProduct.id, body })
+            if (hasFieldPatch) {
+              await patchMutation.mutateAsync({ id: editingProduct.id, body })
+            }
+            for (let i = 0; i < stagedImages.files.length; i++) {
+              const f = stagedImages.files[i]!
+              await postProductImageMultipart(editingProduct.id, f, {
+                sortOrder: i,
+                isPrimary: i === 0,
+              })
+            }
+            for (const u of stagedImages.urlAdds) {
+              await postProductImageJson(editingProduct.id, {
+                url: u.url,
+                sortOrder: u.sortOrder,
+                isPrimary: u.isPrimary,
+              })
+            }
+            if (hasStaged) {
+              void queryClient.invalidateQueries({ queryKey: ["product-management", "products", "list"] })
+              void queryClient.invalidateQueries({ queryKey: ["product-management", "products", "detail"] })
+              if (!hasFieldPatch) {
+                toast.success("Đã cập nhật ảnh sản phẩm")
+              }
+            }
             return
           }
-          toast.info("Tạo sản phẩm: nối API Task035 (POST /api/v1/products).")
+          const createBody = buildProductCreateBody({
+            skuCode: data.skuCode,
+            name: data.name,
+            barcode: data.barcode,
+            categoryId: data.categoryId && data.categoryId > 0 ? data.categoryId : undefined,
+            description: data.description,
+            weight: data.weight,
+            status: data.status,
+            baseUnitName: "Cái",
+            costPrice: data.costPrice,
+            salePrice: data.salePrice,
+            priceEffectiveDate: data.priceEffectiveDate,
+          })
+          const stagedTotalErr = getStagedProductFilesTotalSizeError(stagedImages.files)
+          if (stagedTotalErr) {
+            toast.error(stagedTotalErr)
+            throw new ProductFormSubmitAborted()
+          }
+          await createProductMutation.mutateAsync({ body: createBody, staged: stagedImages })
         }}
       />
     </div>

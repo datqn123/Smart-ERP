@@ -12,6 +12,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Objects;
 
 import org.junit.jupiter.api.Test;
@@ -23,17 +26,19 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.example.smart_erp.catalog.response.ProductCreatedData;
 import com.example.smart_erp.catalog.response.ProductImageData;
 import com.example.smart_erp.catalog.service.ProductImageService;
 import com.example.smart_erp.catalog.service.ProductService;
 import com.example.smart_erp.common.exception.GlobalExceptionHandler;
+import com.example.smart_erp.common.exception.MaxUploadSizeExceededAdvice;
 import com.example.smart_erp.config.MethodSecurityTestConfiguration;
 import com.example.smart_erp.config.PermitAllWebSecurityConfiguration;
 import com.example.smart_erp.config.SecurityBeansConfiguration;
 
 @WebMvcTest(controllers = ProductsController.class)
-@Import({ GlobalExceptionHandler.class, SecurityBeansConfiguration.class, PermitAllWebSecurityConfiguration.class,
-		MethodSecurityTestConfiguration.class })
+@Import({ GlobalExceptionHandler.class, MaxUploadSizeExceededAdvice.class, SecurityBeansConfiguration.class,
+		PermitAllWebSecurityConfiguration.class, MethodSecurityTestConfiguration.class })
 class ProductsControllerWebMvcTest {
 
 	@Autowired
@@ -44,6 +49,22 @@ class ProductsControllerWebMvcTest {
 
 	@MockitoBean
 	private ProductService productService;
+
+	@Test
+	void createMultipart_returns201() throws Exception {
+		Instant t = Instant.parse("2026-01-01T00:00:00Z");
+		when(productService.createWithImageFiles(any(), any(), any()))
+				.thenReturn(new ProductCreatedData(1, "SKU1", null, "N", null, null, null, "Active", 0, BigDecimal.ZERO, t, t, 2));
+		String meta = """
+				{"skuCode":"SKU1","name":"N","barcode":null,"categoryId":null,"description":null,"weight":null,"status":"Active","imageUrl":null,"baseUnitName":"Cái","costPrice":0,"salePrice":0}
+				""";
+		MockMultipartFile mpart = new MockMultipartFile("metadata", "", "application/json", meta.getBytes(StandardCharsets.UTF_8));
+		MockMultipartFile f = new MockMultipartFile("file", "a.png", "image/png", new byte[] { 0x50, 0x4E, 0x47 });
+		mockMvc.perform(multipart("/api/v1/products").file(mpart).file(f).param("primaryImageIndex", "0")
+				.with(Objects.requireNonNull(jwt().authorities(new SimpleGrantedAuthority("can_manage_products")))
+						.jwt(j -> j.subject("1"))))
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.data.id").value(1));
+	}
 
 	@Test
 	void addImageJson_returns201() throws Exception {

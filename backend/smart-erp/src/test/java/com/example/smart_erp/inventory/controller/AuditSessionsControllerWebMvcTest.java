@@ -23,6 +23,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.example.smart_erp.common.exception.GlobalExceptionHandler;
+import com.example.smart_erp.common.exception.MaxUploadSizeExceededAdvice;
 import com.example.smart_erp.config.MethodSecurityTestConfiguration;
 import com.example.smart_erp.config.PermitAllWebSecurityConfiguration;
 import com.example.smart_erp.config.SecurityBeansConfiguration;
@@ -33,8 +34,8 @@ import com.example.smart_erp.inventory.audit.response.AuditSessionListPageData;
 import com.example.smart_erp.inventory.audit.service.AuditSessionService;
 
 @WebMvcTest(controllers = AuditSessionsController.class)
-@Import({ GlobalExceptionHandler.class, SecurityBeansConfiguration.class, PermitAllWebSecurityConfiguration.class,
-		MethodSecurityTestConfiguration.class })
+@Import({ GlobalExceptionHandler.class, MaxUploadSizeExceededAdvice.class, SecurityBeansConfiguration.class,
+		PermitAllWebSecurityConfiguration.class, MethodSecurityTestConfiguration.class })
 class AuditSessionsControllerWebMvcTest {
 
 	@Autowired

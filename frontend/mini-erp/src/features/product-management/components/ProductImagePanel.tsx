@@ -13,6 +13,7 @@ import {
   PRODUCT_IMAGE_ALLOWED_MIME,
   PRODUCT_IMAGE_MAX_BYTES,
   type ProductImageDto,
+  type StagedProductImages,
 } from "../api/productsApi"
 
 function isLikelyCloudinaryOrUploadDisabled(e: ApiRequestError): boolean {
@@ -29,6 +30,12 @@ export type ProductImagePanelProps = {
   productId: number | undefined
   initialPreviewUrl?: string
   onImageAdded?: (data: ProductImageDto) => void
+  /**
+   * Chế độ SRS BR-10: chọn file / thêm URL chỉ lưu state; **không** gọi API tới khi bấm Lưu ở form.
+   * Khi có, bắt buộc truyền cả `staged` + `onStagedChange`.
+   */
+  staged?: StagedProductImages
+  onStagedChange?: (next: StagedProductImages) => void
   className?: string
 }
 
@@ -36,9 +43,14 @@ export function ProductImagePanel({
   productId,
   initialPreviewUrl,
   onImageAdded,
+  staged,
+  onStagedChange,
   className,
 }: ProductImagePanelProps) {
+  const isStaged = Boolean(onStagedChange && staged)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  /** Blob URL tạm khi chọn file — phải revoke khi thay bằng URL server hoặc unmount. */
+  const tempObjectUrlRef = useRef<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | undefined>(initialPreviewUrl)
   const [urlText, setUrlText] = useState("")
   const [sortOrder, setSortOrder] = useState(0)
@@ -46,17 +58,70 @@ export function ProductImagePanel({
   const [busy, setBusy] = useState(false)
   const primaryId = useId()
 
+  const revokeTempPreview = useCallback(() => {
+    const u = tempObjectUrlRef.current
+    if (u) {
+      URL.revokeObjectURL(u)
+      tempObjectUrlRef.current = null
+    }
+  }, [])
+
+  const panelId = productId ?? "draft"
+
   useEffect(() => {
+    revokeTempPreview()
+    if (isStaged && staged && staged.files.length > 0) {
+      const picked = staged.files[staged.files.length - 1]!
+      const u = URL.createObjectURL(picked)
+      tempObjectUrlRef.current = u
+      setPreviewUrl(u)
+      return () => {
+        URL.revokeObjectURL(u)
+        tempObjectUrlRef.current = null
+      }
+    }
+    if (isStaged && staged && staged.urlAdds.length > 0) {
+      const primary = staged.urlAdds.find((x) => x.isPrimary) ?? staged.urlAdds[0]
+      setPreviewUrl(primary?.url)
+      return
+    }
     setPreviewUrl(initialPreviewUrl)
-  }, [initialPreviewUrl])
+  }, [initialPreviewUrl, revokeTempPreview, isStaged, staged])
+
+  useEffect(() => {
+    return () => {
+      revokeTempPreview()
+    }
+  }, [revokeTempPreview])
 
   const runJson = useCallback(
     async (url: string) => {
+      if (isStaged && onStagedChange && staged) {
+        const trimmed = url.trim()
+        onStagedChange({
+          ...staged,
+          urlAdds: [
+            ...staged.urlAdds,
+            {
+              url: trimmed,
+              sortOrder,
+              isPrimary: isPrimary || (staged.urlAdds.length === 0 && staged.files.length === 0),
+            },
+          ],
+        })
+        setUrlText("")
+        toast.success("Đã thêm URL (lưu khi bấm Lưu sản phẩm).")
+        return
+      }
       if (productId == null) return
+      const trimmed = url.trim()
+      const previous = previewUrl
+      revokeTempPreview()
+      setPreviewUrl(trimmed)
       setBusy(true)
       try {
         const data = await postProductImageJson(productId, {
-          url: url.trim(),
+          url: trimmed,
           sortOrder,
           isPrimary,
         })
@@ -65,6 +130,7 @@ export function ProductImagePanel({
         toast.success("Đã thêm ảnh từ URL.")
         setUrlText("")
       } catch (e) {
+        setPreviewUrl(previous)
         if (e instanceof ApiRequestError) {
           toast.error(e.body?.message ?? e.message)
         } else {
@@ -74,32 +140,61 @@ export function ProductImagePanel({
         setBusy(false)
       }
     },
-    [productId, sortOrder, isPrimary, onImageAdded],
+    [productId, sortOrder, isPrimary, onImageAdded, previewUrl, revokeTempPreview, isStaged, onStagedChange, staged],
   )
 
   const runFile = useCallback(
     async (file: File) => {
+      if (isStaged && onStagedChange && staged) {
+        const mime = file.type
+        if (!PRODUCT_IMAGE_ALLOWED_MIME.has(mime)) {
+          toast.error("Chỉ chấp nhận JPEG, PNG, WebP.")
+          return
+        }
+        if (file.size > PRODUCT_IMAGE_MAX_BYTES) {
+          toast.error("File vượt quá 5 MB cho phép.")
+          return
+        }
+        // Một ô preview — chọn file mới thay thế file đang chờ, không append (append khiến preview vẫn dùng files[0]).
+        onStagedChange({
+          ...staged,
+          files: [file],
+        })
+        toast.success("Đã thêm file (lưu khi bấm Lưu sản phẩm).")
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ""
+        }
+        return
+      }
       if (productId == null) return
       const mime = file.type
       if (!PRODUCT_IMAGE_ALLOWED_MIME.has(mime)) {
-        toast.error("Chỉ chấp nhận JPEG, PNG, WebP (theo §4.3).")
+        toast.error("Chỉ chấp nhận JPEG, PNG, WebP.")
         return
       }
       if (file.size > PRODUCT_IMAGE_MAX_BYTES) {
-        toast.error("File vượt quá 6MB (giới hạn multipart trên server).")
+        toast.error("File vượt quá 5 MB cho phép.")
         return
       }
+      const urlBeforePick = previewUrl
+      revokeTempPreview()
+      const localUrl = URL.createObjectURL(file)
+      tempObjectUrlRef.current = localUrl
+      setPreviewUrl(localUrl)
       setBusy(true)
       try {
         const data = await postProductImageMultipart(productId, file, { sortOrder, isPrimary })
+        revokeTempPreview()
         setPreviewUrl(data.url)
         onImageAdded?.(data)
         toast.success("Đã tải ảnh lên.")
       } catch (e) {
+        revokeTempPreview()
+        setPreviewUrl(urlBeforePick)
         if (e instanceof ApiRequestError) {
           toast.error(e.body?.message ?? e.message)
           if (e.status === 400 && isLikelyCloudinaryOrUploadDisabled(e)) {
-            toast.info("Gợi ý: tải ảnh lên CDN/Cloudinary ngoài rồi dán URL ở ô bên dưới (POST JSON).", {
+            toast.info("Gợi ý: dùng ảnh đã có trên mạng (URL https://…) rồi dán vào ô bên dưới.", {
               duration: 8000,
             })
           }
@@ -113,7 +208,7 @@ export function ProductImagePanel({
         }
       }
     },
-    [productId, sortOrder, isPrimary, onImageAdded],
+    [productId, sortOrder, isPrimary, onImageAdded, previewUrl, revokeTempPreview, isStaged, onStagedChange, staged],
   )
 
   const onPickFile: React.ChangeEventHandler<HTMLInputElement> = (e) => {
@@ -132,12 +227,12 @@ export function ProductImagePanel({
     void runJson(u)
   }
 
-  if (productId == null) {
+  if (productId == null && !isStaged) {
     return (
       <div className={cn("rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-600", className)}>
         <p className="font-medium text-slate-800">Ảnh sản phẩm (Task039)</p>
         <p className="mt-1 text-xs leading-relaxed">
-          Lưu sản phẩm trước, rồi mở <strong>Chỉnh sửa</strong> để gắn ảnh: upload file (Cloudinary) hoặc dán URL (JSON).
+          Bật gắn ảnh từ form (Lưu mới tải lên) hoặc lưu sản phẩm rồi mở <strong>Chỉnh sửa</strong>.
         </p>
       </div>
     )
@@ -158,8 +253,15 @@ export function ProductImagePanel({
           )}
         </div>
         <p className={FORM_HELPER_CLASS}>
-          Upload: JPEG, PNG, WebP; tối đa 6MB (Spring multipart). URL: bất kỳ ảnh hợp lệ (JSON).
+          {isStaged
+            ? "Ảnh hoặc URL sẽ được lưu khi bạn bấm Lưu sản phẩm."
+            : "Upload: JPEG, PNG, WebP; tối đa 5 MB mỗi ảnh. Hoặc dán URL ảnh (https://…)."}
         </p>
+        {isStaged && (
+          <p className="text-xs text-slate-500">
+            Chưa lưu: {staged?.files.length ?? 0} file, {staged?.urlAdds.length ?? 0} URL.
+          </p>
+        )}
       </div>
 
       <input
@@ -185,12 +287,12 @@ export function ProductImagePanel({
       </div>
 
       <div className="space-y-1">
-        <Label className={FORM_LABEL_CLASS} htmlFor={`url-${productId}`}>
+        <Label className={FORM_LABEL_CLASS} htmlFor={`url-${panelId}`}>
           Hoặc dán URL ảnh
         </Label>
         <div className="flex flex-col sm:flex-row gap-2">
           <Input
-            id={`url-${productId}`}
+            id={`url-${panelId}`}
             type="url"
             placeholder="https://…"
             value={urlText}
@@ -208,11 +310,11 @@ export function ProductImagePanel({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label className={FORM_LABEL_CLASS} htmlFor={`so-${productId}`}>
+          <Label className={FORM_LABEL_CLASS} htmlFor={`so-${panelId}`}>
             Thứ tự
           </Label>
           <Input
-            id={`so-${productId}`}
+            id={`so-${panelId}`}
             type="number"
             min={0}
             value={sortOrder}

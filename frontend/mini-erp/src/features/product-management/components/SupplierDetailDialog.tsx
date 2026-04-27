@@ -6,7 +6,7 @@ import {
   DialogTitle,
   DialogDescription 
 } from "@/components/ui/dialog"
-import { formatDate } from "../../inventory/utils"
+import { formatDate, formatDateTime } from "../../inventory/utils"
 import type { Supplier } from "../types"
 import { Building2, Phone, Mail, MapPin, CreditCard, User, Package, Calendar, Activity } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -14,13 +14,22 @@ import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
 interface SupplierDetailDialogProps {
-  supplier: Supplier | null;
-  isOpen: boolean;
-  onClose: () => void;
+  supplier: Supplier | null
+  isOpen: boolean
+  onClose: () => void
+  /** Task044 — đang tải `GET /api/v1/suppliers/{id}`. */
+  isDetailLoading?: boolean
+  isDetailError?: boolean
 }
 
-export function SupplierDetailDialog({ supplier, isOpen, onClose }: SupplierDetailDialogProps) {
-  if (!supplier) return null;
+export function SupplierDetailDialog({
+  supplier,
+  isOpen,
+  onClose,
+  isDetailLoading = false,
+  isDetailError = false,
+}: SupplierDetailDialogProps) {
+  if (!supplier) return null
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -46,21 +55,41 @@ export function SupplierDetailDialog({ supplier, isOpen, onClose }: SupplierDeta
               </DialogDescription>
             </div>
             
-            <div className="flex items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <div className="text-right">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Số phiếu nhập</p>
-                    <p className="text-2xl font-black text-slate-900">{supplier.receiptCount || 0} <span className="text-sm font-normal text-slate-400">phiếu</span></p>
-                </div>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-right min-w-[140px]">
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Số phiếu nhập</p>
+                <p className="text-2xl font-black text-slate-900">
+                  {supplier.receiptCount ?? 0}{" "}
+                  <span className="text-sm font-normal text-slate-400">phiếu</span>
+                </p>
+                {isDetailLoading ? (
+                  <p className="text-[10px] text-slate-400 mt-1">Đang tải chi tiết…</p>
+                ) : null}
+              </div>
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm min-w-[200px]">
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Phiếu nhập gần nhất</p>
+                <p className="text-sm font-bold text-slate-900 tabular-nums">
+                  {supplier.lastReceiptAt != null && supplier.lastReceiptAt !== ""
+                    ? formatDateTime(supplier.lastReceiptAt)
+                    : isDetailLoading
+                      ? "…"
+                      : "—"}
+                </p>
+                {isDetailError ? (
+                  <p className="text-[10px] text-amber-700 mt-1">Một số số liệu có thể từ danh sách (chưa tải đủ API).</p>
+                ) : null}
+              </div>
             </div>
           </div>
         </DialogHeader>
 
         <div className="p-8 pt-6">
           {/* Quick Metrics Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <MetricItem icon={CreditCard} label="Mã số thuế" value={supplier.taxCode || "—"} />
             <MetricItem icon={Mail} label="Email liên hệ" value={supplier.email || "—"} />
             <MetricItem icon={Calendar} label="Ngày hợp tác" value={formatDate(supplier.createdAt)} />
+            <MetricItem icon={Activity} label="Cập nhật lần cuối" value={formatDateTime(supplier.updatedAt)} />
           </div>
 
           <div className="space-y-6">

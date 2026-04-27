@@ -1,5 +1,7 @@
 package com.example.smart_erp.catalog.service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
@@ -53,6 +55,37 @@ public class ProductImageService {
 		if (!productImageJdbcRepository.productExists(productId)) {
 			throw new BusinessException(ApiErrorCode.NOT_FOUND, "Không tìm thấy sản phẩm");
 		}
+	}
+
+	/**
+	 * Lưu gallery sau khi upload (Cloudinary) xong; thứ tự mảng = sortOrder 0..n-1, đúng một
+	 * {@code primaryIndex} (0-based).
+	 */
+	@Transactional
+	public List<ProductImageData> persistGalleryAfterUploads(int productId, List<String> urls, List<Long> fileSizes,
+			List<String> mimeTypes, int primaryIndex) {
+		requireProduct(productId);
+		if (urls.isEmpty()) {
+			return List.of();
+		}
+		if (urls.size() != fileSizes.size() || urls.size() != mimeTypes.size()) {
+			throw new IllegalStateException("Gallery lists size mismatch");
+		}
+		if (primaryIndex < 0 || primaryIndex >= urls.size()) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "primaryImageIndex không hợp lệ",
+					Map.of("primaryImageIndex", "Nằm trong [0, số file - 1]"));
+		}
+		List<ProductImageData> out = new ArrayList<>();
+		for (int i = 0; i < urls.size(); i++) {
+			String url = urls.get(i);
+			if (url.length() > 500) {
+				throw new BusinessException(ApiErrorCode.BAD_REQUEST, "URL quá dài",
+						Map.of("file", "Tối đa 500 ký tự"));
+			}
+			boolean isPrimary = (i == primaryIndex);
+			out.add(persistAfterOptionalPrimaryReset(productId, url, i, isPrimary, fileSizes.get(i), mimeTypes.get(i)));
+		}
+		return out;
 	}
 
 	private ProductImageData persistAfterOptionalPrimaryReset(int productId, String url, int sortOrder, boolean isPrimary,

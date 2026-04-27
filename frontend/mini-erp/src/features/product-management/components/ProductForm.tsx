@@ -2,7 +2,7 @@ import React, { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Package, CheckCircle2, DollarSign, Briefcase, Calendar } from "lucide-react"
+import { Package, CheckCircle2, DollarSign, Briefcase, Calendar, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -25,8 +25,9 @@ import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { FORM_LABEL_CLASS, FORM_INPUT_CLASS, FORM_HELPER_CLASS } from "@/lib/data-table-layout"
 import { ApiRequestError } from "@/lib/api/http"
+import { toast } from "sonner"
 import type { Product } from "../types"
-import type { ProductDetailDto, ProductImageDto } from "../api/productsApi"
+import type { ProductDetailDto, ProductImageDto, StagedProductImages } from "../api/productsApi"
 import { ProductImagePanel } from "./ProductImagePanel"
 
 const productSchema = z.object({
@@ -65,6 +66,9 @@ interface ProductFormProps {
   onSubmit: (data: ProductFormData) => void | Promise<void>
   /** Task039 — khi đã có `product.id` (chỉnh sửa). */
   onImageAdded?: (data: ProductImageDto) => void
+  /** Ảnh chỉ gửi khi Lưu — BR-10. */
+  stagedImages?: StagedProductImages
+  onStagedImagesChange?: (s: StagedProductImages) => void
 }
 
 const defaultCreateValues: ProductFormData = {
@@ -92,6 +96,8 @@ export function ProductForm({
   categories = [],
   onSubmit,
   onImageAdded,
+  stagedImages,
+  onStagedImagesChange,
 }: ProductFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const isEdit = Boolean(product)
@@ -159,25 +165,42 @@ export function ProductForm({
       if (e instanceof ProductFormSubmitAborted) {
         return
       }
-      if (e instanceof ApiRequestError && e.status === 400 && e.body.details) {
-        const formKeys: (keyof ProductFormData)[] = [
-          "skuCode",
-          "name",
-          "barcode",
-          "categoryId",
-          "description",
-          "weight",
-          "status",
-          "salePrice",
-          "costPrice",
-          "priceEffectiveDate",
-        ]
-        for (const key of formKeys) {
-          const msg = e.body.details[key as string]
-          if (msg) {
-            form.setError(key, { message: msg })
+      if (e instanceof ApiRequestError) {
+        const ae = e
+        const details = ae.body.details
+        if (ae.status === 400 && details && Object.keys(details).length > 0) {
+          const formKeys: (keyof ProductFormData)[] = [
+            "skuCode",
+            "name",
+            "barcode",
+            "categoryId",
+            "description",
+            "weight",
+            "status",
+            "salePrice",
+            "costPrice",
+            "priceEffectiveDate",
+          ]
+          const formKeyStr = formKeys as unknown as string[]
+          let mappedAny = false
+          for (const key of formKeys) {
+            const msg = details[key as string]
+            if (msg) {
+              form.setError(key, { message: msg })
+              mappedAny = true
+            }
+          }
+          const extraMsgs = Object.entries(details)
+            .filter(([k]) => !formKeyStr.includes(k))
+            .map(([, v]) => v)
+            .filter(Boolean)
+          // Multipart / ảnh: BE trả details.file — không có field form tương ứng → vẫn phải toast (trước đây nuốt lỗi).
+          if (extraMsgs.length > 0 || !mappedAny) {
+            const line = [ae.body.message, ...extraMsgs].filter(Boolean).join(" — ")
+            if (line) toast.error(line)
           }
         }
+        // Các lỗi khác (409, 500, 400 không details, …): `ProductsPage` useMutation onError đã toast — không lặp ở đây.
       }
     } finally {
       setIsSubmitting(false)
@@ -187,9 +210,31 @@ export function ProductForm({
   const detailBlocking = isEdit && (isProductDetailLoading || hasProductDetailError)
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden border-slate-200 shadow-2xl rounded-2xl">
-        <DialogHeader className="p-8 pb-6 bg-slate-50/50 border-b border-slate-100">
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && isSubmitting) return
+        onOpenChange(nextOpen)
+      }}
+    >
+      <DialogContent className="flex max-h-[90dvh] w-full max-w-[min(100vw-2rem,80rem)] sm:max-w-6xl lg:max-w-7xl flex-col gap-0 overflow-hidden border-slate-200 p-0 shadow-2xl rounded-2xl relative">
+        {isSubmitting && (
+          <div
+            className="absolute inset-0 z-[100] flex items-center justify-center rounded-2xl bg-white/75 backdrop-blur-[2px]"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-slate-200/80 bg-white px-8 py-6 shadow-xl">
+              <Loader2 className="h-11 w-11 animate-spin text-slate-800" aria-hidden />
+              <p className="text-sm font-semibold text-slate-800">Đang lưu sản phẩm…</p>
+              <p className="text-xs text-slate-500 text-center max-w-[240px]">
+                Vui lòng không đóng cửa sổ khi đang tải lên hoặc cập nhật dữ liệu.
+              </p>
+            </div>
+          </div>
+        )}
+        <DialogHeader className="shrink-0 p-8 pb-6 bg-slate-50/50 border-b border-slate-100">
           <div className="flex items-center gap-3 text-slate-400 mb-1">
             <Package size={16} />
             <span className="text-[10px] font-bold uppercase tracking-widest">Hồ sơ hàng hóa</span>
@@ -202,7 +247,13 @@ export function ProductForm({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(handleLocalSubmit)} className="p-8 space-y-8 bg-white max-h-[65vh] overflow-y-auto">
+        <form
+          onSubmit={form.handleSubmit(handleLocalSubmit)}
+          className={cn(
+            "min-h-0 flex-1 space-y-8 overflow-y-auto bg-white p-8",
+            isSubmitting && "pointer-events-none opacity-90",
+          )}
+        >
           {isEdit && isProductDetailLoading && (
             <p className="text-sm text-slate-600" role="status">
               Đang tải chi tiết sản phẩm (giá vốn / đơn vị cơ sở)…
@@ -220,6 +271,8 @@ export function ProductForm({
                 productId={product?.id}
                 initialPreviewUrl={productDetail?.imageUrl ?? product?.imageUrl}
                 onImageAdded={onImageAdded}
+                staged={stagedImages}
+                onStagedChange={onStagedImagesChange}
               />
             </div>
 
@@ -350,10 +403,11 @@ export function ProductForm({
           </div>
         </form>
 
-        <DialogFooter className="p-8 bg-slate-50 border-t border-slate-100">
+        <DialogFooter className="shrink-0 border-t border-slate-100 bg-slate-50 p-8">
           <Button
             type="button"
             variant="outline"
+            disabled={isSubmitting}
             onClick={() => onOpenChange(false)}
             className="h-11 px-6 border-slate-300 font-medium text-slate-600"
           >
@@ -363,10 +417,19 @@ export function ProductForm({
             type="submit"
             disabled={isSubmitting || detailBlocking}
             onClick={form.handleSubmit(handleLocalSubmit)}
-            className="h-11 px-8 bg-slate-900 hover:bg-slate-800 text-white shadow-lg shadow-slate-200"
+            className="h-11 px-8 bg-slate-900 hover:bg-slate-800 text-white shadow-lg shadow-slate-200 disabled:opacity-90"
           >
-            <CheckCircle2 className="h-4 w-4 mr-2" />
-            Lưu sản phẩm
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin shrink-0" aria-hidden />
+                Đang lưu…
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4 mr-2 shrink-0" />
+                Lưu sản phẩm
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

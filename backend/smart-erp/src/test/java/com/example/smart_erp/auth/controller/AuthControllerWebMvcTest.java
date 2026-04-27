@@ -35,6 +35,7 @@ import com.example.smart_erp.auth.support.JwtTokenService;
 import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.common.exception.GlobalExceptionHandler;
+import com.example.smart_erp.common.exception.MaxUploadSizeExceededAdvice;
 import com.example.smart_erp.config.PermitAllWebSecurityConfiguration;
 import com.example.smart_erp.config.SecurityBeansConfiguration;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,7 +44,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * Task001 login — tài khoản dev để test thủ công: xem {@link AuthTask001Fixtures}.
  */
 @WebMvcTest(controllers = AuthController.class)
-@Import({ GlobalExceptionHandler.class, SecurityBeansConfiguration.class, PermitAllWebSecurityConfiguration.class })
+@Import({ GlobalExceptionHandler.class, MaxUploadSizeExceededAdvice.class, SecurityBeansConfiguration.class,
+		PermitAllWebSecurityConfiguration.class })
 class AuthControllerWebMvcTest {
 
 	@Autowired

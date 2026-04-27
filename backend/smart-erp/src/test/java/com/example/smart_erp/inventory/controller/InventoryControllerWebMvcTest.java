@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.example.smart_erp.common.exception.GlobalExceptionHandler;
+import com.example.smart_erp.common.exception.MaxUploadSizeExceededAdvice;
 import com.example.smart_erp.config.MethodSecurityTestConfiguration;
 import com.example.smart_erp.config.PermitAllWebSecurityConfiguration;
 import com.example.smart_erp.config.SecurityBeansConfiguration;
@@ -39,8 +40,8 @@ import com.example.smart_erp.inventory.service.InventoryListService;
 import com.example.smart_erp.inventory.service.InventoryPatchService;
 
 @WebMvcTest(controllers = InventoryController.class)
-@Import({ GlobalExceptionHandler.class, SecurityBeansConfiguration.class, PermitAllWebSecurityConfiguration.class,
-		MethodSecurityTestConfiguration.class })
+@Import({ GlobalExceptionHandler.class, MaxUploadSizeExceededAdvice.class, SecurityBeansConfiguration.class,
+		PermitAllWebSecurityConfiguration.class, MethodSecurityTestConfiguration.class })
 class InventoryControllerWebMvcTest {
 
 	@Autowired

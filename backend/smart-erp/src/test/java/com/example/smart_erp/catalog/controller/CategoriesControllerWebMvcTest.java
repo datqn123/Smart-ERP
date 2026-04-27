@@ -32,13 +32,14 @@ import com.example.smart_erp.catalog.response.CategoryListPageData;
 import com.example.smart_erp.catalog.response.CategoryNodeResponse;
 import com.example.smart_erp.catalog.service.CategoryService;
 import com.example.smart_erp.common.exception.GlobalExceptionHandler;
+import com.example.smart_erp.common.exception.MaxUploadSizeExceededAdvice;
 import com.example.smart_erp.config.MethodSecurityTestConfiguration;
 import com.example.smart_erp.config.PermitAllWebSecurityConfiguration;
 import com.example.smart_erp.config.SecurityBeansConfiguration;
 
 @WebMvcTest(controllers = CategoriesController.class)
-@Import({ GlobalExceptionHandler.class, SecurityBeansConfiguration.class, PermitAllWebSecurityConfiguration.class,
-		MethodSecurityTestConfiguration.class })
+@Import({ GlobalExceptionHandler.class, MaxUploadSizeExceededAdvice.class, SecurityBeansConfiguration.class,
+		PermitAllWebSecurityConfiguration.class, MethodSecurityTestConfiguration.class })
 class CategoriesControllerWebMvcTest {
 
 	@Autowired

@@ -4,15 +4,24 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.example.smart_erp.catalog.media.CloudinaryMediaService;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -37,12 +46,23 @@ import org.springframework.security.oauth2.jwt.Jwt;
 @Service
 public class ProductService {
 
+	/** Tối đa số part {@code file} mỗi request — SRS §14.5 (OQ-7). */
+	public static final int MAX_CREATE_IMAGE_FILES = 10;
+
 	private final ProductJdbcRepository productJdbcRepository;
 	private final CategoryJdbcRepository categoryJdbcRepository;
+	private final CloudinaryMediaService cloudinaryMediaService;
+	private final ProductImageService productImageService;
+	private final ExecutorService productImageUploadExecutor;
 
-	public ProductService(ProductJdbcRepository productJdbcRepository, CategoryJdbcRepository categoryJdbcRepository) {
+	public ProductService(ProductJdbcRepository productJdbcRepository, CategoryJdbcRepository categoryJdbcRepository,
+			CloudinaryMediaService cloudinaryMediaService, ProductImageService productImageService,
+			@Qualifier("productImageUploadExecutor") ExecutorService productImageUploadExecutor) {
 		this.productJdbcRepository = productJdbcRepository;
 		this.categoryJdbcRepository = categoryJdbcRepository;
+		this.cloudinaryMediaService = cloudinaryMediaService;
+		this.productImageService = productImageService;
+		this.productImageUploadExecutor = productImageUploadExecutor;
 	}
 
 	@Transactional(readOnly = true)
@@ -113,6 +133,77 @@ public class ProductService {
 		return toCreated(productJdbcRepository.findListItemById(pid).orElseThrow(
 				() -> new BusinessException(ApiErrorCode.INTERNAL_SERVER_ERROR, "Không đọc lại sản phẩm sau tạo")),
 				unitId);
+	}
+
+	/**
+	 * Tạo sản phẩm + upload nhiều ảnh song song (Cloudinary) rồi lưu gallery; nếu bất kỳ bước nào lỗi sau
+	 * {@link #create}, xóa sản phẩm (all-or-nothing) — SRS §14.
+	 */
+	public ProductCreatedData createWithImageFiles(ProductCreateRequest req, List<MultipartFile> files,
+			Integer primaryImageIndex) {
+		if (files == null || files.isEmpty()) {
+			return create(req);
+		}
+		if (files.size() > MAX_CREATE_IMAGE_FILES) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Quá nhiều file ảnh",
+					Map.of("file", "Tối đa " + MAX_CREATE_IMAGE_FILES + " tệp mỗi lần tạo"));
+		}
+		int pIdx = primaryImageIndex != null ? primaryImageIndex : 0;
+		if (pIdx < 0 || pIdx >= files.size()) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "primaryImageIndex không hợp lệ",
+					Map.of("primaryImageIndex", "0 .. " + (files.size() - 1)));
+		}
+		for (MultipartFile f : files) {
+			cloudinaryMediaService.validateFile(f);
+		}
+		ProductCreatedData created = create(req);
+		int pid = created.id();
+		try {
+			List<UploadIdx> parts = new ArrayList<>();
+			List<CompletableFuture<UploadIdx>> futures = new ArrayList<>();
+			for (int i = 0; i < files.size(); i++) {
+				final int idx = i;
+				MultipartFile mf = files.get(i);
+				futures.add(CompletableFuture.supplyAsync(() -> {
+					String url = cloudinaryMediaService.uploadProductImage(mf, pid);
+					long size = mf.getSize() > 0 ? mf.getSize() : 0L;
+					String mime = normalizeMimeForGallery(mf.getContentType());
+					return new UploadIdx(idx, url, size, mime);
+				}, productImageUploadExecutor));
+			}
+			for (CompletableFuture<UploadIdx> cf : futures) {
+				parts.add(cf.join());
+			}
+			parts.sort(Comparator.comparingInt(UploadIdx::index));
+			List<String> urls = parts.stream().map(UploadIdx::url).collect(Collectors.toList());
+			List<Long> sizes = parts.stream().map(UploadIdx::fileSize).collect(Collectors.toList());
+			List<String> mimes = parts.stream().map(UploadIdx::mime).collect(Collectors.toList());
+			productImageService.persistGalleryAfterUploads(pid, urls, sizes, mimes, pIdx);
+		}
+		catch (RuntimeException e) {
+			productJdbcRepository.deleteProduct(pid);
+			if (e instanceof CompletionException ce) {
+				Throwable c = ce.getCause();
+				if (c instanceof BusinessException be) {
+					throw be;
+				}
+			}
+			throw e;
+		}
+		return toCreated(productJdbcRepository.findListItemById(pid).orElseThrow(
+				() -> new BusinessException(ApiErrorCode.INTERNAL_SERVER_ERROR, "Không đọc lại sản phẩm sau tạo ảnh")),
+				created.unitId());
+	}
+
+	private record UploadIdx(int index, String url, long fileSize, String mime) {
+	}
+
+	private static String normalizeMimeForGallery(String raw) {
+		if (raw == null || raw.isBlank()) {
+			return null;
+		}
+		int semi = raw.indexOf(';');
+		return semi > 0 ? raw.substring(0, semi).trim() : raw.trim();
 	}
 
 	private static ProductCreatedData toCreated(ProductListItemData row, int unitId) {
@@ -376,9 +467,10 @@ public class ProductService {
 		for (int pid : ids) {
 			Optional<String> reason = deleteBlockReason(pid);
 			if (reason.isPresent()) {
+				String r = reason.get();
 				throw new BusinessException(ApiErrorCode.CONFLICT,
-						"Không thể xóa toàn bộ: ít nhất một sản phẩm không đủ điều kiện",
-						Map.of("failedId", String.valueOf(pid), "reason", reason.get()));
+						"Không thể xóa hết danh sách đã chọn. " + userMessageForDeleteBlockReason(r),
+						Map.of("failedId", String.valueOf(pid), "reason", r));
 			}
 		}
 		productJdbcRepository.lockProductsForUpdate(ids);
@@ -391,10 +483,21 @@ public class ProductService {
 
 	private void assertDeletableOrThrow(int productId) {
 		deleteBlockReason(productId).ifPresent(r -> {
-			throw new BusinessException(ApiErrorCode.CONFLICT,
-					"Không thể xóa sản phẩm đã xuất hiện trên phiếu nhập hoặc đơn hàng hoặc còn tồn kho",
+			throw new BusinessException(ApiErrorCode.CONFLICT, userMessageForDeleteBlockReason(r),
 					Map.of("reason", r, "failedId", String.valueOf(productId)));
 		});
+	}
+
+	/**
+	 * Thông báo tiếng Việt cho người dùng; {@code details.reason} vẫn là mã máy (SRS / API).
+	 */
+	private static String userMessageForDeleteBlockReason(String reasonCode) {
+		return switch (reasonCode) {
+			case "HAS_STOCK_RECEIPT" -> "Sản phẩm đã xuất hiện trên ít nhất một phiếu nhập kho, không được xóa.";
+			case "HAS_ORDER_LINES" -> "Sản phẩm đã xuất hiện trên ít nhất một đơn hàng, không được xóa.";
+			case "HAS_STOCK" -> "Sản phẩm còn tồn kho (số lượng lớn hơn 0), không được xóa.";
+			default -> "Sản phẩm không đủ điều kiện xóa.";
+		};
 	}
 
 	private Optional<String> deleteBlockReason(int productId) {

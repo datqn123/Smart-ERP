@@ -79,13 +79,29 @@ public class CloudinaryMediaService {
 		long max = props.getMaxFileSizeBytes();
 		if (file.getSize() > max) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "File vượt quá kích thước cho phép",
-					Map.of("file", "Tối đa " + max + " byte"));
+					Map.of("file", humanMaxFileLabel(max)));
 		}
 		String contentType = normalizeContentType(file.getContentType());
 		if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Định dạng ảnh không được hỗ trợ",
 					Map.of("file", "Chỉ chấp nhận JPEG, PNG, WebP"));
 		}
+	}
+
+	/** Nhãn tiếng Việt cho giới hạn kích thước (ưu tiên MB/KB khi chia hết). */
+	private static String humanMaxFileLabel(long maxBytes) {
+		if (maxBytes <= 0) {
+			return "0 byte";
+		}
+		long mib = 1024L * 1024L;
+		if (maxBytes % mib == 0) {
+			return "Tối đa " + (maxBytes / mib) + " MB";
+		}
+		long kib = 1024L;
+		if (maxBytes % kib == 0) {
+			return "Tối đa " + (maxBytes / kib) + " KB";
+		}
+		return "Tối đa " + maxBytes + " byte";
 	}
 
 	private static String normalizeContentType(String raw) {

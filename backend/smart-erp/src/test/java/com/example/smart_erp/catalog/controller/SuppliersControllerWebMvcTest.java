@@ -33,13 +33,14 @@ import com.example.smart_erp.catalog.response.SupplierListItemData;
 import com.example.smart_erp.catalog.response.SupplierListPageData;
 import com.example.smart_erp.catalog.service.SupplierService;
 import com.example.smart_erp.common.exception.GlobalExceptionHandler;
+import com.example.smart_erp.common.exception.MaxUploadSizeExceededAdvice;
 import com.example.smart_erp.config.MethodSecurityTestConfiguration;
 import com.example.smart_erp.config.PermitAllWebSecurityConfiguration;
 import com.example.smart_erp.config.SecurityBeansConfiguration;
 
 @WebMvcTest(controllers = SuppliersController.class)
-@Import({ GlobalExceptionHandler.class, SecurityBeansConfiguration.class, PermitAllWebSecurityConfiguration.class,
-		MethodSecurityTestConfiguration.class })
+@Import({ GlobalExceptionHandler.class, MaxUploadSizeExceededAdvice.class, SecurityBeansConfiguration.class,
+		PermitAllWebSecurityConfiguration.class, MethodSecurityTestConfiguration.class })
 class SuppliersControllerWebMvcTest {
 
 	@Autowired

@@ -5,7 +5,9 @@
 > **Ngày:** 27/04/2026  
 > **Đồng bộ sau trả lời PO (OQ):** 27/04/2026  
 > **Đồng bộ codebase (upload ảnh / Cloudinary — Analyst):** 27/04/2026 — `ProductsController`, `ProductImageService`, `CloudinaryMediaService`, Flyway **V15**, [`smart-erp/docs/CLOUDINARY_SETUP.md`](../../smart-erp/docs/CLOUDINARY_SETUP.md)  
-> **Trạng thái:** Approved *(OQ §4; hành vi ảnh §4.3 + §8.6 bám mã hiện tại)*  
+> **CR Task034 — thứ tự danh sách:** Mặc định / không truyền `sort` → **`id:asc`** (`products.id` tăng dần). Whitelist thêm `id:desc`. Với sort theo cột khác → **tie-break** `p.id ASC` (phân trang ổn định). **GAP:** [`API_Task034_products_get_list.md`](../../../frontend/docs/api/API_Task034_products_get_list.md) cần cùng mặc định + whitelist khi đồng bộ doc.  
+> **Trạng thái:** Approved *(OQ §4; hành vi ảnh §4.3 + §8.6 bám mã hiện tại; phụ lục §14–§15: OQ-7 / OQ-8 / NFR tạo nhiều file đã chốt; UX **Lưu** theo ủy quyền PO)*  
+> **Phụ lục CR 27/04/2026 — §14–§15:** Đã ghi nhận quyết định kỹ thuật/UX; **OQ-7, OQ-8** tại **§14.5**; **Màn sửa sản phẩm (§1.1, §9 BR-10, §11):** thay đổi ảnh thật sự (persist phía server) **chỉ** khi người dùng bấm **Lưu** — ủy quyền chốt bởi PO / Owner, 27/04/2026.  
 > **PO duyệt (khi Approved):** PO — 27/04/2026 *(chữ ký PR/ticket theo quy trình team)*
 
 ---
@@ -31,6 +33,7 @@
 | Danh mục (FK / hiển thị) | [`SRS_Task029-033_categories-management.md`](SRS_Task029-033_categories-management.md) — `categories.deleted_at`, quyền `can_manage_products` / Owner |
 | UI index | [`../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md`](../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md) |
 | PM handoff (`WORKFLOW_RULE` §0.2) | [`../task034-041/01-pm/README.md`](../task034-041/01-pm/README.md) | Chuỗi task, gate, khối **API_BRIDGE §3.1** |
+| CR 27/04/2026 — tạo/update ảnh | **§14–§15** tài liệu này; [`../../AGENTS/WORKFLOW_RULE.md`](../../AGENTS/WORKFLOW_RULE.md) §0.1 / §0.3 / mục API bridge | Bổ sung sau **G-DEV** — **API_BRIDGE** cập nhật `BRIDGE_*.md` + **samples** mock |
 
 ### 0.1 Đồng bộ spec ↔ Flyway (đã chốt kỹ thuật trong SRS — không cần sửa API markdown)
 
@@ -45,7 +48,7 @@
 
 ## 1. Tóm tắt điều hành
 
-- **Vấn đề:** UC8 cần API đầy đủ cho **danh sách phân trang**, **tạo** (sản phẩm + đơn vị cơ sở + giá khởi tạo), **chi tiết** (đơn vị + giá hiện tại + gallery), **PATCH** (meta + snapshot giá mới), **xóa một** / **xóa bulk** có kiểm tra chứng từ & tồn, **thêm ảnh** qua **JSON URL** hoặc **multipart** (upload **Cloudinary** khi bật cấu hình).
+- **Vấn đề:** UC8 cần API đầy đủ cho **danh sách phân trang**, **tạo** (sản phẩm + đơn vị cơ sở + giá khởi tạo) — *phụ lục §14:* cho phép **upload nhiều ảnh cùng request tạo**, xử lý phần upload **đa luồng (song song)**; **chi tiết** (đơn vị + giá hiện tại + gallery), **PATCH** (meta + giá) — *§14:* coi **thay đổi ảnh** on par với mọi field, **một input đổi** (kể cả chỉ ảnh) cũng là có thay đổi và cập nhật; **xóa một** / **xóa bulk** có kiểm tra chứng từ & tồn, **thêm ảnh** qua **JSON URL** hoặc **multipart** (upload **Cloudinary** khi bật cấu hình).
 - **Mục tiêu nghiệp vụ:** Khớp envelope `success` / `data` / `message`; đọc/tạo/sửa + **thêm ảnh** (JSON và/hoặc multipart): user có **`can_manage_products`**; **`DELETE` / `bulk-delete`: chỉ Owner** (**OQ-6(a)**).
 - **Đối tượng:** User JWT; Staff / Owner / Admin theo quyền seed `Roles.permissions`.
 
@@ -54,6 +57,7 @@
 | Nhãn menu (Sidebar) | Route | Page (export) | Component / vùng chính | File (dưới `frontend/mini-erp/src/features/`) |
 | :--- | :--- | :--- | :--- | :--- |
 | *(theo Sidebar — nhóm sản phẩm)* | `/products/list` | `ProductsPage` | `ProductTable`, `ProductToolbar`, `ProductForm`, `ProductDetailDialog` | `product-management/pages/ProductsPage.tsx` |
+| *Chức năng **sửa** sản phẩm (cùng route / form tạo-sửa nếu dùng chung)* | *như trên* | *như trên* | **Cập nhật ảnh phía server chỉ tại sự kiện bấm** **Lưu** — chọn/xóa/đổi thứ tự ảnh trong lúc soạn = **state cục bộ**; **chưa** bấm Lưu thì **không** gọi `POST …/images`, `PATCH` ảnh, v.v. Hủy/đóng: bỏ thay đổi chưa lưu. Chi tiết **BR-10** | `product-management/...` *(theo* `FEATURES_UI_INDEX`*)* |
 
 ---
 
@@ -61,11 +65,11 @@
 
 | # | Capability | Kích hoạt bởi | Kết quả mong đợi | Ghi chú |
 | :---: | :--- | :--- | :--- | :--- |
-| C1 | Phân trang + lọc SP | `GET /api/v1/products` | `200` + `items`, `page`, `limit`, `total` | `search`, `categoryId`, `status`, `sort` whitelist |
+| C1 | Phân trang + lọc SP | `GET /api/v1/products` | `200` + `items`, `page`, `limit`, `total` | `search`, `categoryId`, `status`, `sort` whitelist; **mặc định thứ tự:** `id:asc` (ID sản phẩm tăng dần) |
 | C2 | Đọc read-model list | C1 | Mỗi item có `categoryName`, `currentStock`, `currentPrice` | Giá: latest `product_price_history` theo đơn vị cơ sở; `effective_date` ≤ **`CURRENT_DATE`** (DB server — **OQ-1(a)**) |
-| C3 | Tạo SP + đơn vị cơ sở + giá | `POST /api/v1/products` | `201` + object (Task034-shape + `unitId` base) | **Một transaction** |
+| C3 | Tạo SP + đơn vị cơ sở + giá | `POST /api/v1/products` | `201` + object (Task034-shape + `unitId` base) | **Một transaction**; *§14:* hỗ trợ thêm **multipart** tạo kèm nhiều file ảnh, **upload lên storage (Cloudinary) chạy song song** (đa luồng) trước khi (hoặc khi) ghi DB — chi tiết §14.2 |
 | C4 | Chi tiết SP | `GET /api/v1/products/{id}` | `200` + `units[]` + giá current mỗi unit + `images[]` | `images` từ bảng **`productimages`** (JDBC) |
-| C5 | PATCH meta + giá base | `PATCH /api/v1/products/{id}` | `200` | `FOR UPDATE`; đổi giá → **INSERT** `product_price_history`; **cặp** `salePrice`+`costPrice` khi đổi giá (theo Task037) |
+| C5 | PATCH meta + giá base + gallery | `PATCH /api/v1/products/{id}` | `200` | `FOR UPDATE`; đổi giá → **INSERT** `product_price_history`; **cặp** `salePrice`+`costPrice` khi đổi giá (theo Task037); *§14:* phát hiện **`hasImageChange`**: nếu **chỉ** ảnh thay đổi, **vẫn 200** và cập nhật — không yêu cầu field khác thay đổi; **bất kỳ một thành phần thay đổi** (metadata / giá / ảnh) đều kích hoạt cập nhật |
 | C6 | Xóa một SP | `DELETE /api/v1/products/{id}` | `200` + `{ id, deleted: true }` | Kiểm tra `stock_receipt_details`, `order_details`, tồn > 0 (policy §9) trước `DELETE` |
 | C7 | Thêm ảnh | `POST /api/v1/products/{id}/images` | `201` + `ProductImageData` | **JSON:** `url` + `sortOrder` + `isPrimary` — không cần Cloudinary. **Multipart:** part **`file`** + params `sortOrder`, `isPrimary` — `CloudinaryMediaService` trả `secure_url` khi `app.cloudinary.enabled=true`; tắt → **400** hướng dẫn bật cấu hình. **`isPrimary`:** reset primary + `products.image_url`; index **V15**. |
 | C8 | Xóa nhiều SP | `POST /api/v1/products/bulk-delete` | `200` hoặc `409` | **All-or-nothing** — **OQ-3(a)** |
@@ -77,6 +81,7 @@
 ### 3.1 In-scope
 
 - Bảy endpoint: Task034, 035, 036, 037, 038, 039, 041.
+- **Phụ lục §14:** tạo sản phẩm có thể **kèm upload nhiều ảnh** cùng request, xử lý upload **song song (đa luồng)**; `PATCH` **phát hiện thay đổi ảnh** — nếu **chỉ ảnh đổi** thì vẫn cập nhật (**200**), **một thành phần bất kỳ đổi** cũng là đủ để update.
 - Task039 **đủ hai** cách: JSON URL + **multipart → Cloudinary** (tuỳ bật `app.cloudinary.enabled` + secret).
 - Validation, envelope, mã HTTP như §8.
 - Transaction tạo SP; transaction PATCH giá; transaction ảnh primary; transaction xóa bulk **all-or-nothing** (**OQ-3(a)**).
@@ -135,7 +140,7 @@
 | **JSON** | Body `ProductImageCreateRequest`: `url` (@URL, max 500), `sortOrder`, `isPrimary` — lưu trực tiếp `productimages.image_url`; **không** gọi Cloudinary. |
 | **Multipart** | Part bắt buộc **`file`** (`MultipartFile`); query/form **`sortOrder`** (optional, default `0`, ≥ 0), **`isPrimary`** (optional, default `false`). Thiếu/rỗng `file` → **400** (`BusinessException` hoặc `MissingServletRequestPartException` → handler chung). |
 | **Cloudinary** | `CloudinaryMediaService.uploadProductImage`: kiểm `props.enabled` + bean `Cloudinary` non-empty; nếu tắt/thiếu cấu hình → **400** (message tiếng Việt hướng dẫn `app.cloudinary.enabled` + `CLOUDINARY_*`). Upload folder `{app.cloudinary.folder}/{productId}/`, `public_id` UUID, lấy **`secure_url`**. |
-| **Giới hạn** | MIME: **`image/jpeg`**, **`image/png`**, **`image/webp`**; kích thước ≤ **`app.cloudinary.max-file-size-bytes`** (mặc định **5242880**); Spring **`spring.servlet.multipart.max-file-size` / `max-request-size` = 6MB** (`application.properties`). |
+| **Giới hạn** | MIME: **`image/jpeg`**, **`image/png`**, **`image/webp`**; kích thước ≤ **`app.cloudinary.max-file-size-bytes`** (mặc định **5242880** = 5 MiB); Spring **`spring.servlet.multipart.max-file-size` = 5MB** / **`max-request-size`** theo cấu hình (`application.properties`). |
 | **Persistence** | `ProductImageService` `@Transactional`: nếu `isPrimary` — `UPDATE productimages SET is_primary=false` theo `product_id`, `UPDATE products SET image_url`, rồi `INSERT productimages` (cột `file_size_bytes`, `mime_type` từ multipart; JSON có thể null). |
 | **Bật production** | `CLOUDINARY_ENABLED=true` + `CLOUDINARY_CLOUD_NAME`, `API_KEY`, `API_SECRET`; xem [`smart-erp/docs/CLOUDINARY_SETUP.md`](../../smart-erp/docs/CLOUDINARY_SETUP.md). `enabled=true` mà thiếu secret → **fail-fast** khi khởi tạo bean (`CloudinaryConfiguration`). |
 
@@ -234,7 +239,7 @@ sequenceDiagram
 | `status` | string | `all` | `all` \| `Active` \| `Inactive` |
 | `page` | int | `1` | ≥ 1 |
 | `limit` | int | `20` | 1–100 |
-| `sort` | string | `updatedAt:desc` | **Whitelist:** `name:asc`, `name:desc`, `skuCode:asc`, `skuCode:desc`, `updatedAt:asc`, `updatedAt:desc`, `createdAt:asc`, `createdAt:desc` — khác → **400** |
+| `sort` | string | `id:asc` | **Whitelist:** `id:asc`, `id:desc`, `name:asc`, `name:desc`, `skuCode:asc`, `skuCode:desc`, `updatedAt:asc`, `updatedAt:desc`, `createdAt:asc`, `createdAt:desc` — khác → **400**. Với mọi giá trị whitelist **trừ** `id:asc` / `id:desc`, server áp dụng **tie-break** `products.id ASC` sau cột sort chính (tránh thứ tự không xác định khi trùng giá trị sort). |
 
 **Ví dụ response 200 (rút gọn):** tham [`API_Task034_products_get_list.md`](../../../frontend/docs/api/API_Task034_products_get_list.md) §6.
 
@@ -388,7 +393,7 @@ Cùng path **`/api/v1/products/{id}/images`**, cùng **`201`**, cùng shape resp
 
 | Part / field | Bắt buộc | Mô tả |
 | :--- | :---: | :--- |
-| `file` | Có | Nội dung ảnh; MIME **jpeg / png / webp**; kích thước ≤ `app.cloudinary.max-file-size-bytes` (và ≤ giới hạn Spring multipart **6MB**) |
+| `file` | Có | Nội dung ảnh; MIME **jpeg / png / webp**; kích thước ≤ `app.cloudinary.max-file-size-bytes` (và ≤ giới hạn Spring multipart **5MB** mỗi part) |
 | `sortOrder` | Không | Số nguyên ≥ 0, mặc định `0` |
 | `isPrimary` | Không | `true` / `false`, mặc định `false` |
 
@@ -475,6 +480,9 @@ Cùng path **`/api/v1/products/{id}/images`**, cùng **`201`**, cùng shape resp
 | BR-5 | Xóa SP | Chặn nếu tồn tại dòng `stock_receipt_details` hoặc `order_details` với `product_id`; chặn nếu `SUM(inventory.quantity) > 0` (an toàn Task038) |
 | BR-6 | `bulk-delete` | **OQ-3(a):** validate **tất cả** `id` trước → nếu OK mới `DELETE … WHERE id = ANY(:ids)` trong **một** transaction; một lỗi → **409**, không xóa dòng nào |
 | BR-7 | `POST …/images` multipart | Chỉ chấp nhận MIME **jpeg/png/webp** và size ≤ **`app.cloudinary.max-file-size-bytes`**; Cloudinary **tắt** → **400**, không lưu file local; sau upload, `secure_url` lưu `image_url` (giới hạn 500 ký tự). |
+| **BR-8** | `PATCH` — phạm vi “có thay đổi” | Tính **`hasImageChange`** (so sánh tập `productimages`/primary/order/url với payload) **bên cạnh** meta/giá; nếu **chỉ** ảnh thay đổi, **vẫn 200** và cập nhật — chi tiết **§14.1** |
+| **BR-9** | `POST` tạo — ảnh cùng request | Khi dùng **multipart** kèm nhiều file, xử lý bước I/O tốn thời gian (upload) **song song** (pool có giới hạn), rồi mới ghi `productimages` theo thứ tự transaction/ADR; validation MIME/size/Cloudinary tắt như **BR-7/§4.3** — **§14.2** |
+| **BR-10** | `mini-erp` — màn **sửa** sản phẩm | Cập nhật ảnh trên server (mọi `PATCH`/`POST …/images`/`DELETE` liên quan bộ sưu tập theo nghiệp vụ) **chỉ** thực hiện khi user bấm **Lưu**; trước khi Lưu **không** mở tác vụ mạng để lưu ảnh. Trùng hướng **§1.1** cột mở rộng. |
 
 ---
 
@@ -505,6 +513,7 @@ WHERE (:search IS NULL OR p.name ILIKE '%' || :search || '%' OR p.sku_code ILIKE
   AND (:status = 'all' OR p.status = :status);
 
 -- Trang dữ liệu (JOIN category, inv aggregate, lateral price) — pattern Task034 §7.1, đổi tên bảng thường
+-- ORDER BY: mặc định `p.id ASC`; hoặc cột whitelist + tie-break `p.id ASC` (trừ khi sort chính đã là `p.id`).
 ```
 
 Transaction **POST product** (pseudo):
@@ -540,8 +549,12 @@ COMMIT;
 
 ```text
 Given user có can_manage_products và có categories + products seed
-When GET /api/v1/products?page=1&limit=20&status=Active
-Then 200 và data.total khớp COUNT filter và items.length <= 20
+When GET /api/v1/products?page=1&limit=20&status=Active (không truyền `sort`)
+Then 200 và data.total khớp COUNT filter và items.length <= 20 và **thứ tự `items[].id` không giảm** (mặc định **tăng dần theo ID** — **CR Task034**)
+
+Given user có can_manage_products
+When GET /api/v1/products?sort=id:desc
+Then 200 và thứ tự `items[].id` không tăng (giảm dần theo ID)
 
 Given SKU mới hợp lệ
 When POST /api/v1/products (đủ body Task035)
@@ -574,6 +587,26 @@ Then 201 và data.url là HTTPS (Cloudinary secure_url)
 Given Cloudinary tắt
 When POST multipart /api/v1/products/{id}/images có file
 Then 400 và vẫn có thể thêm ảnh bằng POST JSON url
+
+Given tạo SP theo phụ lục §14 (multipart metadata + 2+ file) và Cloudinary bật
+When POST /api/v1/products
+Then upload các file thực hiện theo tác vụ song song (cùng tối đa N luồng theo cấu hình) trước khi 201 và DB có đủ ảnh ứng với từng `secure_url` hợp lệ (hoặc 4xx/rollback theo OQ-7, contract)
+
+Given sản phẩm tồn tại, meta+giá trùng DB, gallery ảnh khác so với bản lưu
+When PATCH /api/v1/products/{id} theo body chỉ mô tả/ảnh
+Then 200 và tập `productimages` cập nhật khớp, không 400/409 vì thiếu thay đổi văn bản
+
+Given cùng product, thay đổi tối thiểu (chỉ `name` hoặc chỉ ảnh hoặc chỉ cặp giá)
+When PATCH
+Then 200 theo từng trường hợp, đúng nghiệp vụ lịch sử giá tại **BR-3** khi đổi giá
+
+Given user mở form sửa sản phẩm và thêm/xóa/đổi ảnh trong giao diện
+When chưa bấm Lưu
+Then client không gọi API cập nhật ảnh (và không persist ảnh lên server)
+
+Given user mở form sửa và thay đổi ảnh (state cục bộ)
+When bấm Lưu
+Then client mới gửi lệnh API tương ứng (một `PATCH` và/hoặc `Task039` theo bước submit — **§14.5**) và dữ liệu server cập nhật
 ```
 
 ---
@@ -586,6 +619,8 @@ Then 400 và vẫn có thể thêm ảnh bằng POST JSON url
 | Phân nhánh lỗi `categoryId` | FE map message | **Đã chốt:** không tồn tại → **404**; soft-deleted → **400** + `INVALID_CATEGORY` (§8.3) |
 | RBAC Admin đọc list | Task034 ghi Admin | Giả định Admin có `can_manage_products` seed — nếu không → bổ sung seed hoặc GAP |
 | API markdown Task039 vs BE | Task039 có thể chưa ghi rõ multipart + env | **GAP doc API:** cập nhật `API_Task039_products_post_image.md` khi rảnh — SRS §4.3 + §8.6 là nguồn hành vi BE |
+| **API markdown Task034 vs SRS (sort)** | `API_Task034_products_get_list.md` vẫn ghi mặc định `updatedAt:desc` | **GAP:** cập nhật mặc định `sort` = `id:asc`, whitelist + `id:asc`/`id:desc`, ghi tie-break `id` — khớp §8.2 SRS (**CR Task034**) |
+| **CR §14** vs `API_Task035`/`Task037` | Tạo multipart + `PATCH` có ảnh / `hasImageChange` cần doc + samples mới | **GAP:** cập nhật API markdown + `samples/` — **mục §14.6**, **`API_BRIDGE` `Mode=fix-doc`** tại **§15.2** |
 
 ---
 
@@ -595,5 +630,161 @@ Then 400 và vẫn có thể thêm ảnh bằng POST JSON url
 - [x] JSON / status codes (§8) và RBAC (§6) khớp quyết định PO
 - [x] In/Out scope §3 đã đồng ý; **bổ sung mã:** JSON URL + multipart Cloudinary (§4.3) — đã phản ánh vào SRS
 - [x] **Drift doc ↔ code** (upload ảnh): đối chiếu `ProductsController`, `CloudinaryMediaService`, `CLOUDINARY_SETUP.md`, Flyway **V15**
+- [x] **Phụ lục CR §14–§15** (tạo kèm ảnh song song, PATCH `hasImageChange`, màn sửa **Lưu** mới cập nhật ảnh, OQ-7/8, `API_BRIDGE` + mock) — *OQ-7, OQ-8 chốt tại §14.5; ủy quyền 27/04/2026*
 
 **Chữ ký / nhãn PR:** PO — 27/04/2026 *(cập nhật nhãn ticket/PR theo quy trình team)*
+
+---
+
+## 14. Phụ lục CR — Tạo sản phẩm kèm upload ảnh (xử lý song song) & cập nhật khi thay đổi ảnh (PATCH)
+
+> **Tham chiếu quy tắc gốc:** `BA` [`../../AGENTS/BA_AGENT_INSTRUCTIONS.md`](../../AGENTS/BA_AGENT_INSTRUCTIONS.md); đối chiếu mã/ drift sau triển khai: `CODEBASE_ANALYST` [`../../AGENTS/CODEBASE_ANALYST_AGENT_INSTRUCTIONS.md`](../../AGENTS/CODEBASE_ANALYST_AGENT_INSTRUCTIONS.md) mục 1–2, 5–6.
+
+### 14.1 Mục tiêu
+
+1. **Tạo mới (`POST /api/v1/products` — Task035):** Cho phép client gửi **cùng một thao tác tạo** cả dữ liệu sản phẩm (base unit + giá) **và** một hoặc nhiều file ảnh. Phần tốn thời gian (upload lên object storage, ví dụ **Cloudinary** khi bật cấu hình — §4.3) phải được xử lý **song song nhiều luồng** (ví dụ `ExecutorService` với kích thước pool **có giới hạn** + `CompletableFuture` / tác vụ tương tự) để rút ngắn thời gian tổng, **sau** khi từng upload thành công (hoặc sau khi có `secure_url` hợp lệ) mới ghi/đồng bộ **`productimages`** cùng `product_id` trong **các giao dịch** rõ ràng theo thiết kế Tech Lead (tránh race với ràng buộc **V15** / primary).
+2. **Cập nhật (`PATCH /api/v1/products/{id}` — Task037):** Server **phải** xét **thay đổi tập ảnh** (thêm, xóa, đổi `url`/nội dung, `sortOrder`, trạng thái `isPrimary`, thay thế toàn bộ danh sách) **cùng mức** với thay đổi trường văn bản/giá. **Nếu chỉ ảnh thay đổi** còn các input meta/giá (so với DB) **trùng** thì vẫn phải **cập nhật thành công (`200`)** — tức thay đổi “chỉ từ ảnh” vẫn là **một bản cập nhật hợp lệ**. **Chỉ cần một thành phần thay đổi** (bất kỳ field nào trong phạm vi contract PATCH **hoặc** gallery) thì thực hiện cập nhật (không từ chối dạng “no fields changed” nếu ảnh đã đổi).
+3. **Hành vi JSON-only hiện có (§8.3 + Task039 sau 201):** vẫn hợp lệ: tạo SP bằng **JSON** rồi gọi thêm `POST …/images` từng bước. Phụ lục này **mở rộng tùy chọn** tạo **một bước** kèm file.
+4. **Mini-ERP — chức năng sửa sản phẩm (ủy quyền PO, đồng bộ BR-10, §1.1):** Thay đổi bộ sưu tập ảnh (chọn file, xóa, đổi thứ tự/ảnh bìa) ở **cấp giao diện** trước khi bấm **Lưu** = **chỉ state nội bộ**; **không** gọi `POST /products/{id}/images` hay bất kỳ API nào làm thay đổi ảnh trên server. **Khi bấm Lưu,** mới thực hiện lệnh API (cùng với cập nhật meta/giá nếu có) theo quy ước chốt **OQ-8 (§14.5)**. **Hủy/đóng** form: hủy bỏ thay đổi ảnh chưa lưu.
+
+### 14.2 Hợp đồng hướng tới (chi tiết API doc / Dev cập nhật thêm GAP)
+
+| Mục | Mô tả tối thiểu |
+| :--- | :--- |
+| **POST — `application/json`** | Giữ mẫu **§8.3**; không bắt buộc ảnh. |
+| **POST — `multipart/form-data` (bổ sung)** | **Đã chốt (OQ-7):** part tên **`metadata`**, `Content-Type: text/plain` hoặc tương đương, body = chuỗi JSON cùng schema/validation **§8.3**; **một hoặc nhiều** part cùng tên **`file`** (lặp lại nhiều lần như nhiều tệp trong một request — tương thích Spring `MultipartFile[] file`). **Số tệp tối đa mỗi request:** `10` (có thể cấu hình `app.*.max-product-images-per-request` tại Dev). Thứ tự ảnh: thứ tự **các** part `file` = `sortOrder` 0, 1, 2, …; **`isPrimary` mặc định** = `file` **đầu tiên** là primary, trừ khi JSON `metadata` kèm theo tùy chọn `primaryImageIndex` (số nguyên, 0-based) — nếu có thì theo trường này. Nếu không cần metadata mở rộng, có thể chỉ dùng sắp tệp + bìa theo mặc định. |
+| **Xử lý song song (đa luồng)** | Tách **validate MIME/size** theo **§4.3/BR-7**; từng file upload lên Cloudinary (khi bật) chạy **trên worker pool** song song; **chỉ khi tất cả tác vụ cần cho yêu cầu hợp lệ xong** mới persist ảnh. Giới hạn: timeout từng tác vụ, **không** vượt 10 part `file` (trừ khi cấu hình tăng có ADR). |
+| **PATCH — ảnh; giao dịch với UI Lưu (OQ-8 đã chốt)** | **BE (Task037 + Task039):** Không bắt buộc gộp tất cả vào một thân `PATCH` trong v1. **Cách triển khai mặc định chấp nhận:** tại sự kiện **Lưu** trên client, thực hiện **theo thứ tự** mà `mini-erp` tập hợp: (1) `PATCH /api/v1/products/{id}` nếu có thay meta/giá; (2) các thao tác **Task039** (`POST` ảnh mới, có thể kèm `POST` URL JSON) và nếu có nghiệp vụ xóa/đổi primary — tùy cách Dev map (có thể cần endpoint xóa ảnh nếu thiếu) — **cùng một lần bấm Lưu, không tự lưu giữa chừng** (§14.1 mục 4, **BR-10**). **Tùy chọn tương lai (ADR):** một `PATCH` duy nhất mảng `images` mô tả mục tiêu. Server so sánh `hasImageChange` trên **bản gửi** khi mở rộng; hiện tài liệu **đủ** với: **chỉ gọi khi Lưu** + cập nhật đúng tập sau submit. |
+
+### 14.3 Sơ đồ tạo mới kèm upload song song (tham chiếu)
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant C as Client
+  participant A as API
+  participant E as Upload pool (Executor)
+  participant CL as Cloudinary
+  participant D as DB
+  U->>C: Form tạo SP + nhiều file ảnh
+  C->>A: POST /api/v1/products (multipart: metadata + files)
+  A->>A: Validate JSON + số lượng/size/MIME
+  A->>D: BEGIN; INSERT products, product_units, product_price_history
+  D-->>A: product_id, unit_id
+  par Từng file (song song tối đa N luồng)
+    A->>E: submit upload task
+    E->>CL: upload
+    CL-->>E: secure_url
+  end
+  A->>A: Kết hợp kết quả, xử lý is_primary (transaction + V15)
+  A->>D: INSERT productimages; COMMIT
+  A-->>C: 201 + data (có thể gồm thông tin ảnh tạm/chính thức tùy shape API)
+```
+
+*(Thứ tự “INSERT sản phẩm trước, upload sau” hay “upload tạm rồi INSERT gọn gàng theo `product_id`” do Tech Lead/ADR; SRS chỉ bắt buộc **hành vi người dùng** và **song song hóa phần tốn I/O nặng**.)*
+
+### 14.4 Ràng buộc kỹ thuật & NFR
+
+- **Lỗi một phần khi tạo (đã chốt, 27/04/2026):** Một tệp upload thất bại (Cloudinary, validation, v.v.) → **all-or-nothing:** rollback toàn bộ request (không để sản phẩm/ảnh lệch từng phần) — cùng tinh thần **OQ-3(a)**; mã lỗi 4xx/5xx với `message` rõ, không trả 207 “thành công một nửa”.  
+- **Bảo mật / ổn định:** Hạn số part, kích thước, MIME như **§4.3**; pool thread không tạo unbounded.  
+- **Ghi log:** từng tác vụ upload (id request, thứ tự file) để hỗ trợ truy vết (Analyst mục 5–6).
+
+### 14.5 Quyết định OQ-7, OQ-8 (chốt — ủy quyền PO / Owner, 27/04/2026)
+
+| ID | Quyết định | Chi tiết |
+| :--- | :--- | :--- |
+| **OQ-7** | **Đã chốt** | Part `metadata` (JSON string) + nhiều part **`file`** cùng tên; tối đa **10** tệp/request; `sortOrder` theo thứ tự part; `isPrimary` = tệp đầu, hoặc tùy chọn `primaryImageIndex` trong `metadata` — xem cột **POST — multipart** tại **§14.2**. |
+| **OQ-8** | **Đã chốt** | **(1) UX bắt buộc:** cập nhật ảnh khi **sửa sản phẩm** chỉ xảy ra tại sự kiện **Bấm Lưu** — **BR-10**; không auto-save. **(2) BE mặc định hợp lệ v1:** `PATCH` (meta/giá) **và** các lệnh **Task039** (và bổ sung nếu cần) **cùng một lần submit** phía client; tùy chọn sau: một `PATCH` gộp. **(3) `hasImageChange`:** so tại bước submit với dữ liệu đang gửi so DB (hoặc so state sau lần `GET` trước khi sửa). |
+
+### 14.6 GAP tài liệu (sau G-DEV: Doc Sync + API_BRIDGE)
+
+- Cập nhật **`API_Task035_products_post.md`**, **`API_Task037_products_patch.md`**: multipart, ví dụ JSON/ảnh, mã lỗi.  
+- Bổ sung/điều chỉnh mẫu tại `frontend/docs/api/samples/Task035/`, `Task037/` nếu có.  
+- Codebase đã sẵn `POST …/images` (Task039): Analyst xác minh **không drift** với flow mới tại §14.
+
+### 14.7 Trạng thái triển khai (code — đối chiếu)
+
+| Hạng mục | Repo |
+| :--- | :--- |
+| **BE** `POST` multipart + upload song song + rollback | `CatalogExecutorConfig` (`productImageUploadExecutor`), `ProductService.createWithImageFiles`, `ProductImageService.persistGalleryAfterUploads`, `ProductsController.createMultipart` |
+| **FE** Lưu mới gọi API ảnh + tạo multipart | `ProductImagePanel` (`staged` / `onStagedChange`), `ProductForm`, `ProductsPage`, `postProductCreateMultipart` trong `productsApi.ts` |
+| **Doc API** | `frontend/docs/api/API_Task035_products_post.md` §6b |
+
+---
+
+## 15. Phụ lục — Gọi Workflow chỉnh sửa (CR) & `API_BRIDGE` (mock/đồng bộ dữ liệu mẫu + contract)
+
+> **Mục tiêu:** Khi thực hiện mục **§14**, team bám chuỗi trong [`../../AGENTS/WORKFLOW_RULE.md`](../../AGENTS/WORKFLOW_RULE.md), và bắt buộc phiên **API Bridge** cập nhật **`BRIDGE_*.md`** + **dữ liệu mẫu** (`samples/`, `endpoints/`) phục vụ mock/kiểm thử client — theo [`../../AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md`](../../AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md) mục 2, 3, 5–7.
+
+### 15.1 Chuỗi Workflow (sau khi phụ lục §14 được chấp thuận)
+
+| Bước | Agent / vai trò | Tài liệu |
+| :---: | :--- | :--- |
+| 0 | (Tuỳ chính sách) **BA** rà lại `§14` nếu contract mở rộng thêm (OQ-7, OQ-8 **đã chốt** tại §14.5) | [`BA_AGENT_INSTRUCTIONS.md`](../../AGENTS/BA_AGENT_INSTRUCTIONS.md) mục 2, 5F–G |
+| 1 | **PM** cập nhật/ tạo ticket tại `docs/task034-041/01-pm/README.md` (việc mới, phụ thuộc) | [`WORKFLOW_RULE.md`](../../AGENTS/WORKFLOW_RULE.md) §0.1–0.2 |
+| 2 | **Tech Lead** — ADR ngắn: multipart order, thread pool, transaction; tránh xung đột với V15 | `WORKFLOW_RULE` chuỗi `PM → Tech Lead` |
+| 3 | **Developer** — mã theo `DEVELOPER_AGENT_INSTRUCTIONS` + `mvn verify` xanh (G-DEV) | Nhắc handoff API bridge trong G-DEV |
+| 4 | **`API_BRIDGE`** — **bắt buộc** (REST `mini-erp` — `WORKFLOW_RULE` §0.3): **sau** merge BE | `Mode=verify` tối thiểu; dùng **`Mode=fix-doc`** khi cần cập nhật file `API_*.md` + **`frontend/docs/api/samples/**`** (mock lại dữ liệu mẫu) theo mục 2–3, 5–7 file bridge |
+| 5 | **Tester** → **Codebase Analyst** (cập nhật drift mục 5, 6) → **Doc Sync** | `CODEBASE_ANALYST` brief; mục **§14.4** SRS |
+
+*Sơ đồ tham chiếu:* `PM → Tech Lead → Developer → API_BRIDGE → Tester → Codebase Analyst → Doc Sync` (có thể mở nhánh `API_BRIDGE` **song song** bước tới Tester như `WORKFLOW_RULE` §0.3).
+
+### 15.2 Khối lệnh `API_BRIDGE` — dùng sau G-DEV (cập nhật mock/contract)
+
+Dán từng block vào chat/ticket. **Bước 0** theo hướng dẫn: đọc `frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md` (từ repo: [`../../../frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md`](../../../frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md)). Một phiên = **một** `Path` (mục 1 `API_BRIDGE_AGENT_INSTRUCTIONS`).
+
+#### Tạo sản phẩm (Task035) — đồng bộ sau thay đổi multipart/đa luồng
+
+```text
+Vai trò: API_BRIDGE. Tuân @backend/AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md.
+API_BRIDGE | Task=Task035 | Path=POST /api/v1/products | Mode=fix-doc
+
+Context SRS: @backend/docs/srs/SRS_Task034-041_products-management.md mục §14 (multipart, upload song song).
+
+Đọc theo thứ tự: @frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md
+→ @frontend/docs/api/API_Task035_products_post.md (bổ sung mục multipart, ví dụ đủ)
+→ tạo/cập nhật mẫu tại @frontend/docs/api/samples/Task035/ nếu team dùng
+→ @frontend/docs/api/endpoints/Task035.md nếu có
+→ đối chiếu @backend/smart-erp/src/main/java (grep Path) — tối thiểu 1 controller/DTO
+
+Output: @frontend/docs/api/bridge/BRIDGE_Task035_products_post.md (bảng mục 5) + mẫu request/response mock đúng thân §14/§8.
+```
+
+#### Cập nhật sản phẩm (Task037) — thay đổi ảnh trên PATCH / `hasImageChange`
+
+```text
+Vai trò: API_BRIDGE. Tuân @backend/AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md.
+API_BRIDGE | Task=Task037 | Path=PATCH /api/v1/products/{id} | Mode=fix-doc
+
+Context SRS: @backend/docs/srs/SRS_Task034-041_products-management.md mục §14.1–14.2 (chỉ ảnh đổi vẫn 200).
+
+Đọc: @frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md
+→ @frontend/docs/api/API_Task037_products_patch.md
+→ @frontend/docs/api/samples/Task037/ (bổ sung mẫu: PATCH chỉ ảnh; mock data minh hoạ)
+→ grep Path trong @backend/smart-erp/src/main/java, @frontend/mini-erp/src nếu đã móc
+
+Output: @frontend/docs/api/bridge/BRIDGE_Task037_products_patch.md
+```
+
+#### Ảnh sản phẩm (Task039) — regression + mock JSON/multipart (sau khi C3/C5 mở rộng)
+
+```text
+Vai trò: API_BRIDGE. Tuân @backend/AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md.
+API_BRIDGE | Task=Task039 | Path=POST /api/v1/products/{id}/images | Mode=verify
+
+Đọc: @frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md
+→ @frontend/docs/api/API_Task039_products_post_image.md
+→ mẫu tại @frontend/docs/api/samples/Task039/ (nếu có)
+
+Output: @frontend/docs/api/bridge/BRIDGE_Task039_products_post_image.md
+```
+
+**Lưu ý (mock data):** `Mode=fix-doc` nhằm **cập nhật lại** file markdown API + **`samples/*.json`** thành bộ mock mới, phục vụ `mini-erp` và Postman — **không** thay bước G-DEV; nếu chỉ đối chiếu không sửa contract, dùng `Mode=verify` thay `Mode=fix-doc` ở hai block Task035/037 ở trên.
+
+### 15.3 Tóm tắc cho Owner
+
+| Việc | Tài liệu |
+| :--- | :--- |
+| Thứ tự agent | `WORKFLOW_RULE.md` §0.1, §0.3 |
+| Cập nhật bridge + mẫu (mock) | `API_BRIDGE_AGENT_INSTRUCTIONS.md` mục 1, 2b–2c, 3, 5–7 |
+| Drift sau sprint | `CODEBASE_ANALYST` mục 2, 6; Doc Sync sở hữu bộ mẫu theo mục 2a/6 bridge instructions |

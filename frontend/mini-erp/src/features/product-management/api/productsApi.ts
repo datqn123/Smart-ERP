@@ -259,8 +259,8 @@ export function buildProductPatchBody(
 
 // --- Task039 — `POST /api/v1/products/{id}/images` — `frontend/docs/api/API_Task039_products_post_image.md` + SRS §4.3
 
-/** Kích thước tối đa gợi ý phía client (Spring multipart 6MB; BE Cloudinary mặc định 5MB). */
-export const PRODUCT_IMAGE_MAX_BYTES = 6 * 1024 * 1024
+/** Kích thước tối đa một ảnh phía client (khớp Spring multipart + Cloudinary mặc định 5MB). */
+export const PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024
 
 export const PRODUCT_IMAGE_ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"])
 
@@ -360,6 +360,30 @@ export type ProductCreatedDto = {
   unitId: number
 }
 
+/** Ảnh chỉ gửi khi bấm Lưu — BR-10 / SRS §14 (state cục bộ trên form). */
+export type StagedProductImages = {
+  files: File[]
+  urlAdds: { url: string; sortOrder: number; isPrimary: boolean }[]
+}
+
+/**
+ * Tổng dung lượng các part `file` trong một `POST /api/v1/products` multipart
+ * phải thấp hơn `spring.servlet.multipart.max-request-size` (server) trừ metadata.
+ */
+export const PRODUCT_CREATE_STAGED_FILES_MAX_TOTAL_BYTES = 65 * 1024 * 1024
+
+/** Trả về thông báo lỗi tiếng Việt hoặc `null` nếu OK. */
+export function getStagedProductFilesTotalSizeError(files: File[]): string | null {
+  if (files.length === 0) return null
+  const total = files.reduce((s, f) => s + f.size, 0)
+  if (total > PRODUCT_CREATE_STAGED_FILES_MAX_TOTAL_BYTES) {
+    const mb = (total / (1024 * 1024)).toFixed(1)
+    const maxMb = Math.floor(PRODUCT_CREATE_STAGED_FILES_MAX_TOTAL_BYTES / (1024 * 1024))
+    return `Tổng dung lượng ảnh (${mb} MB) vượt giới hạn một lần tạo (~${maxMb} MB). Hãy bớt ảnh hoặc giảm kích thước từng file.`
+  }
+  return null
+}
+
 export type ProductCreateFormValues = {
   skuCode: string
   name: string
@@ -403,4 +427,26 @@ export function postProduct(body: ProductCreateBody) {
     auth: true,
     body: JSON.stringify(body),
   })
+}
+
+/**
+ * Task035 + SRS §14 — `POST /api/v1/products` `multipart/form-data`: part `metadata` (JSON) + nhiều part `file`.
+ * Upload song song phía server; cần Cloudinary bật nếu gửi file.
+ */
+export function postProductCreateMultipart(
+  body: ProductCreateBody,
+  files: File[],
+  options: { primaryImageIndex?: number } = {},
+) {
+  const { primaryImageIndex = 0 } = options
+  return apiFormData<ProductCreatedDto>("/api/v1/products", () => {
+    const form = new FormData()
+    const metaBlob = new Blob([JSON.stringify(body)], { type: "application/json" })
+    form.append("metadata", metaBlob, "metadata.json")
+    for (const f of files) {
+      form.append("file", f)
+    }
+    form.append("primaryImageIndex", String(primaryImageIndex))
+    return form
+  }, { method: "POST", auth: true })
 }

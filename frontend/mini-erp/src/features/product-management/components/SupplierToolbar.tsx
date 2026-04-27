@@ -11,11 +11,14 @@ interface SupplierToolbarProps {
   onAction: (action: string) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  /** Task047 bulk — Task046: chỉ Owner xóa. */
+  canBulkDelete?: boolean
 }
 
 export function SupplierToolbar({
   searchStr, onSearch, statusFilter, onStatusChange,
-  selectedIds, onAction, fileInputRef, onFileChange
+  selectedIds, onAction, fileInputRef, onFileChange,
+  canBulkDelete = false,
 }: SupplierToolbarProps) {
   const hasSelection = selectedIds.length > 0;
 
@@ -49,9 +52,11 @@ export function SupplierToolbar({
               <Button variant="outline" size="sm" onClick={() => onAction("edit")} className="h-10 px-3 rounded-md">
                 <Edit2 className="h-4 w-4 mr-1.5" /> Sửa
               </Button>
-              <Button variant="destructive" size="sm" onClick={() => onAction("delete")} className="h-10 px-3 rounded-md bg-red-600 hover:bg-red-700">
-                <Trash2 className="h-4 w-4 mr-1.5" /> Xoá
-              </Button>
+              {canBulkDelete && (
+                <Button variant="destructive" size="sm" onClick={() => onAction("delete")} className="h-10 px-3 rounded-md bg-red-600 hover:bg-red-700">
+                  <Trash2 className="h-4 w-4 mr-1.5" /> Xoá
+                </Button>
+              )}
             </div>
           )}
           

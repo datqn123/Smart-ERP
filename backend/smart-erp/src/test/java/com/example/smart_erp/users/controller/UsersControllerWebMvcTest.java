@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.common.exception.GlobalExceptionHandler;
+import com.example.smart_erp.common.exception.MaxUploadSizeExceededAdvice;
 import com.example.smart_erp.config.MethodSecurityTestConfiguration;
 import com.example.smart_erp.config.PermitAllWebSecurityConfiguration;
 import com.example.smart_erp.config.SecurityBeansConfiguration;
@@ -36,8 +37,8 @@ import com.example.smart_erp.users.service.UserCreationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @WebMvcTest(controllers = UsersController.class)
-@Import({ GlobalExceptionHandler.class, SecurityBeansConfiguration.class, PermitAllWebSecurityConfiguration.class,
-		MethodSecurityTestConfiguration.class })
+@Import({ GlobalExceptionHandler.class, MaxUploadSizeExceededAdvice.class, SecurityBeansConfiguration.class,
+		PermitAllWebSecurityConfiguration.class, MethodSecurityTestConfiguration.class })
 class UsersControllerWebMvcTest {
 
 	@Autowired

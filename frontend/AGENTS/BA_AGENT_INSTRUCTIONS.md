@@ -137,6 +137,21 @@ Khi đã có Mockup chi tiết và cần đặc tả kỹ thuật cho Developer.
 
 → `AGENTS/docs/templates/ba/USER_STORY_SPEC_TEMPLATE.md`
 
+### 2.4.1 Toast & lỗi kích thước file (multipart / ảnh)
+
+Khi User Story hoặc SRS có **upload file** (ảnh sản phẩm, chứng từ, v.v.), BA **bắt buộc** mô tả hành vi lỗi kích thước / multipart trong **AC** và **UI Spec** (Trụ 4), để Dev/Tester không bỏ sót toast:
+
+| Tình huống | Hành vi UI (Mini-ERP) | Ghi chú BA |
+| :--------- | :------------------- | :--------- |
+| **Client — file một vượt ngưỡng** (vd. > 5MB/ảnh theo contract) | `toast.error` tiếng Việt **ngay khi chọn file**, không gọi API. Nội dung: dung lượng tối đa + định dạng (JPEG/PNG/WebP nếu có). | AC dạng: *Given* file > X MB *When* chọn *Then* toast lỗi, không request. |
+| **Client — tổng nhiều file một request** (vd. tạo SP + nhiều ảnh) | Nếu có validate tổng: toast tiếng Việt **trước** submit; ghi rõ “một lần gửi” / “giảm số ảnh”. | Đồng bộ số MB với SRS + `spring.servlet.multipart.max-request-size` + hằng FE (`PRODUCT_CREATE_STAGED_FILES_MAX_TOTAL_BYTES`, v.v.). |
+| **Server — 400** (file quá lớn, MIME không hợp lệ, lưu trữ ảnh chưa sẵn sàng…) | `toast.error` theo **`body.message`** envelope (BE tuân `API_RESPONSE_ENVELOPE.md` — không lộ cơ chế server). **Không** nối thêm chuỗi kỹ thuật (`failedId`, mã `reason` máy) lên toast trừ khi PO yêu cầu chế độ debug. | Tham chiếu `API_RESPONSE_ENVELOPE.md`, SRS §4.3 / §8.6 (sản phẩm). |
+| **Đang upload / lưu** | Loading (spinner/overlay) + chặn đóng form tùy UX đã chốt. | Bám Golden Rule *Zero Latency UI* (mục 4). |
+
+**Quy tắc chữ trên UI (toast, nhãn phụ, placeholder):** Giống envelope API — **không** nhắc tới cơ chế server (multipart, Spring, Cloudinary, JDBC, tên endpoint nội bộ, mã SRS/§…). Chỉ dùng ngôn ngữ **người dùng nghiệp vụ** (giới hạn MB, định dạng ảnh, “lưu khi bấm Lưu”, v.v.). Chi tiết kỹ thuật ghi trong spec dev / SRS.
+
+**Tra cứu màn hình:** [`mini-erp/src/features/FEATURES_UI_INDEX.md`](../mini-erp/src/features/FEATURES_UI_INDEX.md) — ví dụ ảnh SP: `ProductImagePanel`, `ProductForm`, `ProductsPage`.
+
 ---
 
 ## 2.5 Trụ 5: Quản lý Thay đổi (Change Request — CR)
@@ -252,6 +267,7 @@ Mỗi tài liệu SRS sinh ra phải tuân thủ cấu trúc sau:
 - [ ] Ngôn ngữ 100% tiếng Việt?
 - [ ] In-scope/Out-of-scope rõ ràng?
 - [ ] Acceptance Criteria (BDD) đủ happy + unhappy paths?
+- [ ] Upload / multipart: AC + toast kích thước (client) và toast `message` server (400) đã mô tả? (xem **§2.4.1**)
 
 ---
 

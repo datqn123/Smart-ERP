@@ -24,6 +24,8 @@ interface SupplierTableProps {
   onView: (item: Supplier) => void
   onEdit: (item: Supplier) => void
   onDelete: (item: Supplier) => void
+  /** Task046 — BE `assertOwnerOnly` khi xóa. */
+  canDelete?: boolean
 }
 
 export function SupplierTable({ 
@@ -33,7 +35,8 @@ export function SupplierTable({
   onSelectAll, 
   onView, 
   onEdit,
-  onDelete
+  onDelete,
+  canDelete = false,
 }: SupplierTableProps) {
   const allSelected = data.length > 0 && selectedIds.length === data.length;
   const someSelected = selectedIds.length > 0 && selectedIds.length < data.length;
@@ -95,9 +98,17 @@ export function SupplierTable({
                     <Button variant="ghost" size="icon" onClick={() => onEdit(item)} title="Chỉnh sửa" className="h-8 w-8 text-slate-500 hover:text-slate-900 transition-colors">
                       <Edit2 className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => onDelete(item)} title="Xóa" className="h-8 w-8 text-slate-500 hover:text-red-600 transition-colors">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {canDelete ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onDelete(item)}
+                        title="Xóa"
+                        className="h-8 w-8 text-slate-500 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : null}
                   </div>
                 </TableCell>
               </TableRow>

@@ -60,7 +60,7 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ApiErrorResponse> handleMissingMultipartPart(MissingServletRequestPartException ex) {
 		String name = ex.getRequestPartName() != null ? ex.getRequestPartName() : "file";
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiErrorResponse.of(ApiErrorCode.BAD_REQUEST,
-				"Thiếu thành phần multipart", Map.of(name, "Bắt buộc")));
+				"Thiếu dữ liệu tải lên bắt buộc", Map.of(name, "Bắt buộc")));
 	}
 
 	@ExceptionHandler(BusinessException.class)

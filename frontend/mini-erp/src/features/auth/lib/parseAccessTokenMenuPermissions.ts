@@ -5,6 +5,7 @@ const KEYS: (keyof MenuPermissions)[] = [
   "can_use_ai",
   "can_manage_inventory",
   "can_manage_products",
+  "can_manage_customers",
   "can_manage_orders",
   "can_approve",
   "can_view_finance",

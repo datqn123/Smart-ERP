@@ -75,7 +75,7 @@
 | Danh mục | `api/categoriesApi.ts` (Task029–033 — list/detail/create/patch/delete); `pages/CategoriesPage.tsx` (`useQuery` + `useMutation`); `components/CategoryTable.tsx`, `CategoryToolbar.tsx`, `CategoryForm.tsx`, `CategoryDetailDialog.tsx` |
 | Sản phẩm | `api/productsApi.ts` (Task034–037, 039 — list/get/patch/post ảnh); `pages/ProductsPage.tsx` (`useQuery` list + detail form); `ProductForm.tsx` (PATCH + create); `ProductDetailDialog.tsx` (**Task036** `useQuery` `getProductById` khi mở dialog); `ProductTable.tsx`, `ProductToolbar.tsx` |
 | NCC | `components/SupplierTable.tsx`, `SupplierToolbar.tsx`, `SupplierForm.tsx`, `SupplierDetailDialog.tsx` |
-| Khách | `components/CustomerTable.tsx`, `CustomerToolbar.tsx`, `CustomerForm.tsx`, `CustomerDetailDialog.tsx` |
+| Khách | `api/customersApi.ts` (Task048 list, Task049 `postCustomer`, Task050 `getCustomerById`, Task051 `patchCustomer` + `buildCustomerPatchBody`, Task052 `deleteCustomer`, Task053 `postCustomersBulkDelete`); `pages/CustomersPage.tsx` (list + form GET detail khi sửa + PATCH/POST + invalidate); `CustomerForm.tsx` (**Task051** ẩn `loyaltyPoints` khi `role=Staff`); `CustomerTable.tsx`, `CustomerToolbar.tsx`, `CustomerDetailDialog.tsx` |
 
 ### `orders/`
 

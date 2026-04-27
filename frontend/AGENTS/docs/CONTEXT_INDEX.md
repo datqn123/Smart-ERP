@@ -43,6 +43,7 @@
 | [API_BRIDGE_PROMPTS_Task029-033_categories.md](./API_BRIDGE_PROMPTS_Task029-033_categories.md) | Bộ prompt API_BRIDGE (verify + wire-fe) Task029–033 danh mục — copy theo phiên |
 | [API_BRIDGE_PROMPTS_Task034-041_products.md](./API_BRIDGE_PROMPTS_Task034-041_products.md) | Bộ prompt Task034–039, 041 sản phẩm |
 | [API_BRIDGE_PROMPTS_Task042-047_suppliers.md](./API_BRIDGE_PROMPTS_Task042-047_suppliers.md) | Bộ prompt Task042–047 nhà cung cấp — PM handoff [`backend/docs/task042-047/01-pm/README.md`](../../../backend/docs/task042-047/01-pm/README.md) |
+| [API_BRIDGE_PROMPTS_Task048-053_customers.md](./API_BRIDGE_PROMPTS_Task048-053_customers.md) | Bộ prompt Task048–053 khách hàng — SRS [`backend/docs/srs/SRS_Task048-053_customers-management.md`](../../../backend/docs/srs/SRS_Task048-053_customers-management.md) |
 | [WORKFLOW_RULE.md](../WORKFLOW_RULE.md) | Gate BA → PM → … |
 | [PLANNER_AGENT_INSTRUCTIONS.md](../PLANNER_AGENT_INSTRUCTIONS.md) | Intake + Q&A + brief |
 

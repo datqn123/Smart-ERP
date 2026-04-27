@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { CustomersPage } from "./CustomersPage"
 import { describe, it, expect, vi } from "vitest"
 import { PageTitleProvider } from "@/context/PageTitleContext"
@@ -19,12 +20,27 @@ vi.mock("@/components/shared/ConfirmDialog", () => ({
   ConfirmDialog: () => null,
 }))
 
+vi.mock("../api/customersApi", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../api/customersApi")>()
+  return {
+    ...mod,
+    getCustomerList: vi.fn().mockResolvedValue({ items: [], page: 1, limit: 20, total: 0 }),
+    deleteCustomer: vi.fn().mockResolvedValue({ id: 0, deleted: true }),
+    postCustomersBulkDelete: vi.fn().mockResolvedValue({ deletedIds: [], deletedCount: 0 }),
+  }
+})
+
 describe("CustomersPage Structural Test", () => {
   it("should have Toolbar and Table as children of a gap container", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
     const { getByTestId } = render(
-      <PageTitleProvider>
-        <CustomersPage />
-      </PageTitleProvider>
+      <QueryClientProvider client={queryClient}>
+        <PageTitleProvider>
+          <CustomersPage />
+        </PageTitleProvider>
+      </QueryClientProvider>,
     )
     
     const toolbar = getByTestId("customer-toolbar")

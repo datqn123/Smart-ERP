@@ -18,6 +18,7 @@ const EMPTY_PERMS: MenuPermissions = {
   can_use_ai: false,
   can_manage_inventory: false,
   can_manage_products: false,
+  can_manage_customers: false,
   can_manage_orders: false,
   can_approve: false,
   can_view_finance: false,

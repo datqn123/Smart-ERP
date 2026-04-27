@@ -74,12 +74,11 @@ const navConfig: NavItemConfig[] = [
     id: "products",
     label: "Sản phẩm",
     icon: <Package className="h-[18px] w-[18px]" />,
-    allSubsPerm: "can_manage_products",
     subItems: [
-      { label: "Danh mục sản phẩm", path: "/products/categories" },
-      { label: "Quản lý sản phẩm", path: "/products/list" },
-      { label: "Nhà cung cấp", path: "/products/suppliers" },
-      { label: "Khách hàng", path: "/products/customers" },
+      { label: "Danh mục sản phẩm", path: "/products/categories", perm: "can_manage_products" },
+      { label: "Quản lý sản phẩm", path: "/products/list", perm: "can_manage_products" },
+      { label: "Nhà cung cấp", path: "/products/suppliers", perm: "can_manage_products" },
+      { label: "Khách hàng", path: "/products/customers", perm: "can_manage_customers" },
     ],
   },
   {

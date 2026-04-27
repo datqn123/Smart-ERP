@@ -33,6 +33,8 @@ interface CustomerTableProps {
   onView: (item: Customer) => void
   onEdit: (item: Customer) => void
   onDelete: (item: Customer) => void
+  /** Task052 — BE `assertOwnerOnly` khi xóa. */
+  canDelete?: boolean
 }
 
 export function CustomerTable({ 
@@ -42,7 +44,8 @@ export function CustomerTable({
   onSelectAll, 
   onView, 
   onEdit,
-  onDelete
+  onDelete,
+  canDelete = false,
 }: CustomerTableProps) {
   const allSelected = data.length > 0 && selectedIds.length === data.length;
   const someSelected = selectedIds.length > 0 && selectedIds.length < data.length;
@@ -110,9 +113,17 @@ export function CustomerTable({
                     <Button variant="ghost" size="icon" onClick={() => onEdit(item)} title="Chỉnh sửa" className="h-8 w-8 text-slate-500 hover:text-slate-900 transition-colors">
                       <Edit2 className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => onDelete(item)} title="Xóa" className="h-8 w-8 text-slate-500 hover:text-red-600 transition-colors">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {canDelete ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onDelete(item)}
+                        title="Xóa"
+                        className="h-8 w-8 text-slate-500 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : null}
                   </div>
                 </TableCell>
               </TableRow>

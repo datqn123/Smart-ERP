@@ -1,24 +1,33 @@
 import React from "react"
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
   DialogTitle,
-  DialogDescription 
+  DialogDescription,
 } from "@/components/ui/dialog"
 import { formatDate } from "../../inventory/utils"
 import type { Customer } from "../types"
-import { User, Phone, Mail, MapPin, Trophy, Wallet, ShoppingBag, Calendar, Activity } from "lucide-react"
+import { Phone, Mail, MapPin, Trophy, ShoppingBag, Calendar, Activity } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
+import { cn } from "@/lib/utils"
 
 interface CustomerDetailDialogProps {
-  customer: Customer | null;
-  isOpen: boolean;
-  onClose: () => void;
+  customer: Customer | null
+  isOpen: boolean
+  onClose: () => void
+  /** Task050 — đang tải `GET /api/v1/customers/{id}`. */
+  isDetailLoading?: boolean
+  isDetailError?: boolean
 }
 
-export function CustomerDetailDialog({ customer, isOpen, onClose }: CustomerDetailDialogProps) {
+export function CustomerDetailDialog({
+  customer,
+  isOpen,
+  onClose,
+  isDetailLoading = false,
+  isDetailError = false,
+}: CustomerDetailDialogProps) {
   if (!customer) return null;
 
   return (
@@ -48,11 +57,25 @@ export function CustomerDetailDialog({ customer, isOpen, onClose }: CustomerDeta
             <div className="flex items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <div className="text-right border-r pr-4 border-slate-100">
                     <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Điểm tích lũy</p>
-                    <p className="text-2xl font-black text-slate-900">{customer.loyaltyPoints} <span className="text-sm font-normal text-slate-400">pts</span></p>
+                    <p className="text-2xl font-black text-slate-900">
+                      {customer.loyaltyPoints}{" "}
+                      <span className="text-sm font-normal text-slate-400">pts</span>
+                    </p>
                 </div>
                 <div className="text-right">
                     <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Tổng chi tiêu</p>
-                    <p className="text-2xl font-black text-slate-900">{(customer.totalSpent || 0).toLocaleString()} <span className="text-sm font-normal text-slate-400">đ</span></p>
+                    <p className="text-2xl font-black text-slate-900">
+                      {(customer.totalSpent || 0).toLocaleString()}{" "}
+                      <span className="text-sm font-normal text-slate-400">đ</span>
+                    </p>
+                    {isDetailLoading ? (
+                      <p className="text-[10px] text-slate-400 mt-1">Đang tải số liệu…</p>
+                    ) : null}
+                    {isDetailError ? (
+                      <p className="text-[10px] text-amber-700 mt-1">
+                        Một số số liệu có thể từ danh sách (chưa tải đủ API).
+                      </p>
+                    ) : null}
                 </div>
             </div>
           </div>
@@ -103,10 +126,10 @@ export function CustomerDetailDialog({ customer, isOpen, onClose }: CustomerDeta
         </div>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 
-function MetricItem({ icon: Icon, label, value }: { icon: any, label: string, value: string }) {
+function MetricItem({ icon: Icon, label, value }: { icon: React.ComponentType<{ size?: number }>; label: string; value: string }) {
   return (
     <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-slate-300 transition-colors">
       <div className="h-10 w-10 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-50">
@@ -119,5 +142,3 @@ function MetricItem({ icon: Icon, label, value }: { icon: any, label: string, va
     </div>
   )
 }
-
-import { cn } from "@/lib/utils"

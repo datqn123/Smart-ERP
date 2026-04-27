@@ -32,6 +32,7 @@ public final class MenuPermissionClaims {
 		"can_use_ai",
 		"can_manage_inventory",
 		"can_manage_products",
+		"can_manage_customers",
 		"can_manage_orders",
 		"can_approve",
 		"can_view_finance",
@@ -43,7 +44,7 @@ public final class MenuPermissionClaims {
 	}
 
 	/**
-	 * Rút 9 cờ cần cho menu từ toàn bộ JSON {@code permissions} trên bảng Roles.
+	 * Rút các cờ boolean cần cho menu từ toàn bộ JSON {@code permissions} trên bảng Roles.
 	 * Key thiếu hoặc lỗi parse → false.
 	 */
 	public static Map<String, Boolean> fromRolePermissionsJson(String rolePermissionsJson) {

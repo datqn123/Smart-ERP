@@ -19,6 +19,13 @@ class MenuPermissionClaimsTest {
 		assertThat(m.get("can_use_ai")).isFalse();
 		assertThat(m.get("can_manage_inventory")).isTrue();
 		assertThat(m.get("can_approve")).isFalse();
+		assertThat(m.get("can_manage_customers")).isFalse();
+	}
+
+	@Test
+	void fromRolePermissionsJson_canManageCustomersWhenPresent() {
+		String json = "{\"can_manage_customers\": true}";
+		assertThat(MenuPermissionClaims.fromRolePermissionsJson(json).get("can_manage_customers")).isTrue();
 	}
 
 	@Test

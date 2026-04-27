@@ -13,7 +13,7 @@ export class ApiRequestError extends Error {
   readonly body: ApiErrorBody
 
   constructor(status: number, body: ApiErrorBody) {
-    super(body.message ?? "Request failed")
+    super(body.message ?? "Yêu cầu không thành công. Vui lòng thử lại.")
     this.name = "ApiRequestError"
     this.status = status
     this.body = body
@@ -40,7 +40,7 @@ function parseApiEnvelopeText<T>(res: Response, raw: string): T {
     throw new ApiRequestError(res.status, {
       success: false,
       error: "BAD_RESPONSE",
-      message: "Phản hồi rỗng từ server. Kiểm tra backend, URL và proxy /api (dev).",
+      message: "Không nhận được phản hồi từ dịch vụ. Vui lòng thử lại sau ít phút.",
     })
   }
   let json: unknown
@@ -52,8 +52,8 @@ function parseApiEnvelopeText<T>(res: Response, raw: string): T {
       success: false,
       error: "BAD_RESPONSE",
       message: isHtml
-        ? "Máy chủ trả về trang HTML thay vì JSON. Kiểm tra proxy Vite (/api → 8080), VITE_API_BASE_URL và dịch vụ smart-erp."
-        : "Không đọc được JSON từ server (phản hồi không hợp lệ).",
+        ? "Dịch vụ tạm thời không phản hồi đúng. Vui lòng thử lại sau ít phút."
+        : "Không thể xử lý phản hồi từ hệ thống. Vui lòng thử lại.",
     })
   }
   const obj = json as Record<string, unknown>
@@ -75,7 +75,7 @@ function parseApiEnvelopeText<T>(res: Response, raw: string): T {
   throw new ApiRequestError(res.status, {
     success: false,
     error: "INVALID_ENVELOPE",
-    message: "Phản hồi không đúng envelope success/data",
+    message: "Không xử lý được dữ liệu trả về. Vui lòng thử lại hoặc liên hệ quản trị.",
   })
 }
 
@@ -86,7 +86,7 @@ export async function apiJson<T>(path: string, init: ApiJsonOptions = {}): Promi
   const { auth, _didRefresh, headers: initHeaders, ...rest } = init
   const base = getApiBaseUrl()
   if (!import.meta.env.DEV && !base) {
-    throw new Error("VITE_API_BASE_URL is not set and non-DEV build has no default API host")
+    throw new Error("Ứng dụng chưa được cấu hình địa chỉ dịch vụ. Vui lòng liên hệ quản trị hệ thống.")
   }
   const url = getApiUrl(path.startsWith("/") ? path : `/${path}`)
   const headers = new Headers(initHeaders)
@@ -127,7 +127,7 @@ export async function apiFormData<T>(path: string, getFormData: () => FormData, 
   const { auth, _didRefresh, headers: initHeaders, ...rest } = init
   const base = getApiBaseUrl()
   if (!import.meta.env.DEV && !base) {
-    throw new Error("VITE_API_BASE_URL is not set and non-DEV build has no default API host")
+    throw new Error("Ứng dụng chưa được cấu hình địa chỉ dịch vụ. Vui lòng liên hệ quản trị hệ thống.")
   }
   const url = getApiUrl(path.startsWith("/") ? path : `/${path}`)
   const headers = new Headers(initHeaders)

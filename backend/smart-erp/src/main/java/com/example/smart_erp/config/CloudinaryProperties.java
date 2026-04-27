@@ -10,8 +10,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class CloudinaryProperties {
 
 	/**
-	 * When false (default), {@link CloudinaryConfiguration} does not create a {@link com.cloudinary.Cloudinary} bean
-	 * and multipart upload returns a clear business error.
+	 * When false (default), {@link CloudinaryConfiguration} does not create a Cloudinary SDK bean and multipart upload
+	 * returns a clear business error.
 	 */
 	private boolean enabled = false;
 

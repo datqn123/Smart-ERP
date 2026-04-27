@@ -22,6 +22,39 @@
 			"type": "java.lang.Integer",
 			"description": "Access JWT TTL in minutes (min 1). Issued at login/refresh. Env JWT_ACCESS_TTL_MINUTES overrides in application-postgres.",
 			"defaultValue": 1
+		},
+		{
+			"name": "app.cloudinary.enabled",
+			"type": "java.lang.Boolean",
+			"description": "When true, registers Cloudinary SDK bean for Task039 multipart upload. Also set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET (or app.cloudinary.*). Env CLOUDINARY_ENABLED.",
+			"defaultValue": false
+		},
+		{
+			"name": "app.cloudinary.cloud-name",
+			"type": "java.lang.String",
+			"description": "Cloudinary cloud name. Env CLOUDINARY_CLOUD_NAME."
+		},
+		{
+			"name": "app.cloudinary.api-key",
+			"type": "java.lang.String",
+			"description": "Cloudinary API key. Env CLOUDINARY_API_KEY."
+		},
+		{
+			"name": "app.cloudinary.api-secret",
+			"type": "java.lang.String",
+			"description": "Cloudinary API secret. Env CLOUDINARY_API_SECRET. Do not commit."
+		},
+		{
+			"name": "app.cloudinary.folder",
+			"type": "java.lang.String",
+			"description": "Folder prefix on Cloudinary (product id appended per upload). Env CLOUDINARY_FOLDER.",
+			"defaultValue": "smart-erp/products"
+		},
+		{
+			"name": "app.cloudinary.max-file-size-bytes",
+			"type": "java.lang.Long",
+			"description": "Max multipart image size in bytes before upload. Env CLOUDINARY_MAX_BYTES.",
+			"defaultValue": 5242880
 		}
 	]
 }

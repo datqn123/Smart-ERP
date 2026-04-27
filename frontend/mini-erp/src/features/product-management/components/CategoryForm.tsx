@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { FORM_LABEL_CLASS, FORM_INPUT_CLASS, FORM_HELPER_CLASS } from "@/lib/data-table-layout"
+import { ApiRequestError } from "@/lib/api/http"
 import type { Category } from "../types"
 
 const categorySchema = z.object({
@@ -43,12 +44,12 @@ interface CategoryFormProps {
   onOpenChange: (open: boolean) => void
   category?: Category
   allCategories?: Category[]
-  onSubmit: (data: CategoryFormData) => void
+  onSubmit: (data: CategoryFormData) => void | Promise<void>
 }
 
 export function CategoryForm({ open, onOpenChange, category, allCategories = [], onSubmit }: CategoryFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  
+
   const form = useForm<CategoryFormData>({
     resolver: zodResolver(categorySchema),
     defaultValues: {
@@ -89,21 +90,47 @@ export function CategoryForm({ open, onOpenChange, category, allCategories = [],
   const handleLocalSubmit = async (data: CategoryFormData) => {
     setIsSubmitting(true)
     try {
-      await onSubmit(data)
+      await Promise.resolve(onSubmit(data))
       onOpenChange(false)
+    } catch (e) {
+      if (e instanceof ApiRequestError && e.status === 400 && e.body.details) {
+        const formKeys: (keyof CategoryFormData)[] = [
+          "categoryCode",
+          "name",
+          "parentId",
+          "description",
+          "sortOrder",
+          "status",
+        ]
+        for (const key of formKeys) {
+          const msg = e.body.details[key]
+          if (msg) {
+            form.setError(key, { message: msg })
+          }
+        }
+      }
     } finally {
       setIsSubmitting(false)
     }
   }
 
   // Determine title based on context
-  const isAddingSub = category && !category.id;
-  const isEditing = category && category.id;
-  const title = isEditing ? "Cập nhật danh mục" : (isAddingSub ? "Thêm danh mục con" : "Thêm danh mục mới");
+  const isAddingSub = category && !category.id
+  const isEditing = category && category.id
+  const title = isEditing ? "Cập nhật danh mục" : isAddingSub ? "Thêm danh mục con" : "Thêm danh mục mới"
+  const fe = form.formState.errors
   
   // Helper to render hierarchical categories in select
   const renderCategoryOptions = () => {
-    const options: any[] = [<SelectItem key="0" value="0">Gốc (Root)</SelectItem>];
+    const options: React.ReactNode[] = []
+    const showRootOption = !(isEditing && category?.parentId)
+    if (showRootOption) {
+      options.push(
+        <SelectItem key="0" value="0">
+          Gốc (Root)
+        </SelectItem>,
+      )
+    }
     
     const addOptions = (cats: Category[], level: number) => {
       cats.forEach(c => {
@@ -175,6 +202,11 @@ export function CategoryForm({ open, onOpenChange, category, allCategories = [],
                         placeholder="Ví dụ: Đồ gia dụng, Điện tử..."
                         className={cn(FORM_INPUT_CLASS, "font-semibold")} 
                     />
+                    {fe.name?.message && (
+                      <p className="text-sm text-red-600" role="alert">
+                        {fe.name.message}
+                      </p>
+                    )}
                 </div>
 
                 <div className="space-y-2.5">
@@ -186,6 +218,11 @@ export function CategoryForm({ open, onOpenChange, category, allCategories = [],
                         placeholder="Nhập mã hoặc random..."
                         className={cn(FORM_INPUT_CLASS, "font-mono")}
                     />
+                    {fe.categoryCode?.message && (
+                      <p className="text-sm text-red-600" role="alert">
+                        {fe.categoryCode.message}
+                      </p>
+                    )}
                 </div>
 
                 {/* Row 2: Danh mục cha & Trạng thái */}
@@ -202,6 +239,11 @@ export function CategoryForm({ open, onOpenChange, category, allCategories = [],
                             {renderCategoryOptions()}
                         </SelectContent>
                     </Select>
+                    {fe.parentId?.message && (
+                      <p className="text-sm text-red-600" role="alert">
+                        {fe.parentId.message}
+                      </p>
+                    )}
                 </div>
 
                 <div className="space-y-2.5">
@@ -238,6 +280,11 @@ export function CategoryForm({ open, onOpenChange, category, allCategories = [],
                         {...form.register("sortOrder", { valueAsNumber: true })} 
                         className={FORM_INPUT_CLASS}
                     />
+                    {fe.sortOrder?.message && (
+                      <p className="text-sm text-red-600" role="alert">
+                        {fe.sortOrder.message}
+                      </p>
+                    )}
                 </div>
 
                 <div className="flex items-end">
@@ -259,6 +306,11 @@ export function CategoryForm({ open, onOpenChange, category, allCategories = [],
                 placeholder="Nhập ghi chú hoặc mô tả về danh mục này..."
                 className={cn(FORM_INPUT_CLASS, "min-h-[100px] p-4")}
                 />
+                {fe.description?.message && (
+                  <p className="text-sm text-red-600" role="alert">
+                    {fe.description.message}
+                  </p>
+                )}
             </div>
           </div>
         </form>

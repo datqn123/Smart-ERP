@@ -40,6 +40,7 @@
 | Tài liệu | Vai trò |
 | :------- | :------ |
 | [API_PROJECT_DESIGN.md](../../docs/api/API_PROJECT_DESIGN.md) | Catalog endpoint `/api/v1` (hợp đồng FE + BE) |
+| [API_BRIDGE_PROMPTS_Task029-033_categories.md](./API_BRIDGE_PROMPTS_Task029-033_categories.md) | Bộ prompt API_BRIDGE (verify + wire-fe) Task029–033 danh mục — copy theo phiên |
 | [WORKFLOW_RULE.md](../WORKFLOW_RULE.md) | Gate BA → PM → … |
 | [PLANNER_AGENT_INSTRUCTIONS.md](../PLANNER_AGENT_INSTRUCTIONS.md) | Intake + Q&A + brief |
 

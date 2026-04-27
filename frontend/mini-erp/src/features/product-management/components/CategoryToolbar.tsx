@@ -9,11 +9,13 @@ interface CategoryToolbarProps {
   onStatusChange: (val: string) => void
   selectedIds: number[]
   onAction: (action: string) => void
+  /** Task033: xóa hàng loạt (soft) chỉ Owner. */
+  canBulkDelete: boolean
 }
 
 export function CategoryToolbar({
   searchStr, onSearch, statusFilter, onStatusChange,
-  selectedIds, onAction
+  selectedIds, onAction, canBulkDelete,
 }: CategoryToolbarProps) {
   const hasSelection = selectedIds.length > 0;
 
@@ -42,7 +44,7 @@ export function CategoryToolbar({
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          {hasSelection && (
+          {canBulkDelete && hasSelection && (
             <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-1">
               <Button variant="destructive" size="sm" onClick={() => onAction("delete")} className="h-10 px-3 rounded-md bg-red-600 hover:bg-red-700">
                 <Trash2 className="h-4 w-4 mr-1.5" /> Xoá

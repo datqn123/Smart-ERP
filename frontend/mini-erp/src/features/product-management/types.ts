@@ -4,6 +4,13 @@
 
 // --- Categories (Task009) ---
 
+/** Ancestors từ `GET /api/v1/categories/{id}` (Task031). */
+export type CategoryBreadcrumbItem = {
+  id: number;
+  name: string;
+  categoryCode: string;
+};
+
 export interface Category {
   id: number;
   categoryCode: string; // CAT001
@@ -17,6 +24,8 @@ export interface Category {
   updatedAt: string;
   children?: Category[];
   productCount?: number;
+  /** Chỉ điền khi có response chi tiết Task031. */
+  breadcrumb?: CategoryBreadcrumbItem[];
 }
 
 // --- Products (Task010) ---

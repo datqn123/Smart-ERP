@@ -13,6 +13,10 @@
   
   --color-alert: #b91c1c;
   --color-alert-light: #fee2e2;
+
+  /* Dùng cho `variant="destructive"` (Button, Badge, v.v.) — thiếu sẽ khiến nền trống, chữ trắng “biến mất” trên nền sáng */
+  --color-destructive: #b91c1c;
+  --color-destructive-foreground: #ffffff;
   
   --color-background: #ffffff;
   --color-foreground: #0f172a;

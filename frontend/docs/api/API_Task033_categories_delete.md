@@ -26,7 +26,7 @@
 | **Endpoint** | `/api/v1/categories/{id}` |
 | **Method** | `DELETE` |
 | **Authentication** | `Bearer` |
-| **RBAC** | Owner (khuyến nghị) hoặc Staff có quyền xóa UC8 |
+| **RBAC** | `can_manage_products` trên controller; **xóa mềm:** chỉ **Owner** (`Jwt` claim `role`, `StockReceiptAccessPolicy.assertOwnerOnly`) — khớp [`SRS_Task029-033_categories-management.md`](../../../../backend/docs/srs/SRS_Task029-033_categories-management.md) §6 |
 | **Use Case Ref** | UC8 |
 
 ---
@@ -53,20 +53,21 @@ Chốt **`200 OK`** + envelope [`API_RESPONSE_ENVELOPE.md`](../../../frontend/do
 
 ---
 
-## 6. Logic DB (Step-by-Step)
+## 6. Logic server & DB (Step-by-Step) — **soft-delete**
 
-1. **JWT** → **401** / **403**.
-2. **`SELECT id FROM Categories WHERE id = ? FOR UPDATE`** — không có → **404**.
-3. **`SELECT 1 FROM Categories WHERE parent_id = ? LIMIT 1`** — có → **409** ("Còn danh mục con").
-4. **`SELECT 1 FROM Products WHERE category_id = ? LIMIT 1`** — có → **409** ("Còn sản phẩm thuộc danh mục").
-5. **`DELETE FROM Categories WHERE id = ?`**.
-6. (Tuỳ chọn) **SystemLogs**.
+1. **JWT** → **401**; thiếu `can_manage_products` → **403**; không phải Owner khi thực hiện xóa mềm → **403** (message theo SRS §8.7).
+2. **`SELECT … FROM categories WHERE id = ? AND deleted_at IS NULL FOR UPDATE`** — không có → **404**.
+3. **`SELECT 1 FROM categories WHERE parent_id = ? AND deleted_at IS NULL LIMIT 1`** — có → **409** (còn con đang hiệu lực).
+4. **`SELECT 1 FROM products WHERE category_id = ? LIMIT 1`** — có → **409** (còn SP gán trực tiếp).
+5. **`UPDATE categories SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL`** — không xóa vật lý row.
 
 ```sql
-DELETE FROM Categories WHERE id = $1;
+UPDATE categories
+SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE id = :id AND deleted_at IS NULL;
 ```
 
-_Nếu PM muốn khớp FK DB (cho phép xóa và `Products.category_id` → NULL): bỏ bước 4 và cập nhật `Products` trước `DELETE` — phải ghi rõ trong backlog._
+**Schema:** bảng vật lý PostgreSQL **`categories`**; cột **`deleted_at`** + partial unique mã — Flyway **`V14__categories_deleted_at.sql`** (tham chiếu SRS §10).
 
 ---
 
@@ -82,13 +83,25 @@ _Nếu PM muốn khớp FK DB (cho phép xóa và `Products.category_id` → NUL
 }
 ```
 
+#### 403 Forbidden (không phải Owner)
+
+```json
+{
+  "success": false,
+  "error": "FORBIDDEN",
+  "message": "Chỉ tài khoản Owner mới được xóa mềm danh mục",
+  "details": {}
+}
+```
+
 #### 409 Conflict
 
 ```json
 {
   "success": false,
   "error": "CONFLICT",
-  "message": "Không thể xóa: còn danh mục con hoặc còn sản phẩm gán vào danh mục này"
+  "message": "Không thể đánh dấu xóa: còn danh mục con đang hiệu lực hoặc còn sản phẩm gán vào danh mục này",
+  "details": {}
 }
 ```
 

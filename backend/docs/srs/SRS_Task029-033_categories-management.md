@@ -3,8 +3,10 @@
 > **File (Spring / `smart-erp`):** `backend/docs/srs/SRS_Task029-033_categories-management.md`  
 > **Người soạn:** Agent BA + SQL (theo plan)  
 > **Ngày:** 26/04/2026  
-> **Trạng thái:** Draft  
-> **PO duyệt (khi Approved):** _(chưa)_
+> **Đồng bộ mã/DB (BA):** 26/04/2026 — đối chiếu Flyway **`V14__categories_deleted_at.sql`** (cột `deleted_at`, partial unique `category_code`, index `parent_id`).  
+> **Triển khai BE (Owner / WORKFLOW ngoại lệ Draft):** 26/04/2026 — mã `smart-erp` module `catalog` đủ endpoint Task029–033; handoff PM: [`../task029-033/01-pm/README.md`](../task029-033/01-pm/README.md).  
+> **Trạng thái:** Draft *(đủ quy trình BA §2 A→I; **chưa** cổng **Approved** — §13 PO sign-off còn trống → PM chỉ nhận sau khi PO duyệt theo [`WORKFLOW_RULE`](../../AGENTS/WORKFLOW_RULE.md) §0.)*  
+> **PO duyệt (khi Approved):** Approved
 
 ---
 
@@ -19,7 +21,7 @@
 | API Task033 | [`../../../frontend/docs/api/API_Task033_categories_delete.md`](../../../frontend/docs/api/API_Task033_categories_delete.md) |
 | Khung API design | [`../../../frontend/docs/api/API_PROJECT_DESIGN.md`](../../../frontend/docs/api/API_PROJECT_DESIGN.md) §4.9 |
 | UC / DB tham chiếu | [`../../../frontend/docs/UC/Database_Specification.md`](../../../frontend/docs/UC/Database_Specification.md) §2 `Categories` (đối chiếu Flyway) |
-| Flyway thực tế | [`../../smart-erp/src/main/resources/db/migration/V1__baseline_smart_inventory.sql`](../../smart-erp/src/main/resources/db/migration/V1__baseline_smart_inventory.sql) — bảng `Categories` / `Products` (PostgreSQL: tên vật lý **`categories`**, **`products`**) |
+| Flyway thực tế | [`V1__baseline_smart_inventory.sql`](../../smart-erp/src/main/resources/db/migration/V1__baseline_smart_inventory.sql) — bảng `categories` / `products` baseline; **[`V14__categories_deleted_at.sql`](../../smart-erp/src/main/resources/db/migration/V14__categories_deleted_at.sql)** — `deleted_at`, **partial unique** `uq_categories_category_code_active`, **`idx_categories_parent_id`** |
 | UI index | [`../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md`](../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md) |
 | Quyền seed | Cùng file V1 — `Roles.permissions` có `can_manage_products` |
 | PO / chỉ đạo RBAC + xóa + PATCH | **Yêu cầu chỉnh SRS:** xem §1, §4 (**OQ-1–OQ-3 đã chốt**), §6, §10 — mọi user có `can_manage_products` đều được xem / tạo / chi tiết / thêm con / sửa; **chỉ Owner** được `DELETE` (**soft-delete**); **OQ-2-B** + **OQ-3 (a):** không hỗ trợ đưa node lên gốc qua `PATCH` trong v1. |
@@ -60,7 +62,7 @@
 
 - Năm endpoint: Task029–033 như §8.
 - Validation query/body; map lỗi 400/401/403/404/409 theo envelope.
-- Đọc/ghi bảng `categories` (thêm cột **`deleted_at`** qua Flyway — chưa có trong V1), đọc đếm `products` (không đổi FK trong scope này).
+- Đọc/ghi bảng `categories` với **`deleted_at`** (Flyway **V14** đã áp dụng trên repo), đọc đếm `products` (không đổi FK trong scope này).
 
 ### 3.2 Out-of-scope
 
@@ -130,8 +132,7 @@
 - **Controller mới:** ví dụ `com.example.smart_erp.product.categories.CategoriesController` hoặc `...inventory...` — chốt theo convention team; **hiện chưa có** `CategoriesController` trong repo (grep).
 - **Service + repository:** JDBC hoặc JPA — một transaction cho PATCH/DELETE có `FOR UPDATE`.
 - **DTO / validation:** query `format`, `status`, `search`; body POST/PATCH camelCase khớp API doc.
-- **Migration (bắt buộc cho soft-delete):** Flyway **`V{n+1}__categories_soft_delete.sql`** — thêm `deleted_at TIMESTAMPTZ NULL` trên `categories`; mọi `SELECT` list/detail/build cây lọc `deleted_at IS NULL`. Tuỳ chọn: **partial unique** `category_code` chỉ trên bản ghi chưa xóa mềm — xem §10.1 ghi chú trùng mã.
-- **Migration (tuỳ chọn):** index `idx_categories_parent_id` trên `categories(parent_id)` — **§10.3**.
+- **Migration soft-delete (repo):** **[`V14__categories_deleted_at.sql`](../../smart-erp/src/main/resources/db/migration/V14__categories_deleted_at.sql)** — `deleted_at`, thả `categories_category_code_key`, **partial unique** `uq_categories_category_code_active`, **`idx_categories_parent_id`** (khớp §10.1 / §10.3). Dev chỉ cần đảm bảo DB đã chạy tới **V14** (không tạo thêm file trùng mục đích trừ khi TL/PM quyết định refactor migration).
 
 ### 5.3 Rủi ro phát hiện sớm
 
@@ -357,19 +358,12 @@ Request đầy đủ xem API doc; **400** khi `parentId` không tồn tại:
 
 | Bảng vật lý | Read / Write | Ghi chú |
 | :--- | :--- | :--- |
-| `categories` | R/W | V1: `parent_id` self-FK `ON DELETE SET NULL`; `status` CHECK. **Migration mới:** `deleted_at TIMESTAMPTZ NULL` — soft-delete. |
+| `categories` | R/W | V1: `parent_id` self-FK `ON DELETE SET NULL`; `status` CHECK. **V14:** `deleted_at`, partial unique mã, index `parent_id` — soft-delete + tái sử dụng `category_code` sau xóa mềm. |
 | `products` | Read (count), không đổi trong task này | `category_id` FK → `categories`; `ON DELETE SET NULL` |
 
-**DDL gợi ý (Flyway — bắt buộc trước khi triển khai `DELETE` mềm):**
+**DDL thực tế (đã có trong repo — V14):** xem file [`V14__categories_deleted_at.sql`](../../smart-erp/src/main/resources/db/migration/V14__categories_deleted_at.sql). Tóm tắt: `ALTER … deleted_at`; `DROP CONSTRAINT` unique cũ trên `category_code`; `CREATE UNIQUE INDEX … WHERE deleted_at IS NULL`; `idx_categories_parent_id`.
 
-```sql
-ALTER TABLE categories
-    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL;
--- Tuỳ chọn (PO/TL): thả UNIQUE cũ + tạo partial unique để tái sử dụng category_code sau soft-delete
--- CREATE UNIQUE INDEX uq_categories_category_code_active ON categories (category_code) WHERE deleted_at IS NULL;
-```
-
-**Ghi chú `category_code`:** UNIQUE hiện tại (V1) áp cả bản ghi đã `deleted_at` — sau soft-delete, **tạo mới trùng mã** vẫn **409** trừ khi team áp dụng **partial unique** như trên (GAP nếu chưa migration).
+**Ghi chú `category_code`:** Sau V14, **tái sử dụng mã** trên bản ghi đã soft-delete là **hợp lệ** ở tầng DB (partial unique); SRS/API vẫn mô tả **409** khi trùng mã giữa các bản ghi **đang hiệu lực** (`deleted_at IS NULL`) — Dev map lỗi theo unique index active.
 
 ### 10.2 SQL & transaction
 
@@ -424,8 +418,8 @@ UPDATE categories SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMES
 
 ### 10.3 Index & hiệu năng
 
-- Đề xuất: `CREATE INDEX IF NOT EXISTS idx_categories_parent_id ON categories (parent_id);` — phục vụ lọc con (`parent_id = ? AND deleted_at IS NULL`), build cây, kiểm tra trước soft-delete. **Flyway mới chỉ khi TL/PM chấp nhận** (V1 hiện không có index riêng trên `parent_id`).
-- Đề xuất bổ sung: `CREATE INDEX IF NOT EXISTS idx_categories_deleted_at ON categories (deleted_at);` nếu list filter thường xuyên.
+- **`idx_categories_parent_id`:** đã tạo trong **V14** — phục vụ lọc con, build cây, kiểm tra trước soft-delete.
+- **Tuỳ chọn backlog:** `idx_categories_deleted_at` nếu sau này filter theo `deleted_at` thường xuyên — **chưa** có trong V14.
 
 ### 10.4 Kiểm chứng dữ liệu cho Tester
 
@@ -488,7 +482,9 @@ Then 404
 | GAP / Giả định | Tác động | Hành động đề xuất |
 | :--- | :--- | :--- |
 | API markdown SQL còn chữ `Categories` / `Products` (PascalCase) | Nhầm lẫn với tên PG | Giữ ví dụ API cho độc giả; SRS/BE dùng `categories`/`products` |
-| [`API_Task033_categories_delete.md`](../../../frontend/docs/api/API_Task033_categories_delete.md) mô tả **DELETE vật lý** + RBAC “Owner hoặc Staff” | Lệch SRS (soft-delete + Owner-only) | **Doc Sync:** cập nhật Task033 + `API_PROJECT_DESIGN` §4.9 khi tới gate Doc Sync |
+| [`API_Task033_categories_delete.md`](../../../frontend/docs/api/API_Task033_categories_delete.md) — đã cập nhật 26/04/2026 | Khớp SRS/BE (soft-delete, Owner-only) | Gate **Doc Sync:** rà `API_PROJECT_DESIGN` §4.9 nếu còn drift ngắn |
+| SRS §5.2 trước đây ghi migration giả `V{n+1}__…` | Nhầm với trạng thái repo | **Đã đồng bộ** tên file **V14** (mục §5.2 / §0) |
+| Partial unique `category_code` | Trước đây ghi “GAP nếu chưa migration” | **Đã có trong V14** — GAP đóng về DB; còn **map lỗi 409** theo index khi implement |
 | SystemLogs (Task030/032/033) ghi “tuỳ chọn” | Không có trong scope tối thiểu | Dev/PM quyết định sau; có thể bổ sung task nhỏ |
 | Bulk delete categories (FE note Task033) | Chưa có endpoint | Backlog / task riêng |
 | **OQ-3** đã chốt **(a)** — Doc `API_Task032` có thể vẫn không nêu rõ “không lên gốc qua PATCH” | FE kỳ vọng `parentId: null` = gốc | Doc Sync: bổ sung mục hạn chế v1 + tham chiếu SRS §4 |

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { usePageTitle } from "@/context/PageTitleContext"
-import { mockCategories } from "../mockData"
+import { useAuthStore } from "@/features/auth/store/useAuthStore"
 import type { Category } from "../types"
 import { CategoryToolbar } from "../components/CategoryToolbar"
 import { CategoryTable } from "../components/CategoryTable"
@@ -8,64 +9,232 @@ import { CategoryForm } from "../components/CategoryForm"
 import { CategoryDetailDialog } from "../components/CategoryDetailDialog"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { toast } from "sonner"
+import { ApiRequestError } from "@/lib/api/http"
+import {
+  deleteCategory,
+  getCategoryById,
+  getCategoryList,
+  mapDetailDtoToCategory,
+  mapNodeDtoToCategory,
+  patchCategory,
+  postCategory,
+  type CategoryPatchBody,
+  type GetCategoryListParams,
+} from "../api/categoriesApi"
 
-// Helper to flatten categories for select all
+const SEARCH_DEBOUNCE_MS = 400
+
 function flattenCategories(categories: Category[]): Category[] {
-  let result: Category[] = [];
-  categories.forEach(c => {
-    result.push(c);
-    if (c.children) {
-      result = result.concat(flattenCategories(c.children));
+  let result: Category[] = []
+  categories.forEach((c) => {
+    result.push(c)
+    if (c.children?.length) {
+      result = result.concat(flattenCategories(c.children))
     }
-  });
-  return result;
+  })
+  return result
+}
+
+function errToast(e: unknown) {
+  if (e instanceof ApiRequestError) {
+    toast.error(e.body?.message ?? e.message)
+  } else {
+    toast.error(e instanceof Error ? e.message : "Đã xảy ra lỗi")
+  }
+}
+
+/**
+ * Toast theo envelope Task032: **409** / **400** (message + `details` khi không map form).
+ * **400** + `details` có key: `CategoryForm` gọi `setError` — không toast (tránh trùng).
+ */
+function toastCategoryMutationEnvelope(e: unknown) {
+  if (!(e instanceof ApiRequestError)) {
+    errToast(e)
+    return
+  }
+  const { status, body } = e
+  const detailKeys = body.details ? Object.keys(body.details) : []
+  if (status === 400 && detailKeys.length > 0) {
+    return
+  }
+  if (status === 409) {
+    const parts = [body.message ?? e.message]
+    if (detailKeys.length > 0) {
+      parts.push(
+        ...detailKeys.map((k) => {
+          const v = body.details![k]
+          return v ? `${k}: ${v}` : k
+        }),
+      )
+    }
+    toast.error(parts.filter(Boolean).join(" — "))
+    return
+  }
+  if (status === 400 && detailKeys.length === 0) {
+    toast.error(body.message ?? e.message)
+    return
+  }
+  errToast(e)
+}
+
+type CategoryFormData = {
+  name: string
+  categoryCode: string
+  parentId?: number
+  description?: string
+  sortOrder: number
+  status: "Active" | "Inactive"
+}
+
+function buildPatchBody(
+  data: CategoryFormData,
+  original: Category,
+): CategoryPatchBody | null | "forbidden_root" {
+  const body: CategoryPatchBody = {}
+  if (data.name.trim() !== original.name.trim()) body.name = data.name.trim()
+  if (data.categoryCode.trim() !== original.categoryCode.trim()) {
+    body.categoryCode = data.categoryCode.trim()
+  }
+  const descNew = (data.description ?? "").trim()
+  const descOld = (original.description ?? "").trim()
+  if (descNew !== descOld) {
+    body.description = descNew === "" ? "" : descNew
+  }
+  if (data.sortOrder !== original.sortOrder) body.sortOrder = data.sortOrder
+  if (data.status !== original.status) body.status = data.status
+
+  const newParent = data.parentId && data.parentId > 0 ? data.parentId : null
+  const oldParent = original.parentId ?? null
+  if (newParent !== oldParent) {
+    if (oldParent != null && newParent == null) {
+      return "forbidden_root"
+    }
+    if (newParent != null) body.parentId = newParent
+  }
+
+  if (Object.keys(body).length === 0) return null
+  return body
 }
 
 export function CategoriesPage() {
+  const queryClient = useQueryClient()
   const { setTitle } = usePageTitle()
-  
-  const [categories, setCategories] = useState(mockCategories)
+  const isOwner = useAuthStore((s) => s.user?.role === "Owner")
+
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [selectedIds, setSelectedIds] = useState<number[]>([])
 
-  // State cho xóa
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null)
   const [isDeletingBulk, setIsDeletingBulk] = useState(false)
 
-  // State cho Form
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Category | undefined>()
   const [viewingCategory, setViewingCategory] = useState<Category | null>(null)
 
-  useEffect(() => { setTitle("Danh mục sản phẩm") }, [setTitle])
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [search])
 
-  // Filter both parent and children simply here for demonstration
-  const filtered = categories.filter(c => {
-    if (statusFilter !== "all" && c.status !== statusFilter) return false
-    if (search && !c.name.toLowerCase().includes(search.toLowerCase()) && !c.categoryCode.toLowerCase().includes(search.toLowerCase())) return false
-    return true
+  useEffect(() => {
+    setTitle("Danh mục sản phẩm")
+  }, [setTitle])
+
+  const listQueryKey = useMemo(
+    () => ["product-management", "categories", "list", debouncedSearch, statusFilter] as const,
+    [debouncedSearch, statusFilter],
+  )
+
+  const listParams: GetCategoryListParams = useMemo(
+    () => ({
+      format: "tree",
+      search: debouncedSearch.trim() || undefined,
+      status: statusFilter as GetCategoryListParams["status"],
+    }),
+    [debouncedSearch, statusFilter],
+  )
+
+  const {
+    data: listData,
+    isPending,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: listQueryKey,
+    queryFn: () => getCategoryList(listParams),
   })
 
-  // Handlers
+  const categories: Category[] = useMemo(
+    () => (listData?.items ?? []).map(mapNodeDtoToCategory),
+    [listData],
+  )
+
+  const detailQuery = useQuery({
+    queryKey: ["product-management", "categories", "detail", viewingCategory?.id] as const,
+    queryFn: () => getCategoryById(viewingCategory!.id),
+    enabled: Boolean(viewingCategory?.id),
+  })
+
+  const detailCategory: Category | null = useMemo(() => {
+    if (!viewingCategory) return null
+    if (detailQuery.data) return mapDetailDtoToCategory(detailQuery.data)
+    return viewingCategory
+  }, [viewingCategory, detailQuery.data])
+
+  /** List (`…/list/…`) + detail (`…/detail/…`) — prefix `["product-management","categories"]`. */
+  const invalidateCategories = () =>
+    queryClient.invalidateQueries({ queryKey: ["product-management", "categories"] })
+
+  const createMutation = useMutation({
+    mutationFn: postCategory,
+    onSuccess: async () => {
+      await invalidateCategories()
+      toast.success("Thêm danh mục thành công")
+    },
+    onError: toastCategoryMutationEnvelope,
+  })
+
+  const patchMutation = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: CategoryPatchBody }) => patchCategory(id, body),
+    onSuccess: async () => {
+      await invalidateCategories()
+      toast.success("Cập nhật danh mục thành công")
+    },
+    onError: toastCategoryMutationEnvelope,
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: ({ id }: { id: number; name: string }) => deleteCategory(id),
+    onSuccess: async (_data, { id, name }) => {
+      await invalidateCategories()
+      setSelectedIds((prev) => prev.filter((i) => i !== id))
+      setViewingCategory((v) => (v?.id === id ? null : v))
+      setDeleteTarget(null)
+      toast.success(`Đã xóa danh mục: ${name}`)
+    },
+    onError: toastCategoryMutationEnvelope,
+  })
+
   const handleSelect = (id: number) => {
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]))
   }
 
   const handleSelectAll = (checked: boolean) => {
-    const flat = flattenCategories(filtered);
-    setSelectedIds(checked ? flat.map(c => c.id) : [])
+    const flat = flattenCategories(categories)
+    setSelectedIds(checked ? flat.map((c) => c.id) : [])
   }
 
   const handleToolbarAction = (action: string) => {
     switch (action) {
       case "delete":
         setIsDeletingBulk(true)
-        break;
+        break
       case "create":
         setEditingCategory(undefined)
         setIsFormOpen(true)
-        break;
+        break
     }
   }
 
@@ -79,14 +248,14 @@ export function CategoriesPage() {
   }
 
   const handleAddSub = (parent: Category) => {
-    setEditingCategory({ 
-        parentId: parent.id,
-        parentName: parent.name,
-        categoryCode: `SUB-${parent.categoryCode}`,
-        status: "Active",
-        sortOrder: 0,
-        name: ""
-    } as any)
+    setEditingCategory({
+      parentId: parent.id,
+      parentName: parent.name,
+      categoryCode: `SUB-${parent.categoryCode}`,
+      status: "Active",
+      sortOrder: 0,
+      name: "",
+    } as Category)
     setIsFormOpen(true)
   }
 
@@ -95,44 +264,86 @@ export function CategoriesPage() {
   }
 
   const confirmDelete = () => {
-    if (deleteTarget) {
-      // Recursive delete helper if needed, but here we just filter top level
-      setCategories(prev => prev.filter(c => c.id !== deleteTarget.id))
-      toast.success(`Đã xóa danh mục: ${deleteTarget.name}`)
-      setDeleteTarget(null)
-    }
+    if (!deleteTarget) return
+    void deleteMutation.mutateAsync({ id: deleteTarget.id, name: deleteTarget.name })
   }
 
-  const confirmBulkDelete = () => {
-    setCategories(prev => prev.filter(c => !selectedIds.includes(c.id)))
-    toast.success(`Đã xóa ${selectedIds.length} danh mục`)
-    setSelectedIds([])
+  const confirmBulkDelete = async () => {
+    const ids = [...selectedIds]
     setIsDeletingBulk(false)
+    let ok = 0
+    for (const id of ids) {
+      try {
+        await deleteCategory(id)
+        ok++
+        setViewingCategory((v) => (v?.id === id ? null : v))
+      } catch (e) {
+        toastCategoryMutationEnvelope(e)
+      }
+    }
+    await invalidateCategories()
+    if (ok > 0) {
+      toast.success(`Đã xóa ${ok} danh mục`)
+    }
+    setSelectedIds([])
+  }
+
+  const handleFormSubmit = async (data: CategoryFormData) => {
+    if (editingCategory?.id) {
+      const body = buildPatchBody(data, editingCategory)
+      if (body === "forbidden_root") {
+        toast.error("Không thể đưa danh mục về gốc qua cập nhật — chỉ đổi sang danh mục cha khác.")
+        throw new Error("forbidden_root")
+      }
+      if (body === null) {
+        toast.info("Không có thay đổi để lưu.")
+        throw new Error("no_changes")
+      }
+      await patchMutation.mutateAsync({ id: editingCategory.id, body })
+      return
+    }
+    await createMutation.mutateAsync({
+      categoryCode: data.categoryCode,
+      name: data.name,
+      description: data.description,
+      parentId: data.parentId && data.parentId > 0 ? data.parentId : null,
+      sortOrder: data.sortOrder,
+      status: data.status,
+    })
   }
 
   return (
     <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full min-h-0 gap-4 md:gap-5 overflow-hidden">
-      {/* Header */}
       <div className="shrink-0">
         <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight uppercase">Danh mục sản phẩm</h1>
         <p className="text-sm text-slate-500 mt-1 font-medium">Phân loại sản phẩm theo cấu trúc cây phân cấp</p>
       </div>
 
-      {/* Toolbar */}
-      <CategoryToolbar 
+      <CategoryToolbar
         searchStr={search}
         onSearch={setSearch}
         statusFilter={statusFilter}
         onStatusChange={setStatusFilter}
         selectedIds={selectedIds}
         onAction={handleToolbarAction}
+        canBulkDelete={isOwner}
       />
-        
-      {/* Data Table */}
+
+      {isPending && (
+        <p className="text-sm text-slate-500 shrink-0" role="status">
+          Đang tải danh sách…
+        </p>
+      )}
+      {isError && (
+        <p className="text-sm text-red-600 shrink-0" role="alert">
+          {error instanceof ApiRequestError ? error.body.message : "Không tải được danh mục."}
+        </p>
+      )}
+
       <div className="flex-1 flex flex-col min-h-0 bg-white border border-slate-200/60 rounded-xl overflow-hidden shadow-md">
         <div className="flex-1 overflow-y-auto relative scroll-smooth [scrollbar-gutter:stable] min-h-0">
-          <CategoryTable 
-            data={filtered}
+          <CategoryTable
+            data={categories}
             selectedIds={selectedIds}
             onSelect={handleSelect}
             onSelectAll={handleSelectAll}
@@ -140,60 +351,51 @@ export function CategoriesPage() {
             onEdit={handleEdit}
             onDelete={handleDelete}
             onAddSub={handleAddSub}
+            canDelete={isOwner}
           />
         </div>
       </div>
 
-      {/* Detail Dialog */}
-      <CategoryDetailDialog 
-        category={viewingCategory}
+      <CategoryDetailDialog
+        category={detailCategory}
         isOpen={!!viewingCategory}
         onClose={() => setViewingCategory(null)}
+        detailLoading={Boolean(viewingCategory) && detailQuery.isFetching}
+        canDelete={isOwner}
+        onRequestDelete={
+          isOwner && detailCategory
+            ? () => {
+                setDeleteTarget(detailCategory)
+                setViewingCategory(null)
+              }
+            : undefined
+        }
       />
 
-      {/* Confirm Deletion */}
-      <ConfirmDialog 
+      <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         onConfirm={confirmDelete}
         title="Xác nhận xóa"
-        description={`Bạn có chắc chắn muốn xóa danh mục "${deleteTarget?.name}"? Hành động này không thể hoàn tác.`}
+        confirmText="Xóa"
+        description={`Danh mục sẽ được xóa và không còn trong danh sách hoạt động. Xóa "${deleteTarget?.name}"?`}
       />
 
-      <ConfirmDialog 
+      <ConfirmDialog
         open={isDeletingBulk}
         onOpenChange={setIsDeletingBulk}
         onConfirm={confirmBulkDelete}
         title="Xác nhận xóa nhiều"
-        description={`Bạn có chắc chắn muốn xóa ${selectedIds.length} danh mục đã chọn?`}
+        confirmText="Xóa"
+        description={`Xóa ${selectedIds.length} danh mục đã chọn? Một số mục có thể bị từ chối nếu còn ràng buộc hoặc không đủ quyền.`}
       />
 
-      <CategoryForm 
+      <CategoryForm
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
         category={editingCategory}
         allCategories={categories}
-        onSubmit={(data) => {
-            const parentName = data.parentId ? categories.find(c => c.id === data.parentId)?.name : undefined
-            if (editingCategory) {
-                setCategories(prev => prev.map(c => c.id === editingCategory.id ? { ...c, ...data, parentName } : c))
-                toast.success("Cập nhật danh mục thành công")
-            } else {
-                const newCategory: Category = {
-                    id: Math.max(...categories.map(c => c.id)) + 1,
-                    categoryCode: data.categoryCode,
-                    name: data.name,
-                    parentId: data.parentId || undefined,
-                    parentName,
-                    sortOrder: data.sortOrder,
-                    status: data.status,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                }
-                setCategories(prev => [newCategory, ...prev])
-                toast.success("Thêm danh mục thành công")
-            }
-        }}
+        onSubmit={handleFormSubmit}
       />
     </div>
   )

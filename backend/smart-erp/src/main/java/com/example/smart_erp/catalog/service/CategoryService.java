@@ -46,8 +46,8 @@ public class CategoryService {
 	public CategoryListPageData list(String formatRaw, String searchRaw, String statusRaw) {
 		String format = formatRaw == null || formatRaw.isBlank() ? "tree" : formatRaw.trim().toLowerCase(Locale.ROOT);
 		if (!"tree".equals(format) && !"flat".equals(format)) {
-			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Tham số format không hợp lệ",
-					Map.of("format", "Giá trị hợp lệ: tree, flat"));
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Tham số truy vấn không hợp lệ",
+					Map.of("format", "Chỉ chấp nhận tree hoặc flat"));
 		}
 		String statusFilter = normalizeListStatus(statusRaw);
 		List<CategoryFlatRow> rows = categoryJdbcRepository.loadAllActive(statusFilter);
@@ -204,7 +204,7 @@ public class CategoryService {
 				}
 				List<CategoryParentEdgeRow> edges = categoryJdbcRepository.loadAllActiveParentEdges();
 				if (wouldPutParentInDescendantSubtree(id, pid, edges)) {
-					throw new BusinessException(ApiErrorCode.CONFLICT, "parentId tạo chu trình trong cây danh mục");
+					throw new BusinessException(ApiErrorCode.CONFLICT, "Không thể đặt danh mục cha vì tạo vòng lặp phân cấp");
 				}
 				newParent = pid;
 			}
@@ -237,14 +237,16 @@ public class CategoryService {
 
 	@Transactional
 	public CategoryDeleteData delete(long id, Jwt jwt) {
-		StockReceiptAccessPolicy.assertOwnerOnly(jwt, "Chỉ tài khoản Owner mới được xóa danh mục");
+		StockReceiptAccessPolicy.assertOwnerOnly(jwt, "Chỉ tài khoản Owner mới được xóa mềm danh mục");
 		categoryJdbcRepository.lockActiveByIdForUpdate(id)
 				.orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND, "Không tìm thấy danh mục"));
 		if (categoryJdbcRepository.countActiveChildren(id) > 0L) {
-			throw new BusinessException(ApiErrorCode.CONFLICT, "Còn danh mục con");
+			throw new BusinessException(ApiErrorCode.CONFLICT,
+					"Không thể đánh dấu xóa: còn danh mục con đang hiệu lực hoặc còn sản phẩm gán vào danh mục này");
 		}
 		if (categoryJdbcRepository.countProductsOnCategory(id) > 0L) {
-			throw new BusinessException(ApiErrorCode.CONFLICT, "Còn sản phẩm thuộc danh mục");
+			throw new BusinessException(ApiErrorCode.CONFLICT,
+					"Không thể đánh dấu xóa: còn danh mục con đang hiệu lực hoặc còn sản phẩm gán vào danh mục này");
 		}
 		categoryJdbcRepository.softDelete(id);
 		return new CategoryDeleteData(id, true);

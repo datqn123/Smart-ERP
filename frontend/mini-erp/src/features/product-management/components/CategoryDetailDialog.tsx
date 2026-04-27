@@ -7,7 +7,19 @@ import {
   DialogDescription 
 } from "@/components/ui/dialog"
 import type { Category } from "../types"
-import { FolderTree, Tag, Hash, Calendar, Layers, Boxes, Activity, BarChart3 } from "lucide-react"
+import {
+  FolderTree,
+  Tag,
+  Hash,
+  Calendar,
+  Layers,
+  Boxes,
+  Activity,
+  BarChart3,
+  ChevronRight,
+  Trash2,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { formatDate } from "@/features/inventory/utils"
@@ -16,9 +28,21 @@ interface CategoryDetailDialogProps {
   category: Category | null
   isOpen: boolean
   onClose: () => void
+  /** Đang fetch `GET …/categories/{id}` — hiển thị placeholder breadcrumb / đồng bộ productCount. */
+  detailLoading?: boolean
+  /** Task033: chỉ \`user.role === "Owner"\` — khớp \`assertOwnerOnly\` trên BE. */
+  canDelete?: boolean
+  onRequestDelete?: () => void
 }
 
-export function CategoryDetailDialog({ category, isOpen, onClose }: CategoryDetailDialogProps) {
+export function CategoryDetailDialog({
+  category,
+  isOpen,
+  onClose,
+  detailLoading = false,
+  canDelete = false,
+  onRequestDelete,
+}: CategoryDetailDialogProps) {
   if (!category) return null
 
   const childCount = category.children?.length || 0
@@ -42,6 +66,31 @@ export function CategoryDetailDialog({ category, isOpen, onClose }: CategoryDeta
               <DialogDescription className="text-slate-500 mt-1 flex items-center gap-2 font-mono">
                 Mã danh mục: <span className="font-bold text-slate-700">{category.categoryCode}</span>
               </DialogDescription>
+              {category.breadcrumb && category.breadcrumb.length > 0 ? (
+                <nav
+                  className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-slate-500"
+                  aria-label="Đường dẫn danh mục"
+                >
+                  {category.breadcrumb.map((crumb, i, arr) => (
+                    <React.Fragment key={crumb.id}>
+                      {i > 0 ? (
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-300" aria-hidden />
+                      ) : null}
+                      <span
+                        className={
+                          i === arr.length - 1 ? "font-semibold text-slate-800" : "text-slate-500"
+                        }
+                      >
+                        {crumb.name}
+                      </span>
+                    </React.Fragment>
+                  ))}
+                </nav>
+              ) : detailLoading ? (
+                <p className="mt-3 text-xs text-slate-400" role="status">
+                  Đang tải đường dẫn…
+                </p>
+              ) : null}
             </div>
 
             <div className="flex items-center gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
@@ -105,6 +154,20 @@ export function CategoryDetailDialog({ category, isOpen, onClose }: CategoryDeta
             </div>
           </div>
         </div>
+
+        {canDelete && onRequestDelete && (
+          <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+            <Button
+              type="button"
+              variant="destructive"
+              className="gap-2"
+              onClick={onRequestDelete}
+            >
+              <Trash2 className="h-4 w-4" />
+              Xóa danh mục
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )

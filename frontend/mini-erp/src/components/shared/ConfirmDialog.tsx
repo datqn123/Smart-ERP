@@ -44,16 +44,23 @@ export function ConfirmDialog({
             {description}
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter className="gap-2 sm:gap-0 pt-4">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-slate-600">
+        <DialogFooter className="flex w-full flex-row flex-wrap items-center justify-end gap-2 pt-4 sm:gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="min-h-11 min-w-[5.5rem] text-slate-600 sm:min-h-9"
+          >
             {cancelText}
           </Button>
-          <Button 
-            variant={variant === "destructive" ? "destructive" : "default"} 
+          <Button
+            type="button"
+            variant={variant === "destructive" ? "destructive" : "default"}
             onClick={() => {
               onConfirm()
               onOpenChange(false)
             }}
+            className="min-h-11 min-w-[5.5rem] sm:min-h-9"
           >
             {confirmText}
           </Button>

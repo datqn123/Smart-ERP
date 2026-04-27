@@ -27,6 +27,8 @@ interface CategoryRowProps {
   onEdit: (item: Category) => void
   onDelete: (item: Category) => void
   onAddSub: (parent: Category) => void
+  /** Task033: chỉ **Owner** mới thấy xóa (soft delete, khớp `assertOwnerOnly` BE). */
+  canDelete: boolean
 }
 
 function CategoryRow({ 
@@ -37,7 +39,8 @@ function CategoryRow({
   onView, 
   onEdit,
   onDelete,
-  onAddSub
+  onAddSub,
+  canDelete,
 }: CategoryRowProps) {
   const [expanded, setExpanded] = useState(false)
   const hasChildren = category.children && category.children.length > 0
@@ -90,9 +93,11 @@ function CategoryRow({
             <Button variant="ghost" size="icon" onClick={() => onEdit(category)} title="Chỉnh sửa" className="h-8 w-8 text-slate-400 hover:text-slate-900 hover:bg-slate-100">
               <Edit2 className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => onDelete(category)} title="Xóa" className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50">
+            {canDelete && (
+            <Button variant="ghost" size="icon" onClick={() => onDelete(category)} title="Xóa (Owner)" className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50">
               <Trash2 className="h-4 w-4" />
             </Button>
+            )}
           </div>
         </TableCell>
       </TableRow>
@@ -107,6 +112,7 @@ function CategoryRow({
           onEdit={onEdit} 
           onDelete={onDelete}
           onAddSub={onAddSub}
+          canDelete={canDelete}
         />
       ))}
     </>
@@ -134,6 +140,8 @@ interface CategoryTableProps {
   onEdit: (item: Category) => void
   onDelete: (item: Category) => void
   onAddSub: (parent: Category) => void
+  /** Task033: `user.role === "Owner"` */
+  canDelete: boolean
 }
 
 export function CategoryTable({ 
@@ -144,7 +152,8 @@ export function CategoryTable({
   onView, 
   onEdit,
   onDelete,
-  onAddSub
+  onAddSub,
+  canDelete,
 }: CategoryTableProps) {
 
   const flatData = flattenCategories(data);
@@ -189,6 +198,7 @@ export function CategoryTable({
               onEdit={onEdit} 
               onDelete={onDelete}
               onAddSub={onAddSub}
+              canDelete={canDelete}
             />
           ))
         )}

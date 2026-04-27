@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { CategoriesPage } from "./CategoriesPage"
 import { describe, it, expect, vi } from "vitest"
 import { PageTitleProvider } from "@/context/PageTitleContext"
@@ -21,10 +22,15 @@ vi.mock("@/components/shared/ConfirmDialog", () => ({
 
 describe("CategoriesPage Structural Test", () => {
   it("should have Toolbar and Table as children of a gap container", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
     const { getByTestId } = render(
-      <PageTitleProvider>
-        <CategoriesPage />
-      </PageTitleProvider>
+      <QueryClientProvider client={queryClient}>
+        <PageTitleProvider>
+          <CategoriesPage />
+        </PageTitleProvider>
+      </QueryClientProvider>
     )
     
     const toolbar = getByTestId("category-toolbar")

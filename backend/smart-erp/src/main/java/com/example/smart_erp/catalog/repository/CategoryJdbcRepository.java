@@ -225,7 +225,12 @@ public class CategoryJdbcRepository {
 	public List<CategoryParentEdgeRow> loadAllActiveParentEdges() {
 		return namedJdbc.query(
 				"SELECT id, parent_id FROM categories WHERE deleted_at IS NULL ORDER BY id",
-				Map.of(), (rs, rn) -> new CategoryParentEdgeRow(rs.getLong("id"), (Long) rs.getObject("parent_id", Long.class)));
+				Map.of(), (rs, rn) -> {
+					long id = rs.getLong("id");
+					long pid = rs.getLong("parent_id");
+					Long parentId = rs.wasNull() ? null : pid;
+					return new CategoryParentEdgeRow(id, parentId);
+				});
 	}
 
 	private static void appendStatus(StringBuilder sql, String statusFilter) {
@@ -241,9 +246,11 @@ public class CategoryJdbcRepository {
 			int sortOrder, String status, long productCount, Instant createdAt, Instant updatedAt) {
 
 		static CategoryFlatRow from(ResultSet rs) throws SQLException {
+			long parentIdRaw = rs.getLong("parent_id");
+			Long parentId = rs.wasNull() ? null : parentIdRaw;
 			return new CategoryFlatRow(rs.getLong("id"), rs.getString("category_code"), rs.getString("name"),
-					rs.getString("description"), (Long) rs.getObject("parent_id", Long.class), rs.getInt("sort_order"),
-					rs.getString("status"), rs.getLong("product_count"), toInstantNonNull(rs.getTimestamp("created_at")),
+					rs.getString("description"), parentId, rs.getInt("sort_order"), rs.getString("status"),
+					rs.getLong("product_count"), toInstantNonNull(rs.getTimestamp("created_at")),
 					toInstantNonNull(rs.getTimestamp("updated_at")));
 		}
 

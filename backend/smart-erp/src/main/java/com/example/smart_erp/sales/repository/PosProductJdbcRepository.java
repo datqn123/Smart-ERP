@@ -37,7 +37,7 @@ public class PosProductJdbcRepository {
 				WITH inv AS (
 				  SELECT product_id, SUM(quantity)::bigint AS base_qty
 				  FROM inventory
-				  WHERE (:loc IS NULL OR location_id = :loc)
+				  WHERE (CAST(:loc AS INTEGER) IS NULL OR location_id = :loc)
 				  GROUP BY product_id
 				)
 				SELECT p.id AS product_id, p.name AS product_name, p.sku_code, p.barcode,

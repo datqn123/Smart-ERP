@@ -15,8 +15,8 @@ interface OrderState {
   
   // Actions
   addItem: (item: CartItem) => void;
-  removeItem: (productId: number) => void;
-  updateQuantity: (productId: number, quantity: number) => void;
+  removeItem: (productId: number, unitId: number) => void;
+  updateQuantity: (productId: number, unitId: number, quantity: number) => void;
   setCustomer: (id: number | null, name: string) => void;
   setDiscount: (amount: number) => void;
   setVoucher: (code: string | null) => void;
@@ -36,30 +36,42 @@ export const useOrderStore = create<OrderState>()(
       discount: 0,
 
       addItem: (item) => set((state) => {
-        const existing = state.cart.find(i => i.productId === item.productId);
+        const existing = state.cart.find(
+          (i) => i.productId === item.productId && i.unitId === item.unitId
+        )
         if (existing) {
           return {
-            cart: state.cart.map(i => 
-              i.productId === item.productId 
-                ? { ...i, quantity: i.quantity + item.quantity, lineTotal: (i.quantity + item.quantity) * i.unitPrice } 
+            cart: state.cart.map((i) =>
+              i.productId === item.productId && i.unitId === item.unitId
+                ? {
+                    ...i,
+                    quantity: i.quantity + item.quantity,
+                    lineTotal: (i.quantity + item.quantity) * i.unitPrice,
+                  }
                 : i
-            )
-          };
+            ),
+          }
         }
-        return { cart: [...state.cart, item] };
+        return { cart: [...state.cart, item] }
       }),
 
-      removeItem: (productId) => set((state) => ({
-        cart: state.cart.filter(i => i.productId !== productId)
-      })),
+      removeItem: (productId, unitId) =>
+        set((state) => ({
+          cart: state.cart.filter((i) => !(i.productId === productId && i.unitId === unitId)),
+        })),
 
-      updateQuantity: (productId, quantity) => set((state) => ({
-        cart: state.cart.map(i => 
-          i.productId === productId 
-            ? { ...i, quantity: Math.max(1, quantity), lineTotal: Math.max(1, quantity) * i.unitPrice } 
-            : i
-        )
-      })),
+      updateQuantity: (productId, unitId, quantity) =>
+        set((state) => ({
+          cart: state.cart.map((i) =>
+            i.productId === productId && i.unitId === unitId
+              ? {
+                  ...i,
+                  quantity: Math.max(1, quantity),
+                  lineTotal: Math.max(1, quantity) * i.unitPrice,
+                }
+              : i
+          ),
+        })),
 
       setCustomer: (id, name) => set({ customerId: id, customerName: name }),
       
@@ -73,16 +85,15 @@ export const useOrderStore = create<OrderState>()(
         return get().cart.reduce((sum, item) => sum + item.lineTotal, 0);
       },
 
+      /** Tạm tính sau giảm giá tay; giảm voucher do BE tính khi checkout (Task060). */
       getFinalTotal: () => {
-        const total = get().getTotal();
-        const baseDiscount = get().discount;
-        // Simple mock voucher logic: if code is "DISCOUNT10", apply 10% off
-        const voucherDiscount = get().voucherCode === 'DISCOUNT10' ? total * 0.1 : 0;
-        return total - baseDiscount - voucherDiscount;
-      }
+        const total = get().getTotal()
+        const baseDiscount = get().discount
+        return Math.max(0, total - baseDiscount)
+      },
     }),
     {
-      name: 'pos-cart-storage',
+      name: "pos-cart-storage-v2",
     }
   )
 )

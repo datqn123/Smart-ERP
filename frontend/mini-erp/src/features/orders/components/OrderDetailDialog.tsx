@@ -16,19 +16,28 @@ import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
 interface OrderDetailDialogProps {
-  order: Order | null;
-  isOpen: boolean;
-  onClose: () => void;
+  order: Order | null
+  isOpen: boolean
+  onClose: () => void
+  /** Task058 — mở luồng hủy đơn (dialog lý do / POST cancel). */
+  onCancelOrder?: (order: Order) => void
+  onEditOrder?: (order: Order) => void
 }
 
 // Mock items for detail display
 const mockOrderItems: OrderItem[] = [
-    { id: 1, productId: 101, productName: "Sơn Mykolor Grand", skuCode: "MK-001", quantity: 5, unitName: "Thùng", unitPrice: 1250000, lineTotal: 6250000 },
-    { id: 2, productId: 102, productName: "Sơn Dulux 5in1", skuCode: "DX-002", quantity: 3, unitName: "Thùng", unitPrice: 1550000, lineTotal: 4650000 },
+    { id: 1, productId: 101, unitId: 1, productName: "Sơn Mykolor Grand", skuCode: "MK-001", quantity: 5, unitName: "Thùng", unitPrice: 1250000, lineTotal: 6250000 },
+    { id: 2, productId: 102, unitId: 2, productName: "Sơn Dulux 5in1", skuCode: "DX-002", quantity: 3, unitName: "Thùng", unitPrice: 1550000, lineTotal: 4650000 },
 ]
 
-export function OrderDetailDialog({ order, isOpen, onClose }: OrderDetailDialogProps) {
-  if (!order) return null;
+export function OrderDetailDialog({
+  order,
+  isOpen,
+  onClose,
+  onCancelOrder,
+  onEditOrder,
+}: OrderDetailDialogProps) {
+  if (!order) return null
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -189,13 +198,28 @@ export function OrderDetailDialog({ order, isOpen, onClose }: OrderDetailDialogP
 
         <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-between gap-3">
            <div className="flex gap-2">
-               <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700">
+               <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!onCancelOrder}
+                  onClick={() => onCancelOrder?.(order)}
+                  className="min-h-11 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                >
                   <XCircle size={16} className="mr-2" /> Hủy đơn
                </Button>
            </div>
            <div className="flex gap-3">
                 <Button variant="outline" onClick={onClose} className="px-6 border-slate-300">Đóng</Button>
-                <Button className="bg-slate-900 hover:bg-slate-800 text-white px-6 shadow-lg shadow-slate-200">
+                <Button
+                  type="button"
+                  disabled={!onEditOrder}
+                  className="min-h-11 bg-slate-900 hover:bg-slate-800 text-white px-6 shadow-lg shadow-slate-200"
+                  onClick={() => {
+                    if (!onEditOrder) return
+                    onEditOrder(order)
+                    onClose()
+                  }}
+                >
                     <Edit size={16} className="mr-2" /> Chỉnh sửa
                 </Button>
            </div>

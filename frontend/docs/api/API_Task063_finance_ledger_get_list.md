@@ -1,6 +1,6 @@
 # 📄 API SPEC: `GET /api/v1/finance-ledger` — Sổ cái tài chính (read-only) — Task063
 
-> **Trạng thái**: Draft  
+> **Trạng thái**: Approved (đồng bộ SRS 28/04/2026)  
 > **Feature**: Cashflow / UC1, UC4 — màn **Sổ cái tài chính** (`LedgerPage`, route `/cashflow/ledger`)  
 > **Tags**: RESTful, Finance, Read-only, Pagination, RBAC
 
@@ -10,7 +10,7 @@
 
 - **Nghiệp vụ**: Đọc **`FinanceLedger`** theo thứ tự thời gian, kèm **số dư lũy kế** (`balance`) sau mỗi dòng — thay thế mock `LedgerEntry` trong `mini-erp`.
 - **Ai được lợi**: Owner / kế toán có quyền xem tài chính; không cho phép sửa/xóa qua API này (immutable theo DB).
-- **Phạm vi**: **Chỉ** `GET /finance-ledger` (danh sách phân trang + `meta`).
+- **Phạm vi**: **Chỉ** `GET /finance-ledger` (danh sách phân trang; `page` / `limit` / `total` trong `data` theo envelope §2.3).
 - **Out of scope**: Ghi sổ tự động từ phiếu/đơn (nghiệp vụ khác); chỉnh sửa dòng sổ cái (không hỗ trợ).
 
 ---
@@ -30,7 +30,8 @@
 ## 3. Tham chiếu
 
 **Khung**: [`API_PROJECT_DESIGN.md`](API_PROJECT_DESIGN.md) §2–§3, **§4.14**.  
-**DB**: [`Database_Specification.md`](../UC/Database_Specification.md) §12 `FinanceLedger`.
+**DB**: [`Database_Specification.md`](../UC/Database_Specification.md) §12 `FinanceLedger`.  
+**SRS (chân lý triển khai BE):** [`../../../backend/docs/srs/SRS_Task063_finance-ledger-get-list.md`](../../../backend/docs/srs/SRS_Task063_finance-ledger-get-list.md) — **Approved**; cửa sổ ngày mặc định 90 ngày, RBAC `can_view_finance`, `transactionCode` + join `SalesOrders`.
 
 ---
 
@@ -41,7 +42,7 @@
 | **Endpoint** | `/api/v1/finance-ledger` |
 | **Method** | `GET` |
 | **Authentication** | `Bearer` (bắt buộc) |
-| **RBAC** | Quyền **`can_view_finance`** (hoặc Owner); thiếu quyền → **403** |
+| **RBAC** | JWT có **`can_view_finance: true`** (claim permission — seed V1: Owner, Admin); **không** ngoại lệ theo `role`; thiếu → **403** |
 
 ---
 
@@ -57,13 +58,15 @@ Authorization: Bearer <access_token>
 
 | Tham số | Kiểu | Bắt buộc | Mặc định | Mô tả |
 | :------ | :--- | :------- | :------- | :---- |
-| `dateFrom` | `date` (ISO) | Không | — | `transaction_date >= dateFrom` |
-| `dateTo` | `date` (ISO) | Không | — | `transaction_date <= dateTo` |
+| `dateFrom` | `date` (ISO) | Không | — | `transaction_date >= dateFrom` (sau khi áp mặc định — xem dưới) |
+| `dateTo` | `date` (ISO) | Không | — | `transaction_date <= dateTo` (sau khi áp mặc định — xem dưới) |
 | `transactionType` | string | Không | — | Một trong: `SalesRevenue`, `PurchaseCost`, `OperatingExpense`, `Refund` |
 | `referenceType` | string | Không | — | Lọc `reference_type` (VD: `SalesOrder`, `CashTransaction`) |
 | `search` | string | Không | — | `ILIKE` trên `description` |
 | `page` | int ≥ 1 | Không | `1` | |
 | `limit` | int 1–100 | Không | `20` | |
+
+**Cửa sổ ngày mặc định (SRS §4 OQ-1):** Nếu request **không** gửi **cả hai** `dateFrom` và `dateTo`, server áp dụng `effectiveDateTo = CURRENT_DATE` và `effectiveDateFrom = CURRENT_DATE - 89` (kiểu **DATE**, PostgreSQL — **90 ngày liên tiếp** gồm hai đầu). Nếu client gửi một hoặc đủ hai tham số → dùng giá trị client (và validate `dateFrom` ≤ `dateTo` khi cả hai có mặt).
 
 ### 5.3 Request body
 
@@ -79,7 +82,7 @@ _Không có_
 | Lọc theo khoảng ngày | `dateFrom`, `dateTo` |
 | Ô tìm kiếm | `search` |
 
-**Mã hiển thị (`transactionCode`)**: chuỗi gợi ý: kết hợp `reference_type` + `reference_id` (VD `SO-123`) sau khi join read-model; nếu không join được thì fallback `FL-{id}`.
+**Mã hiển thị (`transactionCode`)** — theo SRS **OQ-3**: nếu `reference_type = 'SalesOrder'` (khớp chính xác) → **LEFT JOIN** `salesorders` ON `reference_id = salesorders.id`, lấy **`order_code`** làm `transactionCode` nếu có bản ghi; orphan → `FL-{id}`. Các `reference_type` khác (v1): **`FL-{id}`**.
 
 ---
 
@@ -117,14 +120,15 @@ _Không có_
 ## 8. Logic nghiệp vụ & Database
 
 1. Xác thực JWT → **401** nếu sai/hết hạn.  
-2. Kiểm tra **`can_view_finance`** (hoặc policy tương đương) → **403**.  
+2. Kiểm tra **`can_view_finance: true`** trong JWT → **403** nếu thiếu.  
 3. Validate query (Zod §10) → **400**.  
-4. CTE / subquery: tập `filtered` từ `finance_ledger` với `WHERE` theo query.  
-5. Window: `SUM(amount) OVER (ORDER BY transaction_date ASC, id ASC) AS balance` trên `filtered`.  
-6. Đếm `total`, `LIMIT/OFFSET` theo `page`/`limit`.  
-7. Map `debit`/`credit` từ `amount` như mục 2.
+4. Tính `effectiveDateFrom` / `effectiveDateTo` (mặc định 90 ngày nếu thiếu cả hai mốc — §5.2).  
+5. CTE / subquery: tập `filtered` từ bảng PG **`financeledger`** (Flyway `FinanceLedger`) với `WHERE` theo query + join `salesorders` khi cần `transactionCode`.  
+6. Window: `SUM(amount) OVER (ORDER BY transaction_date ASC, id ASC) AS balance` trên `filtered`.  
+7. Đếm `total`, `LIMIT/OFFSET` theo `page`/`limit`.  
+8. Map `debit`/`credit` từ `amount` như mục 2.
 
-**Lưu ý**: Không `UPDATE`/`DELETE` `finance_ledger` trong endpoint này.
+**Lưu ý**: Không `UPDATE`/`DELETE` `financeledger` trong endpoint này.
 
 ---
 
@@ -152,6 +156,7 @@ const TransactionTypeEnum = z.enum([
 ]);
 
 export const FinanceLedgerListQuerySchema = z.object({
+  // Cả hai optional — server áp 90 ngày gần nhất khi cùng vắng (SRS §4 OQ-1)
   dateFrom: z.string().date().optional(),
   dateTo: z.string().date().optional(),
   transactionType: TransactionTypeEnum.optional(),

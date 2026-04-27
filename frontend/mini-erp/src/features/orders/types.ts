@@ -17,6 +17,8 @@ export interface Order {
 export interface OrderItem {
   id: number;
   productId: number;
+  /** Đơn vị bán (POS / Task060 `lines[].unitId`). */
+  unitId: number;
   productName: string;
   skuCode: string;
   quantity: number;

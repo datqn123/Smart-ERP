@@ -7,14 +7,24 @@ interface OrderToolbarProps {
   onSearch: (val: string) => void
   statusFilter: string
   onStatusChange: (val: string) => void
+  /** Task054 — lọc thanh toán; mặc định ẩn nếu không truyền. */
+  paymentStatusFilter?: "all" | "Paid" | "Unpaid" | "Partial"
+  onPaymentStatusChange?: (val: "all" | "Paid" | "Unpaid" | "Partial") => void
   selectedIds: number[]
   onAction: (action: string) => void
   showCreate?: boolean
 }
 
 export function OrderToolbar({
-  searchStr, onSearch, statusFilter, onStatusChange,
-  selectedIds, onAction, showCreate = true
+  searchStr,
+  onSearch,
+  statusFilter,
+  onStatusChange,
+  paymentStatusFilter,
+  onPaymentStatusChange,
+  selectedIds,
+  onAction,
+  showCreate = true,
 }: OrderToolbarProps) {
   const hasSelection = selectedIds.length > 0;
 
@@ -32,16 +42,33 @@ export function OrderToolbar({
               className="pl-9 min-h-[44px] sm:min-h-[36px] w-full"
             />
           </div>
-          <select 
-            value={statusFilter} 
+          <select
+            value={statusFilter}
             onChange={(e) => onStatusChange(e.target.value)}
             className="h-11 sm:h-9 px-3 border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 w-full sm:min-w-[160px] sm:w-fit rounded-md"
           >
             <option value="all">Tất cả trạng thái</option>
             <option value="Pending">Chờ duyệt</option>
-            <option value="Completed">Hoàn thành</option>
+            <option value="Processing">Đang xử lý</option>
+            <option value="Partial">Giao một phần</option>
+            <option value="Shipped">Đang giao</option>
+            <option value="Delivered">Hoàn thành</option>
             <option value="Cancelled">Đã huỷ</option>
           </select>
+          {paymentStatusFilter != null && onPaymentStatusChange != null && (
+            <select
+              value={paymentStatusFilter}
+              onChange={(e) =>
+                onPaymentStatusChange(e.target.value as "all" | "Paid" | "Unpaid" | "Partial")
+              }
+              className="h-11 sm:h-9 px-3 border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 w-full sm:min-w-[160px] sm:w-fit rounded-md"
+            >
+              <option value="all">Tất cả thanh toán</option>
+              <option value="Paid">Đã thanh toán</option>
+              <option value="Unpaid">Chưa thanh toán</option>
+              <option value="Partial">Thanh toán một phần</option>
+            </select>
+          )}
         </div>
 
         {/* Group Actions */}

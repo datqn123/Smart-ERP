@@ -11,7 +11,7 @@ SELECT
         'Dương Văn Mạnh', 'Lý Thị Ngọc', 'Mai Văn Oanh', 'Võ Thị Phượng', 'Tôn Văn Quân',
         'Châu Thị Quyên', 'Hồ Văn Sơn', 'Lương Thị Tâm', 'Cao Văn Uy', 'Đinh Thị Vân',
         'Khúc Văn Xương', 'Tăng Thị Yến', 'Hà Văn Anh', 'Phan Thị Bích', 'Vương Văn Cần'
-    ])[(i % 25) + 1],
+    ])[((i - 1) % 25) + 1],
     '0901' || lpad(((100000 + i) % 1000000)::text, 6, '0'),
     'kh.demo.' || lpad(i::text, 3, '0') || '@example.invalid',
     (ARRAY [
@@ -23,7 +23,7 @@ SELECT
         '77 Lý Tự Trọng, Nha Trang, Khánh Hòa',
         '3 Pasteur, P. Bến Nghé, TP.HCM',
         '200 Lê Duẩn, Đống Đa, Hà Nội'
-    ])[(i % 8) + 1],
+    ])[((i - 1) % 8) + 1],
     ((i * 37 + 11) % 5001),
     CASE WHEN i % 11 = 0 THEN 'Inactive' ELSE 'Active' END
 FROM generate_series(1, 100) AS i

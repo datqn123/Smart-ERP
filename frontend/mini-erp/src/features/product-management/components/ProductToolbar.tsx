@@ -2,24 +2,29 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Search, Trash2, Edit2, Plus, Download, Upload } from "lucide-react"
 
+export type ProductCategoryFilterOption = { id: number; name: string }
+
 interface ProductToolbarProps {
   searchStr: string
   onSearch: (val: string) => void
   statusFilter: string
   onStatusChange: (val: string) => void
+  /** `"all"` hoặc `${categoryId}` — khớp query `categoryId` API. */
   categoryFilter: string
   onCategoryChange: (val: string) => void
-  categories: string[]
+  categoryOptions: ProductCategoryFilterOption[]
   selectedIds: number[]
   onAction: (action: string) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  /** Task041 — `POST …/bulk-delete` chỉ Owner (khớp BE `assertOwnerOnly`). */
+  canBulkDelete: boolean
 }
 
 export function ProductToolbar({
   searchStr, onSearch, statusFilter, onStatusChange,
-  categoryFilter, onCategoryChange, categories,
-  selectedIds, onAction, fileInputRef, onFileChange
+  categoryFilter, onCategoryChange, categoryOptions,
+  selectedIds, onAction, fileInputRef, onFileChange, canBulkDelete,
 }: ProductToolbarProps) {
   const hasSelection = selectedIds.length > 0;
 
@@ -31,7 +36,7 @@ export function ProductToolbar({
           <div className="relative flex-1 w-full sm:min-w-[300px] group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
             <Input
-              placeholder="Tìm theo tên hoặc mã SKU..."
+              placeholder="Tìm theo tên, SKU hoặc barcode..."
               value={searchStr}
               onChange={(e) => onSearch(e.target.value)}
               className="pl-10 h-10 border-slate-200 focus:border-blue-400 focus:ring-blue-100 transition-all rounded-md"
@@ -55,7 +60,11 @@ export function ProductToolbar({
               className="h-10 px-3 border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 w-full sm:min-w-[160px] rounded-md"
             >
               <option value="all">Danh mục</option>
-              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              {categoryOptions.map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.name}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -67,9 +76,11 @@ export function ProductToolbar({
               <Button variant="outline" size="sm" onClick={() => onAction("edit")} className="h-10 px-3 rounded-md">
                 <Edit2 className="h-4 w-4 mr-1.5" /> Sửa
               </Button>
-              <Button variant="destructive" size="sm" onClick={() => onAction("delete")} className="h-10 px-3 rounded-md bg-red-600 hover:bg-red-700">
-                <Trash2 className="h-4 w-4 mr-1.5" /> Xoá
-              </Button>
+              {canBulkDelete && (
+                <Button variant="destructive" size="sm" onClick={() => onAction("delete")} className="h-10 px-3 rounded-md bg-red-600 hover:bg-red-700" title="Xóa hàng loạt (Owner)">
+                  <Trash2 className="h-4 w-4 mr-1.5" /> Xoá
+                </Button>
+              )}
             </div>
           )}
           

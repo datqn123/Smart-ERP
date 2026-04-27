@@ -87,6 +87,13 @@ public class CategoryJdbcRepository {
 		return !hit.isEmpty();
 	}
 
+	/** Bất kỳ bản ghi categories (kể cả đã soft-delete). Dùng phân nhánh 404 vs 400 INVALID_CATEGORY khi gán SP. */
+	public boolean existsCategoryRow(long id) {
+		List<Integer> hit = namedJdbc.query("SELECT 1 FROM categories WHERE id = :id LIMIT 1", Map.of("id", id),
+				(rs, rn) -> rs.getInt(1));
+		return !hit.isEmpty();
+	}
+
 	public boolean existsOtherActiveWithCode(long excludeId, String categoryCode) {
 		List<Integer> hit = namedJdbc.query("""
 				SELECT 1 FROM categories

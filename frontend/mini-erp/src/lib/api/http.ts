@@ -27,44 +27,8 @@ export type ApiJsonOptions = RequestInit & {
   _didRefresh?: boolean
 }
 
-/**
- * JSON request/response against Spring envelope: success + data on OK.
- */
-export async function apiJson<T>(path: string, init: ApiJsonOptions = {}): Promise<T> {
-  const { auth, _didRefresh, headers: initHeaders, ...rest } = init
-  const base = getApiBaseUrl()
-  if (!import.meta.env.DEV && !base) {
-    throw new Error("VITE_API_BASE_URL is not set and non-DEV build has no default API host")
-  }
-  const url = getApiUrl(path.startsWith("/") ? path : `/${path}`)
-  const headers = new Headers(initHeaders)
-  if (!headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json")
-  }
-  if (auth) {
-    const token = sessionStorage.getItem("accessToken")
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`)
-    }
-  }
-  const res = await fetch(url, { ...rest, headers })
-  const raw = await res.text()
+function parseApiEnvelopeText<T>(res: Response, raw: string): T {
   const trimmed = raw.trim()
-
-  // 401 từ OAuth2 Resource Server thường không có body; phải thử refresh *trước* khi từ chối thân rỗng
-  if (
-    auth &&
-    !_didRefresh &&
-    res.status === 401 &&
-    path !== "/api/v1/auth/refresh" &&
-    path !== "/api/v1/auth/login"
-  ) {
-    const refreshed = await tryRefreshAccessToken()
-    if (refreshed) {
-      return apiJson<T>(path, { ...init, auth: true, _didRefresh: true })
-    }
-  }
-
   if (trimmed.length === 0) {
     if (res.status === 401) {
       throw new ApiRequestError(401, {
@@ -113,4 +77,81 @@ export async function apiJson<T>(path: string, init: ApiJsonOptions = {}): Promi
     error: "INVALID_ENVELOPE",
     message: "Phản hồi không đúng envelope success/data",
   })
+}
+
+/**
+ * JSON request/response against Spring envelope: success + data on OK.
+ */
+export async function apiJson<T>(path: string, init: ApiJsonOptions = {}): Promise<T> {
+  const { auth, _didRefresh, headers: initHeaders, ...rest } = init
+  const base = getApiBaseUrl()
+  if (!import.meta.env.DEV && !base) {
+    throw new Error("VITE_API_BASE_URL is not set and non-DEV build has no default API host")
+  }
+  const url = getApiUrl(path.startsWith("/") ? path : `/${path}`)
+  const headers = new Headers(initHeaders)
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json")
+  }
+  if (auth) {
+    const token = sessionStorage.getItem("accessToken")
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`)
+    }
+  }
+  const res = await fetch(url, { ...rest, headers })
+  const raw = await res.text()
+
+  // 401 từ OAuth2 Resource Server thường không có body; phải thử refresh *trước* khi từ chối thân rỗng
+  if (
+    auth &&
+    !_didRefresh &&
+    res.status === 401 &&
+    path !== "/api/v1/auth/refresh" &&
+    path !== "/api/v1/auth/login"
+  ) {
+    const refreshed = await tryRefreshAccessToken()
+    if (refreshed) {
+      return apiJson<T>(path, { ...init, auth: true, _didRefresh: true })
+    }
+  }
+
+  return parseApiEnvelopeText<T>(res, raw)
+}
+
+/**
+ * `multipart/form-data` — dùng factory `getFormData` để có thể gọi lại khi 401 + refresh.
+ * Không gắn `Content-Type` (boundary tự tạo). Phản hồi vẫn JSON envelope.
+ */
+export async function apiFormData<T>(path: string, getFormData: () => FormData, init: ApiJsonOptions = {}): Promise<T> {
+  const { auth, _didRefresh, headers: initHeaders, ...rest } = init
+  const base = getApiBaseUrl()
+  if (!import.meta.env.DEV && !base) {
+    throw new Error("VITE_API_BASE_URL is not set and non-DEV build has no default API host")
+  }
+  const url = getApiUrl(path.startsWith("/") ? path : `/${path}`)
+  const headers = new Headers(initHeaders)
+  if (auth) {
+    const token = sessionStorage.getItem("accessToken")
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`)
+    }
+  }
+  const res = await fetch(url, { ...rest, method: "POST", body: getFormData(), headers })
+  const raw = await res.text()
+
+  if (
+    auth &&
+    !_didRefresh &&
+    res.status === 401 &&
+    path !== "/api/v1/auth/refresh" &&
+    path !== "/api/v1/auth/login"
+  ) {
+    const refreshed = await tryRefreshAccessToken()
+    if (refreshed) {
+      return apiFormData<T>(path, getFormData, { ...init, auth: true, _didRefresh: true })
+    }
+  }
+
+  return parseApiEnvelopeText<T>(res, raw)
 }

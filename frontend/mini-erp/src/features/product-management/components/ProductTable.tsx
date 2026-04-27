@@ -26,6 +26,8 @@ interface ProductTableProps {
   onView: (item: Product) => void
   onEdit: (item: Product) => void
   onDelete: (item: Product) => void
+  /** Task041/Task038 — xóa sản phẩm Owner-only (khớp `assertOwnerOnly` BE). */
+  canDelete?: boolean
 }
 
 export function ProductTable({ 
@@ -33,9 +35,10 @@ export function ProductTable({
   selectedIds, 
   onSelect, 
   onSelectAll, 
-  onView, 
+  onView,
   onEdit,
-  onDelete
+  onDelete,
+  canDelete = false,
 }: ProductTableProps) {
   const allSelected = data.length > 0 && selectedIds.length === data.length;
   const someSelected = selectedIds.length > 0 && selectedIds.length < data.length;
@@ -101,9 +104,11 @@ export function ProductTable({
                     <Button variant="ghost" size="icon" onClick={() => onEdit(item)} title="Chỉnh sửa" className="h-8 w-8 text-slate-500 hover:text-slate-900 transition-colors">
                       <Edit2 className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => onDelete(item)} title="Xóa" className="h-8 w-8 text-slate-500 hover:text-red-600 transition-colors">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {canDelete && (
+                      <Button variant="ghost" size="icon" onClick={() => onDelete(item)} title="Xóa (Owner)" className="h-8 w-8 text-slate-500 hover:text-red-600 transition-colors">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

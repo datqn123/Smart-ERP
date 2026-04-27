@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ProductsPage } from "./ProductsPage"
 import { describe, it, expect, vi } from "vitest"
 import { PageTitleProvider } from "@/context/PageTitleContext"
@@ -21,25 +22,25 @@ vi.mock("@/components/shared/ConfirmDialog", () => ({
 }))
 
 describe("ProductsPage Structural Test", () => {
-  it("should have Toolbar and Table as direct siblings of a gap container", () => {
+  it("should have Toolbar and Table under the same gap container", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
     const { getByTestId } = render(
-      <PageTitleProvider>
-        <ProductsPage />
-      </PageTitleProvider>
+      <QueryClientProvider client={queryClient}>
+        <PageTitleProvider>
+          <ProductsPage />
+        </PageTitleProvider>
+      </QueryClientProvider>,
     )
-    
+
     const toolbar = getByTestId("product-toolbar")
     const table = getByTestId("product-table")
-    
-    // Check if they are direct children of the SAME container
+
     const toolbarParent = toolbar.parentElement
-    // Table is inside div.flex-1.overflow-y-auto -> div.shadow-md -> main
-    const tableWrapper = table.parentElement?.parentElement
-    const tableGrandParent = tableWrapper?.parentElement
-    
-    expect(toolbarParent).toBe(tableGrandParent)
-    
-    const parentClass = toolbarParent?.className || ""
-    expect(parentClass).toContain("gap-")
+    const tableGapAncestor = table.parentElement?.parentElement?.parentElement
+
+    expect(toolbarParent).toBe(tableGapAncestor)
+    expect(toolbarParent?.className ?? "").toContain("gap-")
   })
 })

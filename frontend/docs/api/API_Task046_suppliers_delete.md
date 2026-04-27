@@ -44,21 +44,34 @@
 
 ## 5. Logic DB
 
-1. **`SELECT id FROM Suppliers WHERE id = ? FOR UPDATE`** → **404**.
-2. **`SELECT 1 FROM StockReceipts WHERE supplier_id = ? LIMIT 1`** → có → **409** "Đã có phiếu nhập kho liên quan".
-3. **`DELETE FROM Suppliers WHERE id = ?`**.
+1. **`SELECT id FROM Suppliers WHERE id = ? FOR UPDATE`** → không có → **404**.
+2. **`SELECT 1 FROM StockReceipts WHERE supplier_id = ? LIMIT 1`** → có → **409** (`details.reason`: `HAS_RECEIPTS`) — message tiếng Việt theo envelope.
+3. **`SELECT 1 FROM PartnerDebts WHERE supplier_id = ? LIMIT 1`** → có → **409** (`details.reason`: `HAS_PARTNER_DEBTS`) — Flyway V1: FK `partnerdebts.supplier_id` **ON DELETE RESTRICT** (đồng bộ SRS / schema; tránh **500** nếu chỉ kiểm phiếu nhập).
+4. **`DELETE FROM Suppliers WHERE id = ?`**.
 
 ---
 
 ## 6. Lỗi
 
-#### 409 Conflict
+#### 409 Conflict — còn phiếu nhập
 
 ```json
 {
   "success": false,
   "error": "CONFLICT",
-  "message": "Không thể xóa nhà cung cấp đã có phiếu nhập kho"
+  "message": "Không thể xóa nhà cung cấp đã có phiếu nhập kho",
+  "details": { "reason": "HAS_RECEIPTS" }
+}
+```
+
+#### 409 Conflict — còn công nợ đối tác (`PartnerDebts`)
+
+```json
+{
+  "success": false,
+  "error": "CONFLICT",
+  "message": "Không thể xóa nhà cung cấp đang có công nợ",
+  "details": { "reason": "HAS_PARTNER_DEBTS" }
 }
 ```
 

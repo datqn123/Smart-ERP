@@ -73,7 +73,7 @@
 | Loại | File |
 | :--- | :--- |
 | Danh mục | `api/categoriesApi.ts` (Task029–033 — list/detail/create/patch/delete); `pages/CategoriesPage.tsx` (`useQuery` + `useMutation`); `components/CategoryTable.tsx`, `CategoryToolbar.tsx`, `CategoryForm.tsx`, `CategoryDetailDialog.tsx` |
-| Sản phẩm | `components/ProductTable.tsx`, `ProductToolbar.tsx`, `ProductForm.tsx`, `ProductDetailDialog.tsx` |
+| Sản phẩm | `api/productsApi.ts` (Task034–037, 039 — list/get/patch/post ảnh); `pages/ProductsPage.tsx` (`useQuery` list + detail form); `ProductForm.tsx` (PATCH + create); `ProductDetailDialog.tsx` (**Task036** `useQuery` `getProductById` khi mở dialog); `ProductTable.tsx`, `ProductToolbar.tsx` |
 | NCC | `components/SupplierTable.tsx`, `SupplierToolbar.tsx`, `SupplierForm.tsx`, `SupplierDetailDialog.tsx` |
 | Khách | `components/CustomerTable.tsx`, `CustomerToolbar.tsx`, `CustomerForm.tsx`, `CustomerDetailDialog.tsx` |
 

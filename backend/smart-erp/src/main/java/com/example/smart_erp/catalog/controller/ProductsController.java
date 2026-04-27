@@ -9,6 +9,9 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,9 +20,19 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
+import com.example.smart_erp.catalog.dto.ProductCreateRequest;
 import com.example.smart_erp.catalog.dto.ProductImageCreateRequest;
+import com.example.smart_erp.catalog.dto.ProductsBulkDeleteRequest;
+import com.example.smart_erp.catalog.response.ProductBulkDeleteData;
+import com.example.smart_erp.catalog.response.ProductCreatedData;
+import com.example.smart_erp.catalog.response.ProductDeleteData;
+import com.example.smart_erp.catalog.response.ProductDetailData;
 import com.example.smart_erp.catalog.response.ProductImageData;
+import com.example.smart_erp.catalog.response.ProductListPageData;
 import com.example.smart_erp.catalog.service.ProductImageService;
+import com.example.smart_erp.catalog.service.ProductService;
 import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.api.ApiSuccessResponse;
 import com.example.smart_erp.common.exception.BusinessException;
@@ -38,9 +51,72 @@ public class ProductsController {
 			+ "Kiểm tra Header Authorization: Bearer <accessToken>; nếu đã bật jwt-api, access token có thể đã hết hạn — đăng nhập hoặc refresh lại.";
 
 	private final ProductImageService productImageService;
+	private final ProductService productService;
 
-	public ProductsController(ProductImageService productImageService) {
+	public ProductsController(ProductImageService productImageService, ProductService productService) {
 		this.productImageService = productImageService;
+		this.productService = productService;
+	}
+
+	@GetMapping
+	@PreAuthorize("hasAuthority('can_manage_products')")
+	public ResponseEntity<ApiSuccessResponse<ProductListPageData>> list(Authentication authentication,
+			@RequestParam(required = false) String search, @RequestParam(required = false) Integer categoryId,
+			@RequestParam(required = false, defaultValue = "all") String status,
+			@RequestParam(required = false, defaultValue = "1") int page,
+			@RequestParam(required = false, defaultValue = "20") int limit,
+			@RequestParam(required = false) String sort) {
+		requireJwt(authentication);
+		ProductListPageData data = productService.list(search, categoryId, status, page, limit, sort);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
+	}
+
+	@PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+	@PreAuthorize("hasAuthority('can_manage_products')")
+	public ResponseEntity<ApiSuccessResponse<ProductCreatedData>> create(Authentication authentication,
+			@Valid @RequestBody ProductCreateRequest body) {
+		requireJwt(authentication);
+		ProductCreatedData data = productService.create(body);
+		return ResponseEntity.status(201).body(ApiSuccessResponse.of(data, "Đã tạo sản phẩm"));
+	}
+
+	@GetMapping("/{id:\\d+}")
+	@PreAuthorize("hasAuthority('can_manage_products')")
+	public ResponseEntity<ApiSuccessResponse<ProductDetailData>> getById(Authentication authentication,
+			@PathVariable("id") String idRaw) {
+		requireJwt(authentication);
+		int productId = parsePositiveIntId(idRaw);
+		ProductDetailData data = productService.getById(productId);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
+	}
+
+	@PatchMapping(value = "/{id:\\d+}", consumes = MediaType.APPLICATION_JSON_VALUE)
+	@PreAuthorize("hasAuthority('can_manage_products')")
+	public ResponseEntity<ApiSuccessResponse<ProductDetailData>> patch(Authentication authentication,
+			@PathVariable("id") String idRaw, @RequestBody JsonNode body) {
+		requireJwt(authentication);
+		int productId = parsePositiveIntId(idRaw);
+		ProductDetailData data = productService.patch(productId, body);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
+	}
+
+	@DeleteMapping("/{id:\\d+}")
+	@PreAuthorize("hasAuthority('can_manage_products')")
+	public ResponseEntity<ApiSuccessResponse<ProductDeleteData>> delete(Authentication authentication,
+			@PathVariable("id") String idRaw) {
+		Jwt jwt = requireJwt(authentication);
+		int productId = parsePositiveIntId(idRaw);
+		ProductDeleteData data = productService.delete(productId, jwt);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã xóa sản phẩm"));
+	}
+
+	@PostMapping(value = "/bulk-delete", consumes = MediaType.APPLICATION_JSON_VALUE)
+	@PreAuthorize("hasAuthority('can_manage_products')")
+	public ResponseEntity<ApiSuccessResponse<ProductBulkDeleteData>> bulkDelete(Authentication authentication,
+			@Valid @RequestBody ProductsBulkDeleteRequest body) {
+		Jwt jwt = requireJwt(authentication);
+		ProductBulkDeleteData data = productService.bulkDelete(body, jwt);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã xóa các sản phẩm"));
 	}
 
 	@PostMapping(value = "/{id:\\d+}/images", consumes = MediaType.APPLICATION_JSON_VALUE)

@@ -44,7 +44,18 @@
 | `status` | string | `all` | `all` \| `Active` \| `Inactive` |
 | `page` | int ≥ 1 | `1` | |
 | `limit` | int 1–100 | `20` | |
-| `sort` | string | `updatedAt:desc` | Whitelist |
+| `sort` | string | `updatedAt:desc` | Whitelist — xem §5.1 |
+
+### 5.1 Whitelist `sort` (đồng bộ `SRS_Task042-047_suppliers-management.md` §8.2)
+
+Giá trị hợp lệ (một chuỗi `field:direction`); khác → **400** `BAD_REQUEST`.
+
+| Giá trị |
+| :--- |
+| `name:asc`, `name:desc` |
+| `supplierCode:asc`, `supplierCode:desc` |
+| `updatedAt:asc`, `updatedAt:desc` |
+| `createdAt:asc`, `createdAt:desc` |
 
 ---
 

@@ -25,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.example.smart_erp.catalog.response.ProductImageData;
 import com.example.smart_erp.catalog.service.ProductImageService;
+import com.example.smart_erp.catalog.service.ProductService;
 import com.example.smart_erp.common.exception.GlobalExceptionHandler;
 import com.example.smart_erp.config.MethodSecurityTestConfiguration;
 import com.example.smart_erp.config.PermitAllWebSecurityConfiguration;
@@ -40,6 +41,9 @@ class ProductsControllerWebMvcTest {
 
 	@MockitoBean
 	private ProductImageService productImageService;
+
+	@MockitoBean
+	private ProductService productService;
 
 	@Test
 	void addImageJson_returns201() throws Exception {

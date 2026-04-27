@@ -17,6 +17,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.example.smart_erp.common.api.ApiErrorCode;
@@ -53,6 +54,13 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ApiErrorResponse> handleNotReadable(HttpMessageNotReadableException ex) {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 				.body(ApiErrorResponse.of(ApiErrorCode.BAD_REQUEST, "Không đọc được nội dung yêu cầu (JSON)"));
+	}
+
+	@ExceptionHandler(MissingServletRequestPartException.class)
+	public ResponseEntity<ApiErrorResponse> handleMissingMultipartPart(MissingServletRequestPartException ex) {
+		String name = ex.getRequestPartName() != null ? ex.getRequestPartName() : "file";
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiErrorResponse.of(ApiErrorCode.BAD_REQUEST,
+				"Thiếu thành phần multipart", Map.of(name, "Bắt buộc")));
 	}
 
 	@ExceptionHandler(BusinessException.class)

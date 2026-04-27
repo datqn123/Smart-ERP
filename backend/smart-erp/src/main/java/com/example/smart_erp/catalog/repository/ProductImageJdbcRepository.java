@@ -1,11 +1,7 @@
 package com.example.smart_erp.catalog.repository;
 
-import java.util.Map;
-
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
 @SuppressWarnings("null")
@@ -40,15 +36,15 @@ public class ProductImageJdbcRepository {
 		String sql = """
 				INSERT INTO productimages (product_id, image_url, is_primary, sort_order, file_size_bytes, mime_type)
 				VALUES (:pid, :url, :primary, :sort, :fsize, :mime)
+				RETURNING id
 				""";
-		KeyHolder keys = new GeneratedKeyHolder();
-		MapSqlParameterSource p = new MapSqlParameterSource(Map.of("pid", productId, "url", imageUrl, "primary",
-				isPrimary, "sort", sortOrder, "fsize", fileSizeBytes, "mime", mimeType));
-		namedJdbc.update(sql, p, keys, new String[] { "id" });
-		Number key = keys.getKey();
-		if (key == null) {
+		MapSqlParameterSource p = new MapSqlParameterSource().addValue("pid", productId).addValue("url", imageUrl)
+				.addValue("primary", isPrimary).addValue("sort", sortOrder).addValue("fsize", fileSizeBytes)
+				.addValue("mime", mimeType);
+		Integer id = namedJdbc.queryForObject(sql, p, Integer.class);
+		if (id == null) {
 			throw new IllegalStateException("INSERT productimages did not return id");
 		}
-		return key.intValue();
+		return id;
 	}
 }

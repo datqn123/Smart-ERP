@@ -1,6 +1,7 @@
 -- Seed demo: ~50 danh mục gốc + 3–4 danh mục con mỗi gốc (SRS Task029–033 / bảng categories).
 -- Mã danh mục prefix DM50_ để không đụng seed V1/V6 (CAT001–CAT006).
 -- Ràng buộc: category_code unique trong bản ghi active (V14); parent_id NULL = gốc.
+-- Version V16: tránh trùng V15 với V15__productimages_one_primary_unique.sql (một số Flyway = một file).
 
 INSERT INTO categories (category_code, name, description, parent_id, sort_order, status)
 SELECT v.code,

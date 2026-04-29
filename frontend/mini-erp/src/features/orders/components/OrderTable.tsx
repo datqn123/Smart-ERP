@@ -143,7 +143,13 @@ export function OrderTable({
                           <Eye className="h-4 w-4" />
                         </Button>
                         {onEdit && (
-                          <Button variant="ghost" size="icon" onClick={() => onEdit(item)} title="Chỉnh sửa đơn" className="h-8 w-8 text-blue-500 hover:text-blue-700 transition-colors">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onEdit(item)}
+                            title="Chỉnh sửa đơn"
+                            className="h-8 w-8 text-slate-400 hover:text-blue-600 transition-colors"
+                          >
                             <Edit2 className="h-4 w-4" />
                           </Button>
                         )}

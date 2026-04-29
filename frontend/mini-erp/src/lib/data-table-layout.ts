@@ -124,7 +124,7 @@ export const SUPPLIER_TABLE_COL = {
 /** Đơn hàng */
 export const ORDER_TABLE_COL = {
   select: "w-[48px]",
-  code: "w-[116px]",
+  code: "w-[220px]",
   customer: "min-w-[180px]",
   date: "w-[104px]",
   items: "w-[84px]",

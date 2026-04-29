@@ -218,7 +218,7 @@ export function OrderFormDialog({ order, isOpen, onClose, onSave, onCreateWholes
             </div>
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-0.5">Quản lý giao dịch</p>
-              <DialogTitle className="text-2xl font-black tracking-tight text-slate-900 uppercase italic">
+              <DialogTitle className="text-2xl font-black tracking-tight text-slate-900 uppercase">
                 {isEdit ? "Cập nhật đơn hàng" : "Tạo đơn hàng mới"}
               </DialogTitle>
             </div>
@@ -301,25 +301,25 @@ export function OrderFormDialog({ order, isOpen, onClose, onSave, onCreateWholes
                             </SelectTrigger>
                             <SelectContent className="rounded-xl border-slate-100 shadow-xl">
                                 {isCancelled ? (
-                                    <SelectItem value="Cancelled" className="text-slate-500 font-bold text-xs">
+                                    <SelectItem value="Cancelled" className="text-slate-700 text-sm font-medium">
                                         Đã hủy
                                     </SelectItem>
                                 ) : (
                                     <>
-                                        <SelectItem value="Pending" className="text-amber-600 font-bold text-xs cursor-pointer">
-                                            <span className="flex items-center gap-2 uppercase tracking-wider italic">○ Chờ xử lý</span>
+                                        <SelectItem value="Pending" className="text-slate-900 text-sm font-medium cursor-pointer">
+                                            <span className="flex items-center gap-2">○ Chờ xử lý</span>
                                         </SelectItem>
-                                        <SelectItem value="Processing" className="text-blue-600 font-bold text-xs cursor-pointer">
-                                            <span className="flex items-center gap-2 uppercase tracking-wider italic">● Đang thực hiện</span>
+                                        <SelectItem value="Processing" className="text-slate-900 text-sm font-medium cursor-pointer">
+                                            <span className="flex items-center gap-2">● Đang thực hiện</span>
                                         </SelectItem>
-                                        <SelectItem value="Partial" className="text-sky-600 font-bold text-xs cursor-pointer">
-                                            <span className="flex items-center gap-2 uppercase tracking-wider italic">◐ Một phần</span>
+                                        <SelectItem value="Partial" className="text-slate-900 text-sm font-medium cursor-pointer">
+                                            <span className="flex items-center gap-2">◐ Một phần</span>
                                         </SelectItem>
-                                        <SelectItem value="Shipped" className="text-indigo-600 font-bold text-xs cursor-pointer">
-                                            <span className="flex items-center gap-2 uppercase tracking-wider italic">✈ Đang giao hàng</span>
+                                        <SelectItem value="Shipped" className="text-slate-900 text-sm font-medium cursor-pointer">
+                                            <span className="flex items-center gap-2">✈ Đang giao hàng</span>
                                         </SelectItem>
-                                        <SelectItem value="Delivered" className="text-emerald-600 font-bold text-xs cursor-pointer">
-                                            <span className="flex items-center gap-2 uppercase tracking-wider italic">✓ Đã giao</span>
+                                        <SelectItem value="Delivered" className="text-slate-900 text-sm font-medium cursor-pointer">
+                                            <span className="flex items-center gap-2">✓ Đã giao</span>
                                         </SelectItem>
                                     </>
                                 )}
@@ -340,9 +340,15 @@ export function OrderFormDialog({ order, isOpen, onClose, onSave, onCreateWholes
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="rounded-xl border-slate-100 shadow-xl">
-                                <SelectItem value="Unpaid" className="text-red-500 font-bold text-xs cursor-pointer uppercase tracking-wider italic">Chưa thanh toán</SelectItem>
-                                <SelectItem value="Partial" className="text-amber-500 font-bold text-xs cursor-pointer uppercase tracking-wider italic">Thanh toán một phần</SelectItem>
-                                <SelectItem value="Paid" className="text-emerald-500 font-bold text-xs cursor-pointer uppercase tracking-wider italic">Đã thanh toán xong</SelectItem>
+                                <SelectItem value="Unpaid" className="text-slate-900 text-sm font-medium cursor-pointer">
+                                  Chưa thanh toán
+                                </SelectItem>
+                                <SelectItem value="Partial" className="text-slate-900 text-sm font-medium cursor-pointer">
+                                  Thanh toán một phần
+                                </SelectItem>
+                                <SelectItem value="Paid" className="text-slate-900 text-sm font-medium cursor-pointer">
+                                  Đã thanh toán xong
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

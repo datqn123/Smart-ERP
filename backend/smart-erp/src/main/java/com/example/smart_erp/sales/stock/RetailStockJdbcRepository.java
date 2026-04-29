@@ -25,22 +25,36 @@ public class RetailStockJdbcRepository {
 	}
 
 	public Optional<Integer> findDefaultRetailLocationId() {
-		Integer id = namedJdbc.queryForObject(
-				"SELECT default_retail_location_id FROM storeprofiles ORDER BY id LIMIT 1", Map.of(), Integer.class);
-		return Optional.ofNullable(id);
+		String sql = "SELECT default_retail_location_id FROM storeprofiles ORDER BY id LIMIT 1";
+		return namedJdbc.query(sql, Map.of(), rs -> {
+			if (!rs.next()) {
+				return Optional.empty();
+			}
+			Integer id = (Integer) rs.getObject(1, Integer.class);
+			return Optional.ofNullable(id);
+		});
 	}
 
 	public Optional<BigDecimal> findConversionRate(int productUnitId) {
-		BigDecimal cr = namedJdbc.queryForObject("SELECT conversion_rate FROM productunits WHERE id = :id",
-				Map.of("id", productUnitId), BigDecimal.class);
-		return Optional.ofNullable(cr);
+		String sql = "SELECT conversion_rate FROM productunits WHERE id = :id";
+		return namedJdbc.query(sql, Map.of("id", productUnitId), rs -> {
+			if (!rs.next()) {
+				return Optional.empty();
+			}
+			BigDecimal cr = (BigDecimal) rs.getObject(1, BigDecimal.class);
+			return Optional.ofNullable(cr);
+		});
 	}
 
 	public Optional<Integer> findBaseUnitId(int productId) {
-		Integer id = namedJdbc.queryForObject(
-				"SELECT id FROM productunits WHERE product_id = :pid AND is_base_unit = TRUE LIMIT 1",
-				Map.of("pid", productId), Integer.class);
-		return Optional.ofNullable(id);
+		String sql = "SELECT id FROM productunits WHERE product_id = :pid AND is_base_unit = TRUE LIMIT 1";
+		return namedJdbc.query(sql, Map.of("pid", productId), rs -> {
+			if (!rs.next()) {
+				return Optional.empty();
+			}
+			Integer id = (Integer) rs.getObject(1, Integer.class);
+			return Optional.ofNullable(id);
+		});
 	}
 
 	public List<InventoryBucketRow> lockInventoryBucketsFefo(int productId, int locationId) {

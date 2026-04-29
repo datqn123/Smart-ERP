@@ -30,6 +30,7 @@ import com.example.smart_erp.sales.repository.SalesOrderJdbcRepository;
 import com.example.smart_erp.sales.repository.SalesOrderJdbcRepository.OrderLockRow;
 import com.example.smart_erp.sales.repository.VoucherJdbcRepository;
 import com.example.smart_erp.sales.repository.VoucherJdbcRepository.VoucherRow;
+import com.example.smart_erp.sales.stock.RetailStockService;
 import com.example.smart_erp.sales.response.PosProductSearchData;
 import com.example.smart_erp.sales.response.SalesOrderCancelData;
 import com.example.smart_erp.sales.response.SalesOrderDetailData;
@@ -52,14 +53,18 @@ public class SalesOrderService {
 
 	private final PosProductJdbcRepository posProductJdbcRepository;
 
+	private final RetailStockService retailStockService;
+
 	public SalesOrderService(SalesOrderJdbcRepository salesOrderJdbcRepository,
 			VoucherJdbcRepository voucherJdbcRepository, CustomerJdbcRepository customerJdbcRepository,
-			ProductJdbcRepository productJdbcRepository, PosProductJdbcRepository posProductJdbcRepository) {
+			ProductJdbcRepository productJdbcRepository, PosProductJdbcRepository posProductJdbcRepository,
+			RetailStockService retailStockService) {
 		this.salesOrderJdbcRepository = salesOrderJdbcRepository;
 		this.voucherJdbcRepository = voucherJdbcRepository;
 		this.customerJdbcRepository = customerJdbcRepository;
 		this.productJdbcRepository = productJdbcRepository;
 		this.posProductJdbcRepository = posProductJdbcRepository;
+		this.retailStockService = retailStockService;
 	}
 
 	@Transactional(readOnly = true)
@@ -221,6 +226,8 @@ public class SalesOrderService {
 			salesOrderJdbcRepository.insertOrderLine(id, line.productId(), line.unitId(), line.quantity(),
 					line.unitPrice());
 		}
+		String orderCode = salesOrderJdbcRepository.findOrderCode(id).orElseGet(() -> buildOrderCode(id));
+		retailStockService.deductStockForRetailCheckout(id, orderCode, uid, body.lines());
 		return getById(id);
 	}
 
@@ -237,6 +244,9 @@ public class SalesOrderService {
 	@Transactional
 	public SalesOrderDetailData patch(int id, JsonNode body, Jwt jwt) {
 		StockReceiptAccessPolicy.parseUserId(jwt);
+		if (body == null) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Body không được rỗng");
+		}
 		Optional<OrderLockRow> locked = salesOrderJdbcRepository.lockOrderForUpdate(id);
 		if (locked.isEmpty()) {
 			throw new BusinessException(ApiErrorCode.NOT_FOUND, "Không tìm thấy đơn hàng");
@@ -328,9 +338,16 @@ public class SalesOrderService {
 		if ("Cancelled".equals(row.status())) {
 			return new SalesOrderCancelData(id, "Cancelled", row.cancelledAt(), row.cancelledBy());
 		}
-		if (salesOrderJdbcRepository.countStockDispatchesForOrder(id) > 0
-				|| salesOrderJdbcRepository.existsDispatchedLines(id)) {
-			throw new BusinessException(ApiErrorCode.CONFLICT, "Không thể hủy đơn — đã có phiếu xuất hoặc đã giao từ kho");
+		boolean hasDispatch = salesOrderJdbcRepository.countStockDispatchesForOrder(id) > 0
+				|| salesOrderJdbcRepository.existsDispatchedLines(id);
+		if (hasDispatch) {
+			if ("Retail".equalsIgnoreCase(row.orderChannel())) {
+				retailStockService.reverseDeductionForRetailCancel(id, uid);
+			}
+			else {
+				throw new BusinessException(ApiErrorCode.CONFLICT,
+						"Không thể hủy đơn — đã có phiếu xuất hoặc đã giao từ kho");
+			}
 		}
 		salesOrderJdbcRepository.cancelOrder(id, uid);
 		SalesOrderDetailData d = getById(id);

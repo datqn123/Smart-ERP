@@ -15,6 +15,29 @@ export const SALES_ORDER_LIST_SORT_WHITELIST = [
 
 export type SalesOrderListSort = (typeof SALES_ORDER_LIST_SORT_WHITELIST)[number]
 
+export function getSalesOrderListSortLabel(sort: SalesOrderListSort): string {
+  switch (sort) {
+    case "createdAt:desc":
+      return "Ngày tạo (mới nhất)"
+    case "createdAt:asc":
+      return "Ngày tạo (cũ nhất)"
+    case "updatedAt:desc":
+      return "Ngày cập nhật (mới nhất)"
+    case "updatedAt:asc":
+      return "Ngày cập nhật (cũ nhất)"
+    case "orderCode:asc":
+      return "Mã đơn (A → Z)"
+    case "orderCode:desc":
+      return "Mã đơn (Z → A)"
+    case "totalAmount:desc":
+      return "Tổng tiền (cao → thấp)"
+    case "totalAmount:asc":
+      return "Tổng tiền (thấp → cao)"
+    default:
+      return sort
+  }
+}
+
 export type SalesOrderChannel = "Retail" | "Wholesale" | "Return"
 
 export const SALES_ORDER_LIST_QUERY_KEY = ["orders", "sales-orders", "list"] as const

@@ -1,6 +1,6 @@
 # 📄 API SPEC: `POST /api/v1/sales-orders/retail/checkout` — Thanh toán POS (bán lẻ) - Task060
 
-> **Trạng thái**: Draft  
+> **Trạng thái**: Draft (đã có SRS Task090 Approved — trừ tồn khi checkout)  
 > **Feature**: UC9 — `RetailPage`, `POSCartPanel` (`handleCheckout`)  
 > **Tags**: RESTful, SalesOrders, OrderDetails, POS, Create
 
@@ -57,6 +57,8 @@ Seed bản ghi **`Customers`** cố định, ví dụ `customer_code = 'WALKIN'`
 | `notes` | Không | |
 | `shiftReference` | Không | Chuỗi hiển thị phiên ca (UI); lưu vào `notes` prefix hoặc cột `pos_shift_id` nếu sau này có bảng ca bán |
 
+**Trừ tồn kho (Task090 — triển khai backend):** API **không** nhận `locationId` trong body. Backend trừ tồn theo **kho mặc định** cấu hình trong `StoreProfiles` (Owner) và cấp phát theo **FEFO**. Tham chiếu: [`backend/docs/srs/SRS_Task090_uc9-retail-checkout-stock-deduction.md`](../../../backend/docs/srs/SRS_Task090_uc9-retail-checkout-stock-deduction.md) (**Approved** 29/04/2026).
+
 **`total_amount`**: tính từ `lines`; **tổng giảm** = `discountAmount` + phần voucher; **`discount_amount`** trên `sales_orders` = tổng (hoặc tách cột `voucher_discount` — tuỳ migration).
 
 ---
@@ -72,11 +74,11 @@ Giống Task055 (đơn mới, `orderChannel: "Retail"`).
 1. Resolve `customer_id` (walk-in seed hoặc FK).
 2. Validate `lines`, đơn vị, giá (có thể so khớp `sale_price` hiện hành với **sai lệch cho phép** — policy chống sửa giá client).
 3. Tính `total_amount`, voucher, `discount_amount` tổng.
-4. **`INSERT sales_orders`** (`order_channel = 'Retail'`, `user_id` = JWT, `status` mặc định `Delivered` hoặc `Pending` tùy nghiệp vụ POS — ghi rõ: POS thường **`Delivered`** ngay khi đã giao hàng tại quầy).
-5. **`INSERT order_details`**.
-6. Commit.
-
-**Trừ tồn kho / phiếu xuất**: nếu chưa có Task UC10 tích hợp, ghi **TODO nội bộ** — có thể gọi stored procedure xuất kho mặc định hoặc để bước sau.
+4. **Lock + kiểm tra tồn** theo kho mặc định (`StoreProfiles`) và chiến lược FEFO; nếu thiếu tồn → **409** (không tạo đơn, không đổi tồn).  
+5. **`INSERT sales_orders`** (`order_channel = 'Retail'`, `user_id` = JWT, `status` thường **`Delivered`** cho POS tại quầy).  
+6. **`INSERT order_details`**.  
+7. **Ghi nhận xuất kho**: `INSERT StockDispatches` (1 phiếu/đơn), `UPDATE Inventory.quantity` (giảm), `INSERT InventoryLogs` (OUTBOUND, quantity_change âm), `UPDATE OrderDetails.dispatched_qty` (đủ).  
+8. Commit.
 
 ---
 
@@ -84,7 +86,7 @@ Giống Task055 (đơn mới, `orderChannel: "Retail"`).
 
 - **400**: giỏ rỗng, voucher không hợp lệ, giá sai.
 - **404**: `customerId` không tồn tại.
-- **409**: không đủ tồn (nếu kiểm tra).
+- **409**: không đủ tồn (Task090) hoặc xung đột tồn do concurrent (sau khi lock).
 - **401** / **403** / **500**.
 
 ---
@@ -117,6 +119,8 @@ export const RetailCheckoutBodySchema = z
     { message: "Cần customerId hoặc walkIn = true" }
   );
 ```
+
+**Ghi chú:** FE không cần thêm field chọn kho trong body checkout (không có `locationId`); kho trừ tồn do backend cấu hình.
 
 ---
 

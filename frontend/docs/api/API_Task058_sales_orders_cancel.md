@@ -48,8 +48,10 @@
 ## 5. Logic DB (transaction)
 
 1. Lock header → **404**.
-2. Nếu đã `Cancelled` → **409** (idempotent: có thể **200** với cùng trạng thái — ghi rõ policy).
-3. Nếu đã xuất kho một phần → **409** "Không thể hủy — đã có phiếu xuất" (kiểm tra `StockDispatches` / `dispatched_qty` > 0).
+2. Nếu đã `Cancelled` → **200** idempotent (trả cùng trạng thái).
+3. Nếu đã xuất kho (`StockDispatches` / `dispatched_qty` > 0):  
+   - Với **Retail POS** (Task090): thực hiện **hoàn kho** (reverse `InventoryLogs`, cộng lại `Inventory.quantity`, huỷ `StockDispatches`, reset `OrderDetails.dispatched_qty`) rồi mới hủy đơn.  
+   - Với kênh khác: **409** "Không thể hủy — đã có phiếu xuất".
 4. **`UPDATE sales_orders SET status = 'Cancelled', cancelled_at = NOW(), cancelled_by = $uid, updated_at = NOW()`**.
 5. (Tuỳ chọn) ghi `SystemLogs`; **hoàn tồn** nếu đã reserve — Task bổ sung / cùng UC10.
 

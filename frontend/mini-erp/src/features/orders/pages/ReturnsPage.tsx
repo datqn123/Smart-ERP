@@ -12,6 +12,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { useSalesOrdersListQuery } from "../hooks/useSalesOrdersListQuery"
 import {
+  getSalesOrderListSortLabel,
   postCancelSalesOrder,
   postSalesOrder,
   SALES_ORDER_LIST_QUERY_KEY,
@@ -178,7 +179,7 @@ export function ReturnsPage() {
           >
             {SALES_ORDER_LIST_SORT_WHITELIST.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {getSalesOrderListSortLabel(s)}
               </option>
             ))}
           </select>

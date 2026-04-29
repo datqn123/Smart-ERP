@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { useSalesOrdersListQuery } from "../hooks/useSalesOrdersListQuery"
 import {
   buildSalesOrderPatchBody,
+  getSalesOrderListSortLabel,
   patchSalesOrder,
   postCancelSalesOrder,
   postSalesOrder,
@@ -208,7 +209,7 @@ export function WholesalePage() {
           >
             {SALES_ORDER_LIST_SORT_WHITELIST.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {getSalesOrderListSortLabel(s)}
               </option>
             ))}
           </select>

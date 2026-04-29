@@ -212,6 +212,12 @@ public class SalesOrderJdbcRepository {
 				Map.of("code", orderCode, "id", orderId));
 	}
 
+	public Optional<String> findOrderCode(int orderId) {
+		String code = namedJdbc.queryForObject("SELECT order_code FROM salesorders WHERE id = :id LIMIT 1",
+				Map.of("id", orderId), String.class);
+		return Optional.ofNullable(code);
+	}
+
 	public void insertOrderLine(int orderId, int productId, int unitId, int quantity, BigDecimal unitPrice) {
 		namedJdbc.update("""
 				INSERT INTO orderdetails (order_id, product_id, unit_id, quantity, price_at_time)
@@ -221,11 +227,12 @@ public class SalesOrderJdbcRepository {
 
 	public Optional<OrderLockRow> lockOrderForUpdate(int id) {
 		String sql = """
-				SELECT id, status, total_amount, discount_amount, cancelled_at, cancelled_by
+				SELECT id, status, order_channel, total_amount, discount_amount, cancelled_at, cancelled_by
 				FROM salesorders WHERE id = :id FOR UPDATE
 				""";
 		List<OrderLockRow> rows = namedJdbc.query(sql, Map.of("id", id), (rs, rn) -> new OrderLockRow(rs.getInt("id"),
-				rs.getString("status"), rs.getBigDecimal("total_amount"), rs.getBigDecimal("discount_amount"),
+				rs.getString("status"), rs.getString("order_channel"), rs.getBigDecimal("total_amount"),
+				rs.getBigDecimal("discount_amount"),
 				tsToInstant(rs.getTimestamp("cancelled_at")), (Integer) rs.getObject("cancelled_by")));
 		return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
 	}
@@ -288,7 +295,7 @@ public class SalesOrderJdbcRepository {
 		return !hit.isEmpty();
 	}
 
-	public record OrderLockRow(int id, String status, BigDecimal totalAmount, BigDecimal discountAmount,
+	public record OrderLockRow(int id, String status, String orderChannel, BigDecimal totalAmount, BigDecimal discountAmount,
 			Instant cancelledAt, Integer cancelledBy) {
 	}
 

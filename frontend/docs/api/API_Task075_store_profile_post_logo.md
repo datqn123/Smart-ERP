@@ -14,13 +14,14 @@
 ## 2. Request
 
 - **Content-Type**: `multipart/form-data`  
-- **Field**: `file` (image/png, image/jpeg) — tối đa **2MB** (theo gợi ý UI).
+- **Field**: `file` (`image/png`, `image/jpeg`, `image/webp`)  
+- **Kích thước tối đa (server)**: mặc định **5MB** (theo `app.cloudinary.maxFileSizeBytes`); UI có thể giới hạn 2MB để UX tốt hơn.
 
 ---
 
 ## 3. RBAC
 
-Giống Task074 (**Owner** / Admin được phép).
+Yêu cầu `hasAuthority('can_view_store_profile')`.
 
 ---
 
@@ -28,7 +29,7 @@ Giống Task074 (**Owner** / Admin được phép).
 
 1. Validate MIME + kích thước → **400** nếu sai.  
 2. Upload lên object storage / CDN → nhận `publicUrl`.  
-3. `UPDATE store_profiles SET logo_url = :publicUrl, updated_at = now() WHERE owner_id = :id`.
+3. `UPDATE storeprofiles SET logo_url = :publicUrl WHERE owner_id = :ownerId` (trigger DB tự cập nhật `updated_at`).
 
 ---
 

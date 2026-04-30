@@ -1,5 +1,6 @@
-import React, { useEffect } from "react"
+import { useEffect } from "react"
 import { useForm } from "react-hook-form"
+import { useQuery } from "@tanstack/react-query"
 import { 
   Dialog, 
   DialogContent, 
@@ -29,28 +30,54 @@ import {
   ArrowDownCircle,
   Activity
 } from "lucide-react"
-import { toast } from "sonner"
 import type { Transaction } from "../types"
 import { cn } from "@/lib/utils"
+import { ApiRequestError } from "@/lib/api/http"
+import { toast } from "sonner"
+import {
+  CASH_TRANSACTION_DETAIL_QUERY_KEY,
+  getCashTransactionById,
+} from "../api/cashTransactionsApi"
 import {
   FORM_LABEL_CLASS,
   FORM_INPUT_CLASS,
 } from "@/lib/data-table-layout"
 
-interface TransactionFormDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: (data: any) => void;
-  initialData?: Transaction | null;
-  mode: 'create' | 'edit';
+function mapTransactionToFormValues(t: Transaction) {
+  const amt = typeof t.amount === "number" && !Number.isNaN(t.amount) ? t.amount : Number(t.amount)
+  return {
+    transactionCode: t.transactionCode,
+    direction: t.direction,
+    category: t.category,
+    amount: Number.isFinite(amt) ? amt : 0,
+    transactionDate: t.transactionDate,
+    paymentMethod: t.paymentMethod ?? "Cash",
+    status: t.status,
+    description: t.description ?? "",
+  }
 }
 
-export function TransactionFormDialog({ 
-  isOpen, 
-  onClose, 
-  onSubmit, 
-  initialData, 
-  mode 
+interface TransactionFormDialogProps {
+  isOpen: boolean
+  onClose: () => void
+  /** Task065/067 — `ctx.source` = bản ghi server để build PATCH đúng BR. */
+  onSubmit: (
+    data: Record<string, unknown>,
+    ctx?: { source?: Transaction | null },
+  ) => void | Promise<void>
+  initialData?: Transaction | null
+  mode: "create" | "edit"
+  /** Task066 — GET by id khi sửa (đủ read-model). */
+  detailSourceId?: number | null
+}
+
+export function TransactionFormDialog({
+  isOpen,
+  onClose,
+  onSubmit,
+  initialData,
+  mode,
+  detailSourceId = null,
 }: TransactionFormDialogProps) {
   const { register, handleSubmit, reset, setValue, watch } = useForm({
     defaultValues: initialData || {
@@ -60,39 +87,74 @@ export function TransactionFormDialog({
       amount: 0,
       transactionDate: new Date().toISOString().split('T')[0],
       paymentMethod: 'Cash',
-      status: 'Completed',
+      status: "Pending",
       description: ''
     }
   })
 
+  const detailQuery = useQuery({
+    queryKey: [...CASH_TRANSACTION_DETAIL_QUERY_KEY, detailSourceId],
+    queryFn: () => getCashTransactionById(detailSourceId!),
+    enabled: isOpen && mode === "edit" && detailSourceId != null && detailSourceId > 0,
+  })
+
   useEffect(() => {
-    if (initialData) {
-      reset(initialData)
+    if (!detailQuery.isError) return
+    if (mode !== "edit") return
+    const e = detailQuery.error
+    if (e instanceof ApiRequestError) {
+      toast.error(e.body?.message ?? e.message)
     } else {
-        reset({
-            transactionCode: `TRANS-${Math.floor(Date.now() / 1000)}`,
-            direction: 'Income',
-            category: '',
-            amount: 0,
-            transactionDate: new Date().toISOString().split('T')[0],
-            paymentMethod: 'Cash',
-            status: 'Completed',
-            description: ''
-        })
+      toast.error(e instanceof Error ? e.message : "Không tải được chi tiết phiếu")
     }
-  }, [initialData, reset, isOpen])
+  }, [detailQuery.isError, detailQuery.error, mode])
 
-  const directionValue = watch('direction')
+  useEffect(() => {
+    if (!isOpen) return
+    if (mode === "create") {
+      reset({
+        transactionCode: `TRANS-${Math.floor(Date.now() / 1000)}`,
+        direction: "Income",
+        category: "",
+        amount: 0,
+        transactionDate: new Date().toISOString().split("T")[0],
+        paymentMethod: "Cash",
+        status: "Pending",
+        description: "",
+      })
+      return
+    }
+    if (detailQuery.data) {
+      reset(mapTransactionToFormValues(detailQuery.data))
+      return
+    }
+    if (initialData) {
+      reset(mapTransactionToFormValues(initialData))
+    }
+  }, [isOpen, mode, initialData, detailQuery.data, reset])
 
-  const onFormSubmit = (data: any) => {
-    onSubmit(data);
-    toast.success(mode === 'create' ? "Đã tạo giao dịch!" : "Đã cập nhật!");
-    onClose();
+  const directionValue = watch("direction")
+  const editLoadingFresh = mode === "edit" && detailSourceId != null && detailQuery.isFetching && !detailQuery.data
+
+  const serverRow = mode === "edit" ? (detailQuery.data ?? initialData ?? null) : null
+  const rowStatus = serverRow?.status
+  const lockDirection = mode === "edit"
+  const lockMoneyFields = mode === "edit" && (rowStatus === "Completed" || rowStatus === "Cancelled")
+  const lockStatusSelect = mode === "edit" && (rowStatus === "Completed" || rowStatus === "Cancelled")
+  const lockDescription = mode === "edit" && rowStatus === "Completed"
+
+  const onFormSubmit = async (data: Record<string, unknown>) => {
+    await onSubmit(data, { source: serverRow })
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl p-0 gap-0 border-slate-200 shadow-xl rounded-2xl overflow-hidden text-slate-900">
+      <DialogContent className="max-w-4xl p-0 gap-0 border-slate-200 shadow-xl rounded-2xl overflow-hidden text-slate-900 relative">
+        {editLoadingFresh ? (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 text-sm font-medium text-slate-600">
+            Đang tải chi tiết phiếu…
+          </div>
+        ) : null}
         <DialogHeader className="p-8 pb-6 bg-slate-50/50 border-b border-slate-100">
           <div className="flex items-center gap-4">
             <div className="h-12 w-12 rounded-2xl flex items-center justify-center bg-slate-900 text-white shadow-lg shadow-slate-200">
@@ -114,11 +176,15 @@ export function TransactionFormDialog({
               <Label className={FORM_LABEL_CLASS}>
                 <Tag size={12} className="inline mr-1" /> Loại giao dịch
               </Label>
-              <Select 
-                value={watch('direction') ?? 'Income'} 
-                onValueChange={(val) => setValue('direction', val as "Income" | "Expense")}
+              <Select
+                value={watch("direction") ?? "Income"}
+                onValueChange={(val) => setValue("direction", val as "Income" | "Expense")}
+                disabled={lockDirection}
               >
-                <SelectTrigger className={cn(FORM_INPUT_CLASS, "h-14 font-bold")}>
+                <SelectTrigger
+                  disabled={lockDirection}
+                  className={cn(FORM_INPUT_CLASS, "h-14 font-bold")}
+                >
                   <SelectValue placeholder="Chọn loại..." />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-slate-200 shadow-xl">
@@ -132,9 +198,10 @@ export function TransactionFormDialog({
               <Label className={FORM_LABEL_CLASS}>
                 <FileText size={12} className="inline mr-1" /> Nhóm phân loại
               </Label>
-              <Input 
-                {...register('category')}
+              <Input
+                {...register("category")}
                 placeholder="VD: Bán hàng, Nhập hàng, Lương..."
+                disabled={lockMoneyFields}
                 className={cn(FORM_INPUT_CLASS, "h-14 font-bold")}
               />
             </div>
@@ -144,9 +211,10 @@ export function TransactionFormDialog({
               <Label className={FORM_LABEL_CLASS}>
                 <Wallet size={12} className="inline mr-1" /> Số tiền (VNĐ)
               </Label>
-              <Input 
+              <Input
                 type="number"
-                {...register('amount', { valueAsNumber: true })}
+                {...register("amount", { valueAsNumber: true })}
+                disabled={lockMoneyFields}
                 className={cn(FORM_INPUT_CLASS, "h-14 font-black text-lg")}
               />
             </div>
@@ -155,9 +223,10 @@ export function TransactionFormDialog({
               <Label className={FORM_LABEL_CLASS}>
                 <Calendar size={12} className="inline mr-1" /> Ngày giao dịch
               </Label>
-              <Input 
+              <Input
                 type="date"
-                {...register('transactionDate')}
+                {...register("transactionDate")}
+                disabled={lockMoneyFields}
                 className={cn(FORM_INPUT_CLASS, "h-14 font-bold")}
               />
             </div>
@@ -167,11 +236,15 @@ export function TransactionFormDialog({
               <Label className={FORM_LABEL_CLASS}>
                 <CreditCard size={12} className="inline mr-1" /> Phương thức
               </Label>
-              <Select 
-                 value={watch('paymentMethod') ?? 'Cash'} 
-                 onValueChange={(val) => setValue('paymentMethod', val)}
+              <Select
+                value={watch("paymentMethod") ?? "Cash"}
+                onValueChange={(val) => setValue("paymentMethod", val)}
+                disabled={lockMoneyFields}
               >
-                <SelectTrigger className={cn(FORM_INPUT_CLASS, "h-14 font-bold")}>
+                <SelectTrigger
+                  disabled={lockMoneyFields}
+                  className={cn(FORM_INPUT_CLASS, "h-14 font-bold")}
+                >
                   <SelectValue placeholder="Chọn phương thức..." />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-slate-200 shadow-xl">
@@ -182,34 +255,51 @@ export function TransactionFormDialog({
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label className={FORM_LABEL_CLASS}>
-                <Activity size={12} className="inline mr-1" /> Trạng thái
-              </Label>
-              <Select 
-                 value={watch('status') ?? 'Completed'} 
-                 onValueChange={(val) => setValue('status', val as "Completed" | "Pending" | "Cancelled")}
-              >
-                <SelectTrigger className={cn(FORM_INPUT_CLASS, "h-14 font-bold")}>
-                  <SelectValue placeholder="Chọn trạng thái..." />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-slate-200 shadow-xl">
-                  <SelectItem value="Completed">Hoàn thành</SelectItem>
-                  <SelectItem value="Pending">Chờ xử lý</SelectItem>
-                  <SelectItem value="Cancelled">Đã hủy</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {mode === "create" ? (
+              <div className="space-y-2">
+                <Label className={FORM_LABEL_CLASS}>
+                  <Activity size={12} className="inline mr-1" /> Trạng thái
+                </Label>
+                <p className={cn(FORM_INPUT_CLASS, "h-14 flex items-center text-sm text-slate-600 font-medium")}>
+                  Phiếu mới: <span className="ml-1 font-bold text-amber-700">Chờ xử lý</span>
+                  <span className="text-slate-400 font-normal ml-1">(server — hoàn tất sau khi lưu)</span>
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label className={FORM_LABEL_CLASS}>
+                  <Activity size={12} className="inline mr-1" /> Trạng thái
+                </Label>
+                <Select
+                  value={watch("status") ?? "Pending"}
+                  onValueChange={(val) => setValue("status", val as "Completed" | "Pending" | "Cancelled")}
+                  disabled={lockStatusSelect}
+                >
+                  <SelectTrigger
+                    disabled={lockStatusSelect}
+                    className={cn(FORM_INPUT_CLASS, "h-14 font-bold")}
+                  >
+                    <SelectValue placeholder="Chọn trạng thái..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                    <SelectItem value="Completed">Hoàn thành</SelectItem>
+                    <SelectItem value="Pending">Chờ xử lý</SelectItem>
+                    <SelectItem value="Cancelled">Đã hủy</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Row 4: Full width description */}
             <div className="col-span-2 space-y-2">
                 <Label className={FORM_LABEL_CLASS}>
                     <FileText size={12} className="inline mr-1" /> Nội dung diễn giải
                 </Label>
-                <Input 
-                    {...register('description')}
-                    placeholder="VD: Thu tiền bán hàng cho khách A..."
-                    className={cn(FORM_INPUT_CLASS, "h-14 font-medium")}
+                <Input
+                  {...register("description")}
+                  placeholder="VD: Thu tiền bán hàng cho khách A..."
+                  disabled={lockDescription}
+                  className={cn(FORM_INPUT_CLASS, "h-14 font-medium")}
                 />
             </div>
           </div>

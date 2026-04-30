@@ -1,6 +1,6 @@
 # 📄 API SPEC: `GET /api/v1/debts/{id}` — Chi tiết sổ nợ — Task071
 
-> **Trạng thái**: Draft  
+> **Trạng thái**: Approved  
 > **Feature**: Cashflow — **Sổ nợ**
 
 ---
@@ -20,7 +20,7 @@ Trả về một bản ghi **`partnerdebts`** + `partnerName` + `remainingAmount
 ## 3. Tham chiếu
 
 [`Database_Specification.md`](../UC/Database_Specification.md) §12.2.  
-**SRS (BE):** [`../../../backend/docs/srs/SRS_Task069-072_debts-api.md`](../../../backend/docs/srs/SRS_Task069-072_debts-api.md) — *Draft*.
+**SRS (BE):** [`../../../backend/docs/srs/SRS_Task069-072_debts-api.md`](../../../backend/docs/srs/SRS_Task069-072_debts-api.md) — **Approved** 30/04/2026.
 
 ---
 

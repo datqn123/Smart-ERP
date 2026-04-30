@@ -13,7 +13,7 @@
 
 ## 2. RBAC
 
-**Owner** (hoặc Admin có `can_manage_staff` / quyền cấu hình cửa hàng). Staff thường → **403**.
+Yêu cầu `hasAuthority('can_view_store_profile')`. Staff thường → **403**.
 
 ---
 
@@ -32,13 +32,15 @@
 | `facebookUrl` | string | |
 | `instagramHandle` | string | |
 | `logoUrl` | string | Chỉ khi client đã có URL (upload qua Task075); không gửi file raw |
+| `defaultRetailLocationId` | number | ID `WarehouseLocations.id` — kho mặc định cho POS (Task090) |
 
 ---
 
 ## 4. Logic DB
 
 1. `INSERT … ON CONFLICT (owner_id) DO UPDATE` hoặc `UPDATE` nếu đã tồn tại.  
-2. `updated_at = now()`.
+2. Bảng vật lý là `storeprofiles` (Flyway tạo `StoreProfiles` không quote).  
+3. `updated_at` tự cập nhật bởi trigger DB (không bắt buộc set tay).
 
 ---
 
@@ -72,6 +74,7 @@ export const StoreProfilePatchBodySchema = z
     logoUrl: z.string().url().optional().nullable(),
     facebookUrl: z.string().max(500).optional().nullable(),
     instagramHandle: z.string().max(255).optional().nullable(),
+    defaultRetailLocationId: z.number().int().positive().optional().nullable(),
   })
   .refine((o) => Object.keys(o).length > 0, { message: "Cần ít nhất một trường" });
 ```

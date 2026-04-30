@@ -18,6 +18,9 @@ export interface CashTransaction {
   createdAt?: string
   updatedAt?: string
   createdBy?: number
+  createdByName?: string
+  performedBy?: number
+  performedByName?: string
 }
 
 /** Alias cũ — cùng kiểu với `CashTransaction` */

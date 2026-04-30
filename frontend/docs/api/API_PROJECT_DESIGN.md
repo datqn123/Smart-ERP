@@ -377,10 +377,10 @@ Mỗi file `API_TaskXXX` phải ghi rõ **`RBAC Roles`** và điều kiện **ow
 | [`API_Task066_cash_transactions_get_by_id.md`](API_Task066_cash_transactions_get_by_id.md) | Approved — `GET /cash-transactions/{id}` |
 | [`API_Task067_cash_transactions_patch.md`](API_Task067_cash_transactions_patch.md) | Approved — `PATCH /cash-transactions/{id}` |
 | [`API_Task068_cash_transactions_delete.md`](API_Task068_cash_transactions_delete.md) | Approved — `DELETE /cash-transactions/{id}` |
-| [`API_Task069_debts_get_list.md`](API_Task069_debts_get_list.md) | Draft — `GET /debts` (Sổ nợ / `DebtPage`) |
-| [`API_Task070_debts_post.md`](API_Task070_debts_post.md) | Draft — `POST /debts` |
-| [`API_Task071_debts_get_by_id.md`](API_Task071_debts_get_by_id.md) | Draft — `GET /debts/{id}` |
-| [`API_Task072_debts_patch.md`](API_Task072_debts_patch.md) | Draft — `PATCH /debts/{id}` |
+| [`API_Task069_debts_get_list.md`](API_Task069_debts_get_list.md) | Approved — `GET /debts` (Sổ nợ / `DebtPage`; SRS Task069–072 30/04/2026) |
+| [`API_Task070_debts_post.md`](API_Task070_debts_post.md) | Approved — `POST /debts` |
+| [`API_Task071_debts_get_by_id.md`](API_Task071_debts_get_by_id.md) | Approved — `GET /debts/{id}` |
+| [`API_Task072_debts_patch.md`](API_Task072_debts_patch.md) | Approved — `PATCH /debts/{id}` |
 | [`API_Task073_store_profile_get.md`](API_Task073_store_profile_get.md) | Draft — `GET /store-profile` (`StoreInfoPage`) |
 | [`API_Task074_store_profile_patch.md`](API_Task074_store_profile_patch.md) | Draft — `PATCH /store-profile` |
 | [`API_Task075_store_profile_post_logo.md`](API_Task075_store_profile_post_logo.md) | Draft — `POST /store-profile/logo` |

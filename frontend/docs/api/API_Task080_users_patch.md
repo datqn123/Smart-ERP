@@ -27,6 +27,10 @@
 - Không tự **khóa** Owner cuối cùng.  
 - Đổi `roleId` sang Owner → policy rủi ro (ghi rõ BA).
 
+**Gợi ý đồng bộ với codebase hiện tại (Task078)**:
+
+- Không cho phép gán `roleId` trỏ tới role `Owner` cho tài khoản nhân viên (trừ khi PO có yêu cầu “chuyển quyền Owner” riêng).
+
 ---
 
 ## 4. `200 OK`

@@ -1,6 +1,6 @@
 # 📄 API SPEC: `POST /api/v1/debts` — Tạo khoản nợ — Task070
 
-> **Trạng thái**: Draft  
+> **Trạng thái**: Approved  
 > **Feature**: Cashflow — **Sổ nợ**
 
 ---
@@ -20,7 +20,7 @@ Tạo bản ghi trong **`partnerdebts`** (Flyway `PartnerDebts`) — công nợ 
 ## 3. Tham chiếu
 
 [`Database_Specification.md`](../UC/Database_Specification.md) §12.2 — constraint `chk_partner_debts_partner`.  
-**SRS (BE):** [`../../../backend/docs/srs/SRS_Task069-072_debts-api.md`](../../../backend/docs/srs/SRS_Task069-072_debts-api.md) — *Draft*; quyền **ghi** POST xem **OQ-2** trong SRS (schema V1 chưa có `created_by`).
+**SRS (BE):** [`../../../backend/docs/srs/SRS_Task069-072_debts-api.md`](../../../backend/docs/srs/SRS_Task069-072_debts-api.md) — **Approved** 30/04/2026; **POST** yêu cầu **`can_view_finance`**; **`created_by = sub`** khi INSERT (cột thêm qua Flyway **V26** — SRS **§4 OQ-2**).
 
 ---
 
@@ -29,7 +29,7 @@ Tạo bản ghi trong **`partnerdebts`** (Flyway `PartnerDebts`) — công nợ 
 | Thuộc tính | Giá trị |
 | :--------- | :------ |
 | **Authentication** | `Bearer` |
-| **RBAC** | **`mp.can_view_finance === true`** + rule **ghi** theo SRS **§4 OQ-2** (đồng bộ Task064 — có thể thêm cột `created_by` qua Flyway). Thiếu quyền xem tài chính → **403**. |
+| **RBAC** | **`mp.can_view_finance === true`**. Thiếu → **403**. Server gán **`created_by`** = user hiện tại (JWT `sub`) — **SRS §4 OQ-2**. |
 
 ---
 
@@ -45,7 +45,7 @@ Tạo bản ghi trong **`partnerdebts`** (Flyway `PartnerDebts`) — công nợ 
 | `dueDate` | date | Không | |
 | `notes` | string | Không | |
 
-Server sinh **`debtCode`** (unique), ví dụ `NO-2026-{seq}`.  
+Server sinh **`debtCode`** (unique), ví dụ `NO-2026-{seq}` — trong **một transaction**, seq theo **`MAX`** cùng năm (**SRS §4 OQ-3**).  
 **`status`**: tự set `InDebt` nếu `paidAmount < totalAmount`, ngược lại `Cleared`.
 
 ---
@@ -79,7 +79,7 @@ Server sinh **`debtCode`** (unique), ví dụ `NO-2026-{seq}`.
 
 ## 7. Database
 
-`INSERT INTO partnerdebts (...)` — validate FK `customer_id` / `supplier_id` tồn tại và khớp `partner_type` → **400** nếu không.
+`INSERT INTO partnerdebts (..., created_by, ...)` — validate FK `customer_id` / `supplier_id` tồn tại và khớp `partner_type` → **400** nếu không. Cột **`created_by`** bắt buộc sau migration **V26** (xem SRS **§10**).
 
 ---
 
@@ -89,7 +89,7 @@ Server sinh **`debtCode`** (unique), ví dụ `NO-2026-{seq}`.
 | :--- | :----------- |
 | 400 | Thiếu `customerId`/`supplierId` đúng cặp với `partnerType`; `paidAmount > totalAmount` |
 | 401 | |
-| 403 | |
+| 403 | Thiếu `can_view_finance` |
 | 500 | |
 
 ---

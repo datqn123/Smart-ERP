@@ -28,6 +28,8 @@ public class CloudinaryMediaService {
 	private final Optional<Cloudinary> cloudinary;
 	private final CloudinaryProperties props;
 
+	private static final String STORE_PROFILE_LOGO_FOLDER_PREFIX = "smart-erp/store-profiles";
+
 	public CloudinaryMediaService(Optional<Cloudinary> cloudinary, CloudinaryProperties props) {
 		this.cloudinary = cloudinary;
 		this.props = props;
@@ -52,6 +54,45 @@ public class CloudinaryMediaService {
 		String folder = props.getFolder().replaceAll("/+$", "") + "/" + productId;
 		String publicId = UUID.randomUUID().toString();
 
+		try {
+			byte[] bytes = file.getBytes();
+			@SuppressWarnings("unchecked")
+			Map<String, Object> result = cloudinary.get().uploader().upload(bytes,
+					ObjectUtils.asMap("folder", folder, "public_id", publicId, "resource_type", "image", "overwrite", false));
+			Object url = result != null ? result.get("secure_url") : null;
+			if (!(url instanceof String s) || s.isBlank()) {
+				throw new BusinessException(ApiErrorCode.INTERNAL_SERVER_ERROR, "Phản hồi tải ảnh không hợp lệ");
+			}
+			return s;
+		}
+		catch (IOException e) {
+			throw new BusinessException(ApiErrorCode.INTERNAL_SERVER_ERROR, "Không đọc được file tải lên");
+		}
+		catch (RuntimeException e) {
+			throw new BusinessException(ApiErrorCode.INTERNAL_SERVER_ERROR,
+					"Không thể tải ảnh lên dịch vụ lưu trữ. Vui lòng thử lại sau.");
+		}
+	}
+
+	/**
+	 * Task073–075: upload logo cửa hàng (StoreProfiles.logo_url).
+	 *
+	 * @param ownerId dùng để phân tách folder theo tenant
+	 * @return HTTPS secure URL từ Cloudinary
+	 */
+	public String uploadStoreProfileLogo(MultipartFile file, int ownerId) {
+		Objects.requireNonNull(file, "file");
+		if (!props.isEnabled()) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST,
+					"Upload file chưa bật. Vui lòng liên hệ quản trị để cấu hình dịch vụ lưu trữ.");
+		}
+		if (cloudinary.isEmpty()) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST,
+					"Dịch vụ lưu trữ chưa sẵn sàng. Vui lòng thử lại sau hoặc liên hệ quản trị.");
+		}
+		validateFile(file);
+		String folder = STORE_PROFILE_LOGO_FOLDER_PREFIX + "/" + ownerId;
+		String publicId = UUID.randomUUID().toString();
 		try {
 			byte[] bytes = file.getBytes();
 			@SuppressWarnings("unchecked")

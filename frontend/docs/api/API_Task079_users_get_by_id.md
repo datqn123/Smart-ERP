@@ -13,7 +13,8 @@
 
 ## 2. RBAC
 
-Owner / Admin; Staff chỉ được xem **chính mình** nếu policy cho phép.
+Owner / Admin (khuyến nghị: claim `can_manage_staff`).  
+Staff chỉ được xem **chính mình** nếu PO chốt policy self-access (nếu không: 403).
 
 ---
 

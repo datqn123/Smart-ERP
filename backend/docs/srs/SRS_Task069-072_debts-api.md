@@ -3,8 +3,8 @@
 > **File (Spring / `smart-erp`):** `backend/docs/srs/SRS_Task069-072_debts-api.md`  
 > **Người soạn:** Agent BA (+ SQL theo `backend/AGENTS/BA_AGENT_INSTRUCTIONS.md`, `backend/AGENTS/SQL_AGENT_INSTRUCTIONS.md`)  
 > **Ngày:** 30/04/2026  
-> **Trạng thái:** `Draft`  
-> **PO duyệt (khi Approved):** _(chưa)_
+> **Trạng thái:** `Approved`  
+> **PO duyệt (khi Approved):** PO (chốt §4 — 30/04/2026), `30/04/2026`
 
 ---
 
@@ -12,10 +12,10 @@
 
 | Nguồn | Đường dẫn / ghi chú |
 | :--- | :--- |
-| API Task069 | [`../../../frontend/docs/api/API_Task069_debts_get_list.md`](../../../frontend/docs/api/API_Task069_debts_get_list.md) — **Draft** (đồng bộ tên bảng PG + RBAC 30/04/2026) |
-| API Task070 | [`../../../frontend/docs/api/API_Task070_debts_post.md`](../../../frontend/docs/api/API_Task070_debts_post.md) — **Draft** (đồng bộ 30/04/2026) |
-| API Task071 | [`../../../frontend/docs/api/API_Task071_debts_get_by_id.md`](../../../frontend/docs/api/API_Task071_debts_get_by_id.md) — **Draft** (đồng bộ 30/04/2026) |
-| API Task072 | [`../../../frontend/docs/api/API_Task072_debts_patch.md`](../../../frontend/docs/api/API_Task072_debts_patch.md) — **Draft** (đồng bộ 30/04/2026) |
+| API Task069 | [`../../../frontend/docs/api/API_Task069_debts_get_list.md`](../../../frontend/docs/api/API_Task069_debts_get_list.md) — **Approved** (đồng bộ SRS 30/04/2026) |
+| API Task070 | [`../../../frontend/docs/api/API_Task070_debts_post.md`](../../../frontend/docs/api/API_Task070_debts_post.md) — **Approved** (đồng bộ SRS 30/04/2026) |
+| API Task071 | [`../../../frontend/docs/api/API_Task071_debts_get_by_id.md`](../../../frontend/docs/api/API_Task071_debts_get_by_id.md) — **Approved** (đồng bộ SRS 30/04/2026) |
+| API Task072 | [`../../../frontend/docs/api/API_Task072_debts_patch.md`](../../../frontend/docs/api/API_Task072_debts_patch.md) — **Approved** (đồng bộ SRS 30/04/2026) |
 | Khung API | [`../../../frontend/docs/api/API_PROJECT_DESIGN.md`](../../../frontend/docs/api/API_PROJECT_DESIGN.md) §4.14 |
 | Envelope | [`../../../frontend/docs/api/API_RESPONSE_ENVELOPE.md`](../../../frontend/docs/api/API_RESPONSE_ENVELOPE.md) |
 | UC / DB (mô tả) | [`../../../frontend/docs/UC/Database_Specification.md`](../../../frontend/docs/UC/Database_Specification.md) §12.2 `PartnerDebts` |
@@ -30,7 +30,7 @@
 
 - **Vấn đề:** Màn **Sổ nợ** (`DebtPage`) đang mock; cần bốn endpoint REST thống nhất envelope, đọc/ghi bảng công nợ đối tác, join tên KH/NCC, tính **`remainingAmount`**, phân trang và ghi nhận trả nợ an toàn khi đồng thời.
 - **Mục tiêu nghiệp vụ:** Người dùng đủ quyền tài chính xem danh sách/chi tiết, tạo khoản nợ (mã `debtCode` server), cập nhật/ghi nhận thanh toán; trạng thái **`Cleared`** khi đã trả đủ; ràng buộc đối tác và `paid ≤ total` khớp DB.
-- **Đối tượng:** User có JWT **`mp.can_view_finance === true`** (Owner / Admin / Staff sau V25). **Quyền ghi** (POST/PATCH) phụ thuộc quyết định PO tại **§4 OQ-2** (schema V1 **chưa** có `created_by` trên `partnerdebts`).
+- **Đối tượng:** User có JWT **`mp.can_view_finance === true`** (Owner / Admin / Staff sau V25). **POST:** mọi user đủ quyền tạo khoản, **`created_by = sub`**. **PATCH:** chỉ khi **`created_by = sub`** (**§4 OQ-2 đã chốt**); cần Flyway **`created_by`** trên `partnerdebts`.
 
 ### 1.1 Giao diện Mini-ERP
 
@@ -46,7 +46,7 @@
 | :---: | :--- | :--- | :--- |
 | C1 | Xác thực JWT | Tất cả | **401** nếu thiếu/sai/hết hạn |
 | C2 | Kiểm tra **`can_view_finance`** | Tất cả | **403** nếu thiếu (**§6**, đồng bộ Task063/Task064) |
-| C3 | Kiểm tra quyền **ghi** theo **OQ-2** | POST, PATCH | **403** khi user không được phép thao tác ghi theo quyết định PO |
+| C3 | Kiểm tra quyền **ghi** | POST, PATCH | **POST:** `can_view_finance`. **PATCH:** `can_view_finance` **và** `created_by = sub`; không khớp → **403** |
 | C4 | Liệt kê có lọc + phân trang; `remainingAmount` = `total_amount - paid_amount` (read-model) | GET list | **200** + `data.items`, `page`, `limit`, `total` |
 | C5 | Lọc `search`: `ILIKE` trên `debt_code`, `customers.name` / `suppliers.name`, **`customer_code` / `supplier_code`** (đề xuất — **BR-3**) | GET list | Kết quả khớp tìm kiếm mã + tên |
 | C6 | Lọc khoảng hạn thanh toán; validate `dueDateFrom` ≤ `dueDateTo` | GET list | **400** nếu ngược khoảng |
@@ -54,7 +54,7 @@
 | C8 | Kiểm tra FK `customer_id` / `supplier_id` tồn tại và khớp `partner_type` | POST | **400** nếu id không tồn tại hoặc vi phạm cặp KH/NCC |
 | C9 | Đọc một `id`; join tên đối tác | GET by id | **200** hoặc **404** |
 | C10 | Cập nhật một phần; **`SELECT … FOR UPDATE`**; cấm `paidAmount` **và** `paymentAmount` đồng thời (**BR-4**); cập nhật **`status`** | PATCH | **200** hoặc **4xx** |
-| C11 | Khi **`paymentAmount`**: `newPaid = LEAST(paid_amount + paymentAmount, total_amount)` — **cắt trần** theo gợi ý API Task072 (**BR-5**); nếu PO chọn báo lỗi → **OQ-4** | PATCH | Theo OQ-4 |
+| C11 | Khi **`paymentAmount`**: `newPaid = LEAST(paid_amount + paymentAmount, total_amount)` — **cắt trần** (**BR-5**, **OQ-4 đã chốt**) | PATCH | **200**; không **400** vì vượt `remaining` |
 | C12 | **Không** INSERT `financeledger` trong phạm vi Task069–072 (**GAP / backlog** — Task072 §1) | — | Ghi rõ trong §12 |
 
 ---
@@ -65,6 +65,7 @@
 
 - `GET /api/v1/debts`, `POST /api/v1/debts`, `GET /api/v1/debts/{id}`, `PATCH /api/v1/debts/{id}`.  
 - Đọc/ghi bảng **`partnerdebts`**; đọc **`customers`**, **`suppliers`** (join tên/mã).  
+- Flyway **`V26`**: cột **`created_by`** (bắt buộc theo **§4 OQ-2**).  
 - Envelope và mã lỗi theo `API_RESPONSE_ENVELOPE.md`.
 
 ### 3.2 Out-of-scope
@@ -75,25 +76,25 @@
 
 ---
 
-## 4. Câu hỏi làm rõ cho PO (Open Questions)
+## 4. Quyết định PO (đã chốt — 30/04/2026)
 
-> BA không chốt thay PO. Dev **ghi** POST/PATCH phải bám **OQ-2**; sinh mã và PATCH khi **Cleared** bám **OQ-1**, **OQ-3**, **OQ-4**.
+> Không còn OQ mở cho triển khai Task069–072; Dev/Tester bám **§6–§11** và bảng **BR**.
 
-| ID | Câu hỏi | Ảnh hưởng nếu không trả lời | Blocker? |
-| :--- | :--- | :--- | :---: |
-| **OQ-1** | Khi **`status = Cleared`**, có cho phép **PATCH** nào không? Đề xuất codebase: **(a)** Cấm mọi thay đổi số tiền (`totalAmount`, `paidAmount`, `paymentAmount`) → **409** `CONFLICT` + message nghiệp vụ; vẫn cho phép sửa **`notes`** / **`dueDate`** (audit nhẹ). **(b)** Cấm mọi PATCH → **409** cho mọi body. **(c)** Cho phép mở lại nợ (giảm `paidAmount` / tăng `totalAmount`) — cần quy trình phê duyệt riêng. | Không thống nhất 409 vs 200 trên UI | Không |
-| **OQ-2** | Bảng **`partnerdebts`** (V1) **không có `created_by`**. Quyền **POST/PATCH** thế nào? **(a)** Thêm Flyway **`created_by`** (FK `users`) + mặc định user hiện tại; **chỉ** người tạo được PATCH (giống tinh thần Task064-068 **BR-9**). **(b)** Mọi user có `can_view_finance` đều POST/PATCH mọi khoản. **(c)** Chỉ **`role`** Owner (và Admin nếu PO muốn) được POST/PATCH; Staff chỉ GET. | Dev không biết kiểm tra 403 trên ghi | **Có** (cho triển khai rule ghi rõ ràng) |
-| **OQ-3** | Sinh **`debtCode`** dạng `NO-YYYY-NNNN`: chiến lược **tranh chấp concurrent**? **(a)** Một transaction + `SELECT max` theo prefix năm (đơn giản, rủi ro nóng khi QPS cao). **(b)** Khóa advisory Postgres theo key năm. **(c)** Bảng sequence riêng theo năm. | Trùng mã dưới tải đồng thời | Không (v1 ít người) / **Có** nếu PO yêu cầu SLA ghi cao |
-| **OQ-4** | Với **`paymentAmount`**: khi `paid_amount + paymentAmount > total_amount`, **đề xuất SRS/BE** áp dụng **cắt trần** `newPaid = total_amount` (silent, đúng gợi ý Task072 §10). PO có muốn **400** nếu vượt số còn lại (`remaining`) không? | Khác hành vi nút “Trả một phần” trên UI | Không |
+| ID | Quyết định PO | Diễn giải kỹ thuật |
+| :--- | :--- | :--- |
+| **OQ-1** | **(a)** | Khi **`status = Cleared`**: nếu body có **`totalAmount`**, **`paidAmount`** hoặc **`paymentAmount`** (bất kỳ giá trị, kể cả trùng số hiện tại) → **409** `CONFLICT`, message nghiệp vụ (không ghi nhận thêm thanh toán / không sửa số tiền). Cho phép PATCH **chỉ** **`notes`** và/hoặc **`dueDate`** → **200** nếu hợp lệ. |
+| **OQ-2** | **(a)** | Flyway thêm **`created_by INT NOT NULL`** FK **`users(id)`** (ON DELETE RESTRICT). **Backfill** dòng cũ: gán `created_by = (SELECT id FROM users ORDER BY id LIMIT 1)` (user seed đầu tiên) trước khi `NOT NULL` nếu cần. **POST:** mọi user có **`can_view_finance`** — `created_by = sub`. **PATCH:** chỉ khi **`created_by = sub`**; không → **403** (cùng tinh thần Task064-068 **BR-9** cho thao tác ghi theo chủ sở hữu bản ghi). |
+| **OQ-3** | **(a)** | Sinh **`debtCode`** dạng `NO-YYYY-NNNN`: trong **một transaction** POST, đọc **`MAX(debt_code)`** (hoặc `MAX` seq) theo năm hiện tại, tăng dần; chấp nhận rủi ro tranh chấp cực hiếm khi QPS ghi cao (v1). |
+| **OQ-4** | **Cắt trần (theo đề xuất BA)** | `paymentAmount`: **`newPaid = LEAST(paid_amount + paymentAmount, total_amount)`** — **không** trả **400** chỉ vì tổng thanh toán vượt số còn lại; UI đọc **`remainingAmount`** sau response. |
 
-**Trả lời PO (điền khi chốt):**
+### 4.1 Bảng chữ ký (mẫu)
 
 | ID | Quyết định PO | Ngày |
 | :--- | :--- | :--- |
-| OQ-1 | | |
-| OQ-2 | | |
-| OQ-3 | | |
-| OQ-4 | | |
+| OQ-1 | (a) — Cleared: 409 nếu có trường tiền; cho `notes` / `dueDate` | 30/04/2026 |
+| OQ-2 | (a) — `created_by` + POST mọi finance; PATCH chỉ người tạo | 30/04/2026 |
+| OQ-3 | (a) — Transaction + MAX seq theo năm | 30/04/2026 |
+| OQ-4 | Cắt trần `paymentAmount`, không 400 vì vượt remaining | 30/04/2026 |
 
 ---
 
@@ -109,13 +110,12 @@
 ### 5.2 Mã / migration dự kiến (write / verify)
 
 - Controller + service + JDBC (package `finance` / `cashflow` — theo convention đã dùng cho ledger/cash nếu có).  
-- **Nếu OQ-2(a):** Flyway mới (vd. `V26__partner_debts_created_by.sql`) + backfill (vd. `1` / user hệ thống — PO chốt).  
-- **Nếu OQ-3(b/c):** migration hoặc helper sinh mã theo lựa chọn.  
-- **Index (§10.3):** có thể cần `CREATE INDEX` trên `(updated_at DESC, id DESC)` phục vụ sort mặc định list — chưa có trong V1.
+- **Bắt buộc Flyway** (vd. `V26__partner_debts_created_by.sql`): thêm **`created_by`**, backfill theo **§4 OQ-2**, FK `users`.  
+- **Index (§10.3):** `CREATE INDEX` trên **`(updated_at DESC, id DESC)`** khi triển khai list.
 
 ### 5.3 Rủi ro phát hiện sớm
 
-- **Không có `created_by`:** không thể áp “chỉ người tạo” mà không migration (**OQ-2**).  
+- **Sinh `debtCode` (OQ-3a):** hai POST đồng thời có thể va chạm unique — xử lý retry khi **23505** hoặc chuyển OQ-3(b) sau nếu PO yêu cầu.  
 - **PATCH đồng thời:** bắt buộc **`SELECT … FOR UPDATE`** trong transaction (**Task072**).  
 - **Decimal:** map `DECIMAL(15,2)` ↔ JSON number; làm tròn hiển thị theo chuẩn dự án.
 
@@ -127,7 +127,8 @@
 | :--- | :--- | :--- |
 | Đã đăng nhập | JWT hợp lệ | **401** nếu không |
 | Xem sổ nợ | **`mp.can_view_finance === true`** | **403** |
-| Tạo / sửa khoản nợ | **Theo OQ-2** (sau khi PO chốt: `created_by`, hoặc role, hoặc mọi finance user) | **403** |
+| **POST** khoản nợ | **`can_view_finance`** | **403** nếu thiếu |
+| **PATCH** khoản nợ | **`can_view_finance`** và **`created_by` = `sub` (JWT)** | **403** nếu thiếu quyền xem tài chính **hoặc** không phải người tạo bản ghi |
 
 **GAP đã xử lý trong API markdown (30/04/2026):** Task069 ghi “`can_view_finance` hoặc quyền đối tác tương đương” **lệch** chuỗi Task063/064 — đồng bộ về **`can_view_finance` duy nhất** cho cả bốn endpoint (sidebar **Thu chi** = domain tài chính).
 
@@ -148,7 +149,7 @@
 
 1. User mở chi tiết khoản nợ → Client gọi **GET** `…/debts/{id}`.  
 2. User nhập “Ghi nhận thanh toán” → Client **PATCH** `{ "paymentAmount": x }`.  
-3. API xác thực, RBAC, mở transaction, **`SELECT … FOR UPDATE`**, tính `newPaid`, kiểm tra **OQ-1** (Cleared), **OQ-4** (cắt trần vs 400), `UPDATE`, commit.  
+3. API xác thực, RBAC (**`can_view_finance`** + **`created_by = sub`**), mở transaction, **`SELECT … FOR UPDATE`**, nếu **Cleared** và có trường tiền → **409**; nếu không: tính `newPaid` (**BR-5** cắt trần), `UPDATE`, commit.  
 4. Trả **200** + bản ghi mới (`remainingAmount`, `status`).
 
 ### 7.3 Sơ đồ (PATCH)
@@ -161,7 +162,7 @@ sequenceDiagram
   participant D as DB
   U->>C: Ghi nhận thanh toán
   C->>A: PATCH /api/v1/debts/{id} + JSON
-  A->>A: JWT + can_view_finance + OQ-2 ghi
+  A->>A: JWT + can_view_finance + created_by = sub
   A->>D: BEGIN
   A->>D: SELECT FROM partnerdebts WHERE id = :id FOR UPDATE
   D-->>A: row
@@ -434,13 +435,23 @@ sequenceDiagram
 }
 ```
 
-#### Lỗi — **409** (khoản đã đóng — khi PO chọn **OQ-1(b)** hoặc chặn số tiền theo **OQ-1(a)**)
+#### Lỗi — **403** (PATCH khi không phải người tạo bản ghi)
+
+```json
+{
+  "success": false,
+  "error": "FORBIDDEN",
+  "message": "Bạn không có quyền thực hiện thao tác này."
+}
+```
+
+#### Lỗi — **409** (khoản **Cleared** — có trường số tiền trong body; **OQ-1**)
 
 ```json
 {
   "success": false,
   "error": "CONFLICT",
-  "message": "Khoản nợ đã được thanh toán đủ. Không thể ghi nhận thêm số tiền thanh toán."
+  "message": "Khoản nợ đã được thanh toán đủ. Không thể thay đổi số tiền trên phiếu này. Bạn vẫn có thể cập nhật ghi chú hoặc hạn thanh toán nếu cần."
 }
 ```
 
@@ -460,10 +471,13 @@ sequenceDiagram
 | BR-2 | `partner_type = Supplier` | Ngược lại BR-1 |
 | BR-3 | `search` không rỗng | `ILIKE` trên `d.debt_code`, `c.name`, `c.customer_code`, `s.name`, `s.supplier_code` (đề xuất đồng bộ UI “mã hoặc tên”) |
 | BR-4 | Body PATCH | Không đồng thời `paidAmount` và `paymentAmount` |
-| BR-5 | Chỉ `paymentAmount` | `newPaid = LEAST(paid_amount + paymentAmount, total_amount)` nếu **OQ-4** chọn cắt trần |
+| BR-5 | Body có **`paymentAmount`** và **không** vướng **BR-9** | **`newPaid = LEAST(paid_amount + paymentAmount, total_amount)`** (**OQ-4**); không **400** chỉ vì vượt `remaining` |
 | BR-6 | Sau mọi thay đổi `paid`/`total` | Nếu `newPaid >= total` → `status = Cleared`; else `InDebt` |
-| BR-7 | `totalAmount` PATCH | `newTotal >= newPaid` (hoặc hiện tại `paid_amount`) |
+| BR-7 | `totalAmount` PATCH | `newTotal >= newPaid` (hoặc hiện tại `paid_amount`); vi phạm → **400** |
 | BR-8 | Sort list mặc định | `ORDER BY d.updated_at DESC, d.id DESC` |
+| BR-9 | **`status = Cleared`** và body có `totalAmount` / `paidAmount` / `paymentAmount` | **409**; chỉ cho **`notes`** / **`dueDate`** (**OQ-1**) |
+| BR-10 | **POST** sinh `debtCode` | Trong **một transaction**: đọc max theo năm → tăng seq (**OQ-3**); unique `debt_code` |
+| BR-11 | **POST** | `INSERT` kèm **`created_by = sub`** (**OQ-2**) |
 
 ---
 
@@ -477,7 +491,7 @@ sequenceDiagram
 | `customers` | R | `name`, `customer_code` |
 | `suppliers` | R | `name`, `supplier_code` |
 
-**Cột chính `partnerdebts`:** `id`, `debt_code`, `partner_type`, `customer_id`, `supplier_id`, `total_amount`, `paid_amount`, `due_date`, `status`, `notes`, `created_at`, `updated_at`.
+**Cột chính `partnerdebts`:** `id`, `debt_code`, `partner_type`, `customer_id`, `supplier_id`, `total_amount`, `paid_amount`, `due_date`, `status`, `notes`, **`created_by`** (Flyway **V26** — **§4**), `created_at`, `updated_at`.
 
 ### 10.2 SQL mẫu — list (Task069)
 
@@ -520,10 +534,11 @@ LIMIT :limit OFFSET :offset;
 
 ```sql
 BEGIN;
-SELECT id, total_amount, paid_amount, status
+SELECT id, total_amount, paid_amount, status, created_by
 FROM partnerdebts
 WHERE id = :id
 FOR UPDATE;
+-- Kiểm tra created_by = :sub (JWT) trước khi UPDATE; nếu Cleared + có trường tiền → 409 (BR-9)
 -- ứng dụng tính new_paid, new_total, new_status trong service; sau đó:
 UPDATE partnerdebts
 SET total_amount = :new_total,
@@ -549,7 +564,9 @@ COMMIT;
 ### 10.6 Kiểm chứng dữ liệu cho Tester
 
 - Tạo KH/NCC mẫu → POST debt → GET list thấy `partnerName` đúng.  
-- PATCH `paymentAmount` lớn hơn `remaining` → theo **OQ-4**: cắt trần hoặc 400.  
+- PATCH `paymentAmount` lớn hơn `remaining` → **cắt trần** (**OQ-4**); `paidAmount` sau cùng = `totalAmount`; **200**.  
+- PATCH khoản **Cleared** với `{ "paymentAmount": 1 }` → **409**; với `{ "notes": "…" }` → **200**.  
+- PATCH bởi user khác `created_by` → **403**.  
 - Khi `paid = total` → `status = Cleared`; GET by id trả đúng.
 
 ---
@@ -591,6 +608,24 @@ Given PATCH gửi cả paidAmount và paymentAmount
 Then 400 BAD_REQUEST
 ```
 
+```text
+Given khoản nợ Cleared và user là người tạo
+When PATCH chỉ notes hoặc dueDate
+Then 200
+```
+
+```text
+Given khoản nợ Cleared và user là người tạo
+When PATCH có paymentAmount hoặc paidAmount hoặc totalAmount
+Then 409 CONFLICT
+```
+
+```text
+Given khoản nợ do user A tạo và JWT là user B (cùng can_view_finance)
+When PATCH bất kỳ
+Then 403 FORBIDDEN
+```
+
 ---
 
 ## 12. GAP & giả định
@@ -606,8 +641,8 @@ Then 400 BAD_REQUEST
 
 ## 13. PO sign-off (chỉ điền khi Approved)
 
-- [ ] Đã trả lời / đóng các **OQ blocker** (đặc biệt **OQ-2**)
-- [ ] JSON request/response khớp ý đồ sản phẩm
-- [ ] Phạm vi In/Out đã đồng ý
+- [x] Đã trả lời / đóng các **OQ** (**§4** — 30/04/2026)
+- [x] JSON request/response khớp ý đồ sản phẩm
+- [x] Phạm vi In/Out đã đồng ý
 
-**Chữ ký / nhãn PR:** …
+**Chữ ký / nhãn PR:** PO — SRS Approved Task069–072 — `30/04/2026`

@@ -37,7 +37,8 @@ public final class MenuPermissionClaims {
 		"can_approve",
 		"can_view_finance",
 		"can_manage_staff",
-		"can_configure_alerts"
+		"can_configure_alerts",
+		"can_view_store_profile"
 	};
 
 	private MenuPermissionClaims() {

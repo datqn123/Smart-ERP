@@ -1,6 +1,6 @@
 # 📄 API SPEC: `GET /api/v1/debts` — Danh sách sổ nợ — Task069
 
-> **Trạng thái**: Draft  
+> **Trạng thái**: Approved  
 > **Feature**: Cashflow — màn **Sổ nợ** (`DebtPage`, `/cashflow/debt`)  
 > **Tags**: RESTful, Finance, Pagination
 
@@ -24,7 +24,7 @@ Hỗ trợ bảng sổ nợ: lọc theo loại đối tác, trạng thái, tìm 
 
 [`API_PROJECT_DESIGN.md`](API_PROJECT_DESIGN.md) §4.14.  
 [`Database_Specification.md`](../UC/Database_Specification.md) §12.2 `PartnerDebts`.  
-**SRS (BE):** [`../../../backend/docs/srs/SRS_Task069-072_debts-api.md`](../../../backend/docs/srs/SRS_Task069-072_debts-api.md) — *Draft*; RBAC **`mp.can_view_finance === true`** (đồng bộ Task063/064).
+**SRS (BE):** [`../../../backend/docs/srs/SRS_Task069-072_debts-api.md`](../../../backend/docs/srs/SRS_Task069-072_debts-api.md) — **Approved** 30/04/2026; RBAC **`mp.can_view_finance === true`**.
 
 ---
 

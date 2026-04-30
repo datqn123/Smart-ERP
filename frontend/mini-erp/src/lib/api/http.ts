@@ -29,6 +29,10 @@ export type ApiJsonOptions = RequestInit & {
 
 function parseApiEnvelopeText<T>(res: Response, raw: string): T {
   const trimmed = raw.trim()
+  if (res.status === 204) {
+    // No Content: theo spec không có envelope/body
+    return null as T
+  }
   if (trimmed.length === 0) {
     if (res.status === 401) {
       throw new ApiRequestError(401, {

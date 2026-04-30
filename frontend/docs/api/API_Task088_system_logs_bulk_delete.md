@@ -25,7 +25,9 @@
 
 ## 3. RBAC
 
-Giống Task087 (**Admin**).
+Giống Task087 (**Admin**) và tuân theo policy tuân thủ (có thể cấm xóa log).
+
+> **GAP (đồng bộ codebase):** Chưa có key `can_view_system_logs` trong JWT claim `mp` (xem Task086).
 
 ---
 

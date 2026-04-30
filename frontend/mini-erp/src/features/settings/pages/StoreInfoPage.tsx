@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { usePageTitle } from "@/context/PageTitleContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -6,50 +7,171 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Save, Upload, Store, Globe, MapPin, Phone, Mail, FileText, Link2, AtSign } from "lucide-react"
 import { toast } from "sonner"
+import { ApiRequestError } from "@/lib/api/http"
+import {
+  getStoreProfile,
+  patchStoreProfile,
+  uploadStoreLogo,
+  STORE_PROFILE_QUERY_KEY,
+  type StoreProfileData,
+} from "../api/storeProfileApi"
 
 export function StoreInfoPage() {
   const { setTitle } = usePageTitle()
+  const queryClient = useQueryClient()
   const [isEditing, setIsEditing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [storeData, setStoreData] = useState({
-    name: "Mini ERP Solution Center",
-    category: "Bán lẻ & Phân phối thiết bị",
-    address: "123 Đường ABC, Quận X, TP. Hồ Chí Minh",
-    phone: "028 1234 5678",
-    email: "contact@minierp.vn",
-    website: "https://minierp.vn",
-    taxId: "0312345678",
-    footerNote: "Cảm ơn quý khách đã tin tưởng và sử dụng dịch vụ của chùng tôi. Hóa đơn có giá trị trong vòng 30 ngày kể từ ngày xuất.",
-    logoUrl: "https://images.unsplash.com/photo-1541746972996-4e0b0f43e02a?q=80&w=200&h=200&auto=format&fit=crop",
-    facebook: "fb.com/minierp_store",
-    instagram: "@minierp.official"
+    name: "",
+    businessCategory: "",
+    address: "",
+    phone: "",
+    email: "",
+    website: "",
+    taxCode: "",
+    footerNote: "",
+    logoUrl: "",
+    facebookUrl: "",
+    instagramHandle: "",
+  })
+
+  const storeProfileQuery = useQuery({
+    queryKey: STORE_PROFILE_QUERY_KEY,
+    queryFn: getStoreProfile,
+  })
+
+  const patchMutation = useMutation({
+    mutationFn: patchStoreProfile,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: STORE_PROFILE_QUERY_KEY })
+    },
+  })
+
+  const uploadLogoMutation = useMutation({
+    mutationFn: uploadStoreLogo,
+    onSuccess: (data) => {
+      setStoreData((prev) => ({ ...prev, logoUrl: data.logoUrl }))
+      queryClient.invalidateQueries({ queryKey: STORE_PROFILE_QUERY_KEY })
+      toast.success("Đã cập nhật logo")
+    },
   })
 
   useEffect(() => {
     setTitle("Thông Tin Cửa Hàng")
   }, [setTitle])
 
-  const handleSave = () => {
-    toast.success("Đã cập nhật thông tin cửa hàng thành công")
-    setIsEditing(false)
+  useEffect(() => {
+    if (!storeProfileQuery.data) return
+    if (isEditing) return
+    const d = storeProfileQuery.data
+    setStoreData({
+      name: d.name ?? "",
+      businessCategory: d.businessCategory ?? "",
+      address: d.address ?? "",
+      phone: d.phone ?? "",
+      email: d.email ?? "",
+      website: d.website ?? "",
+      taxCode: d.taxCode ?? "",
+      footerNote: d.footerNote ?? "",
+      logoUrl: d.logoUrl ?? "",
+      facebookUrl: d.facebookUrl ?? "",
+      instagramHandle: d.instagramHandle ?? "",
+    })
+  }, [storeProfileQuery.data, isEditing])
+
+  function buildPatchBody(form: typeof storeData, baseline: StoreProfileData | undefined) {
+    const out: Record<string, unknown> = {}
+    const base = baseline
+    const norm = (s: string) => s.trim()
+    const toNullable = (s: string) => {
+      const t = norm(s)
+      return t.length > 0 ? t : null
+    }
+    const changed = (a: unknown, b: unknown) => (a ?? null) !== (b ?? null)
+
+    const name = norm(form.name)
+    if (changed(name, base?.name ?? "")) out.name = name
+    const businessCategory = toNullable(form.businessCategory)
+    if (changed(businessCategory, base?.businessCategory ?? null)) out.businessCategory = businessCategory
+    const address = toNullable(form.address)
+    if (changed(address, base?.address ?? null)) out.address = address
+    const phone = toNullable(form.phone)
+    if (changed(phone, base?.phone ?? null)) out.phone = phone
+    const email = toNullable(form.email)
+    if (changed(email, base?.email ?? null)) out.email = email
+    const website = toNullable(form.website)
+    if (changed(website, base?.website ?? null)) out.website = website
+    const taxCode = toNullable(form.taxCode)
+    if (changed(taxCode, base?.taxCode ?? null)) out.taxCode = taxCode
+    const footerNote = toNullable(form.footerNote)
+    if (changed(footerNote, base?.footerNote ?? null)) out.footerNote = footerNote
+    const logoUrl = toNullable(form.logoUrl)
+    if (changed(logoUrl, base?.logoUrl ?? null)) out.logoUrl = logoUrl
+    const facebookUrl = toNullable(form.facebookUrl)
+    if (changed(facebookUrl, base?.facebookUrl ?? null)) out.facebookUrl = facebookUrl
+    const instagramHandle = toNullable(form.instagramHandle)
+    if (changed(instagramHandle, base?.instagramHandle ?? null)) out.instagramHandle = instagramHandle
+
+    return out
+  }
+
+  const handleSave = async () => {
+    const body = buildPatchBody(storeData, storeProfileQuery.data)
+    if (Object.keys(body).length === 0) {
+      toast.info("Chưa có thay đổi để lưu")
+      setIsEditing(false)
+      return
+    }
+    try {
+      await patchMutation.mutateAsync(body)
+      toast.success("Đã cập nhật thông tin cửa hàng")
+      setIsEditing(false)
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        const details = e.body?.details ?? {}
+        const keys = Object.keys(details)
+        if (keys.length > 0) {
+          toast.error(e.body?.message ?? "Dữ liệu không hợp lệ", {
+            description: keys.slice(0, 4).map((k) => `${k}: ${details[k]}`).join(" • "),
+          })
+        } else {
+          toast.error(e.body?.message ?? "Không thể lưu thông tin cửa hàng")
+        }
+        return
+      }
+      toast.error("Không thể lưu thông tin cửa hàng")
+    }
   }
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setStoreData(prev => ({ ...prev, logoUrl: event.target?.result as string }))
-        toast.info("Đã chọn logo mới. Nhấn Lưu để hoàn tất.")
-      }
-      reader.readAsDataURL(file)
+      uploadLogoMutation.mutate(file, {
+        onError: (err) => {
+          if (err instanceof ApiRequestError) {
+            toast.error(err.body?.message ?? "Không thể cập nhật logo")
+            return
+          }
+          toast.error("Không thể cập nhật logo")
+        },
+      })
     }
   }
 
   const handleChange = (field: string, value: string) => {
     setStoreData(prev => ({ ...prev, [field]: value }))
   }
+
+  useEffect(() => {
+    const err = storeProfileQuery.error
+    if (!err) return
+    if (err instanceof ApiRequestError) {
+      toast.error(err.body?.message ?? "Không tải được thông tin cửa hàng")
+      return
+    }
+    toast.error("Không tải được thông tin cửa hàng")
+  }, [storeProfileQuery.error])
 
   return (
     <div className="p-4 md:p-8 space-y-8 h-full overflow-y-auto bg-slate-50/30">
@@ -59,13 +181,28 @@ export function StoreInfoPage() {
           <p className="text-sm text-slate-500 mt-1">Quản lý nhận diện thương hiệu và thông tin liên hệ của bạn</p>
         </div>
         {!isEditing ? (
-          <Button onClick={() => setIsEditing(true)} className="bg-slate-900 text-white hover:bg-slate-800 shadow-md">
+          <Button
+            onClick={() => setIsEditing(true)}
+            disabled={storeProfileQuery.isLoading}
+            className="bg-slate-900 text-white hover:bg-slate-800 shadow-md"
+          >
             Chỉnh sửa thông tin
           </Button>
         ) : (
           <div className="flex gap-2">
-            <Button variant="ghost" className="text-slate-500 font-medium" onClick={() => setIsEditing(false)}>Hủy bỏ</Button>
-            <Button onClick={handleSave} className="bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-100 px-6">
+            <Button
+              variant="ghost"
+              className="text-slate-500 font-medium"
+              onClick={() => setIsEditing(false)}
+              disabled={patchMutation.isPending || uploadLogoMutation.isPending}
+            >
+              Hủy bỏ
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={patchMutation.isPending || uploadLogoMutation.isPending}
+              className="bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-100 px-6"
+            >
               <Save className="h-4 w-4 mr-2" /> Lưu thay đổi
             </Button>
           </div>
@@ -110,8 +247,8 @@ export function StoreInfoPage() {
                       <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within/input:text-blue-600 transition-colors" />
                       <Input 
                         disabled={!isEditing} 
-                        value={storeData.facebook} 
-                        onChange={(e) => handleChange('facebook', e.target.value)}
+                        value={storeData.facebookUrl} 
+                        onChange={(e) => handleChange('facebookUrl', e.target.value)}
                         className="pl-10 h-11 bg-slate-50/50 border-slate-200 focus:bg-white transition-all rounded-xl" 
                       />
                    </div>
@@ -122,8 +259,8 @@ export function StoreInfoPage() {
                       <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within/input:text-pink-600 transition-colors" />
                       <Input 
                         disabled={!isEditing} 
-                        value={storeData.instagram} 
-                        onChange={(e) => handleChange('instagram', e.target.value)}
+                        value={storeData.instagramHandle} 
+                        onChange={(e) => handleChange('instagramHandle', e.target.value)}
                         className="pl-10 h-11 bg-slate-50/50 border-slate-200 focus:bg-white transition-all rounded-xl" 
                       />
                    </div>
@@ -157,8 +294,8 @@ export function StoreInfoPage() {
                     <Label className="text-xs font-bold uppercase tracking-tight text-slate-800">Lĩnh vực hoạt động</Label>
                     <Input 
                       disabled={!isEditing} 
-                      value={storeData.category}
-                      onChange={(e) => handleChange('category', e.target.value)} 
+                      value={storeData.businessCategory}
+                      onChange={(e) => handleChange('businessCategory', e.target.value)} 
                       className="h-11 bg-slate-50/50 border-slate-200 focus:bg-white transition-all rounded-xl font-medium" 
                     />
                  </div>
@@ -229,8 +366,8 @@ export function StoreInfoPage() {
                        <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within/input:text-emerald-600 transition-colors" />
                        <Input 
                          disabled={!isEditing} 
-                         value={storeData.taxId} 
-                         onChange={(e) => handleChange('taxId', e.target.value)}
+                         value={storeData.taxCode} 
+                         onChange={(e) => handleChange('taxCode', e.target.value)}
                          className="pl-10 h-11 bg-slate-50/50 border-slate-200 focus:bg-white transition-all rounded-xl font-mono" 
                        />
                     </div>

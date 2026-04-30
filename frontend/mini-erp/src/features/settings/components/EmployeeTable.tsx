@@ -98,8 +98,6 @@ export function EmployeeTable({
                   <span className={cn(
                     "text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border tracking-tight h-5 inline-flex items-center",
                     item.role === 'Admin' ? "bg-red-50 text-red-700 border-red-200" :
-                    item.role === 'Manager' ? "bg-blue-50 text-blue-700 border-blue-200" :
-                    item.role === 'Warehouse' ? "bg-orange-50 text-orange-700 border-orange-200" :
                     "bg-slate-50 text-slate-700 border-slate-200"
                   )}>
                     {item.role}

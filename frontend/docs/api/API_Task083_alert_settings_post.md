@@ -44,7 +44,16 @@ Trả về bản ghi đầy đủ (shape Task082 item).
 import { z } from "zod";
 
 export const AlertSettingCreateBodySchema = z.object({
-  alertType: z.string().min(1).max(40),
+  alertType: z.enum([
+    "LowStock",
+    "ExpiryDate",
+    "HighValueTransaction",
+    "PendingApproval",
+    "OverStock",
+    "SalesOrderCreated",
+    "PartnerDebtDueSoon",
+    "SystemHealth",
+  ]),
   channel: z.enum(["App", "Email", "SMS", "Zalo"]),
   frequency: z.enum(["Realtime", "Daily", "Weekly"]).optional().default("Realtime"),
   thresholdValue: z.number().optional().nullable(),

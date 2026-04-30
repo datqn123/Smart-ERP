@@ -138,6 +138,10 @@ public class User {
 		this.lastLogin = lastLogin;
 	}
 
+	public Instant getLastLogin() {
+		return lastLogin;
+	}
+
 	public Instant getCreatedAt() {
 		return createdAt;
 	}

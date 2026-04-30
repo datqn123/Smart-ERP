@@ -12,22 +12,31 @@ import {
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { toast } from "sonner"
 import { ApiRequestError } from "@/lib/api/http"
-import { buildUserCreateBody, postCreateUser, userResponseToEmployee } from "../api/usersApi"
+import {
+  buildUserCreateBody,
+  deleteUser,
+  getUsersList,
+  patchUser,
+  postCreateUser,
+  roleUiToRoleId,
+  userResponseToEmployee,
+} from "../api/usersApi"
 
 const mockEmployees: Employee[] = [
   { id: 1, employeeCode: "NV001", fullName: "Nguyễn Văn A", email: "vana@minierp.com", phone: "0987654321", role: "Admin", status: "Active", joinedDate: "2023-01-01" },
-  { id: 2, employeeCode: "NV002", fullName: "Trần Thị B", email: "thib@minierp.com", phone: "0912345678", role: "Manager", status: "Active", joinedDate: "2023-02-15" },
-  { id: 3, employeeCode: "NV003", fullName: "Lê Văn C", email: "vanc@minierp.com", phone: "0900112233", role: "Warehouse", status: "Active", joinedDate: "2023-03-20" },
+  { id: 2, employeeCode: "NV002", fullName: "Trần Thị B", email: "thib@minierp.com", phone: "0912345678", role: "Staff", status: "Active", joinedDate: "2023-02-15" },
+  { id: 3, employeeCode: "NV003", fullName: "Lê Văn C", email: "vanc@minierp.com", phone: "0900112233", role: "Staff", status: "Active", joinedDate: "2023-03-20" },
   { id: 4, employeeCode: "NV004", fullName: "Phạm Minh D", email: "minhd@minierp.com", phone: "0988776655", role: "Staff", status: "Inactive", joinedDate: "2023-05-10" },
 ]
 
 export function EmployeesPage() {
   const { setTitle } = usePageTitle()
   
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees)
+  const [employees, setEmployees] = useState<Employee[]>([])
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [loadingList, setLoadingList] = useState(false)
 
   // Selection/Confirm states
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null)
@@ -39,16 +48,53 @@ export function EmployeesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingEmployee, setEditingEmployee] = useState<Employee | undefined>()
   const [createServerFieldErrors, setCreateServerFieldErrors] = useState<Record<string, string> | undefined>()
+  const [editServerFieldErrors, setEditServerFieldErrors] = useState<Record<string, string> | undefined>()
 
   useEffect(() => {
     setTitle("Quản Lý Nhân Viên")
   }, [setTitle])
 
-  const filtered = employees.filter(e => {
-    if (roleFilter !== "all" && e.role !== roleFilter) return false
-    if (search && !e.fullName.toLowerCase().includes(search.toLowerCase()) && !e.employeeCode.toLowerCase().includes(search.toLowerCase())) return false
-    return true
-  })
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      setLoadingList(true)
+      try {
+        const roleId =
+          roleFilter === "Admin" ? 3 : roleFilter === "Staff" ? 2 : undefined
+        const data = await getUsersList({
+          search,
+          status: "all",
+          roleId,
+          page: 1,
+          limit: 20,
+        })
+        if (cancelled) return
+        setEmployees(data.items.map(userResponseToEmployee))
+      } catch (e) {
+        if (cancelled) return
+        if (e instanceof ApiRequestError) {
+          toast.error(e.body.message)
+        } else {
+          toast.error("Không thể tải danh sách nhân viên")
+          // fallback dev: vẫn hiển thị mock để UI không trống
+          setEmployees(mockEmployees)
+        }
+      } finally {
+        if (!cancelled) setLoadingList(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [search, roleFilter])
+
+  const refetchUsersList = async () => {
+    const roleId = roleFilter === "Admin" ? 3 : roleFilter === "Staff" ? 2 : undefined
+    const data = await getUsersList({ search, status: "all", roleId, page: 1, limit: 20 })
+    setEmployees(data.items.map(userResponseToEmployee))
+  }
+
+  const filtered = employees
 
   // Handlers
   const handleSelect = (id: number) => {
@@ -75,16 +121,26 @@ export function EmployeesPage() {
   }
   const handleEdit = (item: Employee) => {
     setCreateServerFieldErrors(undefined)
+    setEditServerFieldErrors(undefined)
     setEditingEmployee(item)
     setIsFormOpen(true)
   }
   const handleDelete = (item: Employee) => setDeleteTarget(item)
 
-  const confirmDelete = () => {
-    if (deleteTarget) {
-      setEmployees(prev => prev.filter(e => e.id !== deleteTarget.id))
-      toast.success(`Đã xóa nhân viên: ${deleteTarget.fullName}`)
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      await deleteUser(deleteTarget.id)
+      toast.success(`Đã vô hiệu hóa nhân viên: ${deleteTarget.fullName}`)
+      await refetchUsersList()
       setDeleteTarget(null)
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        toast.error(e.body.message)
+      } else {
+        toast.error("Không thể vô hiệu hóa nhân viên")
+      }
+      throw e
     }
   }
 
@@ -115,6 +171,11 @@ export function EmployeesPage() {
         />
         
         <div className="flex-1 flex flex-col min-h-0 bg-white border border-slate-200/60 rounded-xl overflow-hidden shadow-md">
+          {loadingList && (
+            <div className="px-4 py-3 text-sm text-slate-500 border-b border-slate-200/60 bg-slate-50/40">
+              Đang tải danh sách nhân viên…
+            </div>
+          )}
           <EmployeeTable 
             data={filtered}
             selectedIds={selectedIds}
@@ -154,18 +215,42 @@ export function EmployeesPage() {
         open={isFormOpen}
         onOpenChange={(open) => {
           setIsFormOpen(open)
-          if (!open) setCreateServerFieldErrors(undefined)
+          if (!open) {
+            setCreateServerFieldErrors(undefined)
+            setEditServerFieldErrors(undefined)
+          }
         }}
         employee={editingEmployee}
-        serverFieldErrors={editingEmployee ? undefined : createServerFieldErrors}
+        serverFieldErrors={editingEmployee ? editServerFieldErrors : createServerFieldErrors}
         onSubmit={async (data) => {
           if (editingEmployee) {
             const d = data as EmployeeEditFormData
-            setEmployees((prev) =>
-              prev.map((e) => (e.id === editingEmployee.id ? { ...e, ...d } : e)),
-            )
-            toast.success("Cập nhật nhân viên thành công")
-            return
+            try {
+              setEditServerFieldErrors(undefined)
+              const updated = await patchUser(editingEmployee.id, {
+                fullName: d.fullName,
+                staffCode: d.employeeCode,
+                email: d.email,
+                phone: d.phone,
+                status: d.status,
+                roleId: roleUiToRoleId(d.role),
+              })
+              setEmployees((prev) =>
+                prev.map((e) => (e.id === editingEmployee.id ? userResponseToEmployee(updated) : e)),
+              )
+              toast.success("Cập nhật nhân viên thành công")
+              return
+            } catch (e) {
+              if (e instanceof ApiRequestError) {
+                toast.error(e.body.message)
+                if ((e.status === 400 || e.status === 409) && e.body.details) {
+                  setEditServerFieldErrors(e.body.details)
+                }
+              } else {
+                toast.error("Không thể cập nhật nhân viên")
+              }
+              throw e
+            }
           }
           const d = data as EmployeeCreateFormData
           try {

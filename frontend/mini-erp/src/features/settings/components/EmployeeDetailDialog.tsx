@@ -1,4 +1,4 @@
-import React from "react"
+import { useEffect, useState } from "react"
 import { 
   Dialog, 
   DialogContent, 
@@ -10,6 +10,8 @@ import type { Employee } from "../types"
 import { User, Shield, Mail, Phone, Calendar, Activity, BadgeCheck, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { ApiRequestError } from "@/lib/api/http"
+import { getUserById, type UserDetailData } from "../api/usersApi"
 import {
   FORM_LABEL_CLASS,
 } from "@/lib/data-table-layout"
@@ -22,6 +24,38 @@ interface EmployeeDetailDialogProps {
 
 export function EmployeeDetailDialog({ employee, isOpen, onClose }: EmployeeDetailDialogProps) {
   if (!employee) return null;
+
+  const [loading, setLoading] = useState(false)
+  const [detail, setDetail] = useState<UserDetailData | null>(null)
+
+  useEffect(() => {
+    if (!isOpen || !employee) return
+    let cancelled = false
+    void (async () => {
+      setLoading(true)
+      try {
+        const data = await getUserById(employee.id)
+        if (!cancelled) setDetail(data)
+      } catch (e) {
+        if (e instanceof ApiRequestError) {
+          // RBAC self-view (OQ-1): Staff có thể bị 403 khi xem người khác
+          // Chỉ toast 1 câu ngắn theo message để UI không crash
+          // (không phân nhánh theo error code vì backend đã chuẩn hoá message)
+          // eslint-disable-next-line no-console
+          console.warn("getUserById failed", e.status, e.body?.error)
+        }
+        if (!cancelled) setDetail(null)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, employee])
+
+  const username = detail?.username ?? null
+  const lastLogin = detail?.lastLogin ?? null
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -48,6 +82,9 @@ export function EmployeeDetailDialog({ employee, isOpen, onClose }: EmployeeDeta
                   <p className="text-sm font-bold text-slate-500 mt-1 flex items-center gap-2">
                     <Shield size={14} className="text-blue-500" /> Vai trò: <span className="text-slate-900">{employee.role}</span>
                   </p>
+                  {loading && (
+                    <p className="text-xs text-slate-400 mt-2">Đang tải chi tiết…</p>
+                  )}
                 </div>
             </div>
             
@@ -70,6 +107,7 @@ export function EmployeeDetailDialog({ employee, isOpen, onClose }: EmployeeDeta
                             <InfoCard icon={Mail} label="Địa chỉ Email" value={employee.email} />
                             <InfoCard icon={Phone} label="Số điện thoại" value={employee.phone} />
                             <InfoCard icon={Calendar} label="Ngày gia nhập" value={new Date(employee.joinedDate).toLocaleDateString('vi-VN')} />
+                            {username && <InfoCard icon={User} label="Tên đăng nhập" value={username} />}
                         </div>
                     </div>
                 </div>
@@ -88,7 +126,9 @@ export function EmployeeDetailDialog({ employee, isOpen, onClose }: EmployeeDeta
                              </div>
                              <div className="flex items-center justify-between">
                                 <span className="text-xs text-slate-500">Lần cuối hoạt động</span>
-                                <span className="text-xs font-bold text-slate-900">14:30 - Hôm nay</span>
+                                <span className="text-xs font-bold text-slate-900">
+                                  {lastLogin ? new Date(lastLogin).toLocaleString("vi-VN") : "—"}
+                                </span>
                              </div>
                              <div className="flex items-center justify-between">
                                 <span className="text-xs text-slate-500">Tổng số thao tác</span>

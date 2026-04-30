@@ -13,7 +13,7 @@
 
 ## 2. RBAC
 
-**Owner** (theo `owner_id` trong bảng); Admin đọc toàn cục nếu có quyền vận hành.
+**Owner** (theo `owner_id` trong bảng). **Admin** được đọc **toàn cục** (danh sách của mọi Owner).
 
 ---
 
@@ -21,6 +21,7 @@
 
 | Tham số | Mô tả |
 | :------ | :---- |
+| `ownerId` | **Chỉ Admin**: lọc theo `owner_id` cụ thể; nếu bỏ qua thì Admin thấy toàn cục |
 | `alertType` | Lọc một `alert_type` |
 | `isEnabled` | `true` / `false` |
 
@@ -66,7 +67,7 @@ Mỗi phần tử khớp [`Database_Specification.md`](../UC/Database_Specificat
 
 ## 5. Migration gợi ý
 
-Mở rộng `CHECK` `alert_type` trên PostgreSQL (drop constraint cũ + add mới) — chi tiết trong backlog BE; đã liệt kê giá trị mới tại **Database_Specification §10**.
+Flyway V1 hiện đã có bảng `AlertSettings` nhưng `CHECK (alert_type IN (...))` còn thiếu các loại mới. Cần migration V2+ để **drop/add lại CHECK** theo danh sách tại **Database_Specification §10** (thêm `OverStock`, `SalesOrderCreated`, `SystemHealth`).
 
 ---
 

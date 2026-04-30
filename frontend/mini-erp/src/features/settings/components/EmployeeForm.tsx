@@ -5,7 +5,7 @@ import { z } from "zod"
 import { User, Mail, Shield, CheckCircle2, UserPlus, Lock, Smartphone, Wand2 } from "lucide-react"
 import { toast } from "sonner"
 import { ApiRequestError } from "@/lib/api/http"
-import { getNextStaffCode, roleUiToRoleId, staffFamilyFromUiRole } from "../api/usersApi"
+import { getNextStaffCode, getRoles, roleUiToRoleId, staffFamilyFromUiRole } from "../api/usersApi"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -36,7 +36,7 @@ const employeeEditSchema = z.object({
   employeeCode: trimmed.pipe(z.string().min(1, "Vui lòng nhập mã nhân viên").max(50, "Mã nhân viên tối đa 50 ký tự")),
   email: trimmed.pipe(z.string().email("Email không hợp lệ")),
   phone: trimmed.pipe(z.string().min(1, "Vui lòng nhập số điện thoại").max(20, "Số điện thoại tối đa 20 ký tự")),
-  role: z.enum(["Admin", "Manager", "Warehouse", "Staff"]),
+  role: z.enum(["Admin", "Staff"]),
   status: z.enum(["Active", "Inactive"]),
 })
 
@@ -51,7 +51,7 @@ const employeeCreateSchema = z.object({
   ),
   email: trimmed.pipe(z.string().email("Email không hợp lệ")),
   phone: z.string().max(20, "Số điện thoại tối đa 20 ký tự"),
-  role: z.enum(["Admin", "Manager", "Warehouse", "Staff"]),
+  role: z.enum(["Admin", "Staff"]),
   status: z.enum(["Active", "Inactive"]),
 })
 
@@ -76,6 +76,10 @@ function randomEmployeeCode() {
 export function EmployeeForm({ open, onOpenChange, employee, serverFieldErrors, onSubmit }: EmployeeFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [fetchingStaffCode, setFetchingStaffCode] = useState(false)
+  const [roleOptions, setRoleOptions] = useState<Array<{ label: Employee["role"]; roleId: number }>>([
+    { label: "Admin", roleId: 3 },
+    { label: "Staff", roleId: 2 },
+  ])
 
   const resolver = useMemo(
     () => zodResolver(employee ? employeeEditSchema : employeeCreateSchema),
@@ -107,6 +111,20 @@ export function EmployeeForm({ open, onOpenChange, employee, serverFieldErrors, 
 
   useEffect(() => {
     if (!open) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const data = await getRoles()
+        const options = data.items
+          .filter((r) => r.name === "Admin" || r.name === "Staff")
+          .map((r) => ({ label: r.name as Employee["role"], roleId: r.id }))
+        if (!cancelled && options.length > 0) {
+          setRoleOptions(options)
+        }
+      } catch {
+        // fallback: giữ options mặc định
+      }
+    })()
     if (employee) {
       form.reset({
         fullName: employee.fullName,
@@ -128,17 +146,19 @@ export function EmployeeForm({ open, onOpenChange, employee, serverFieldErrors, 
         status: "Active",
       })
     }
+    return () => {
+      cancelled = true
+    }
   }, [open, employee, form])
 
   useEffect(() => {
-    if (!open || !serverFieldErrors || employee) return
+    if (!open || !serverFieldErrors) return
     form.clearErrors()
     Object.entries(serverFieldErrors).forEach(([key, message]) => {
       const field =
         key === "staffCode" ? "employeeCode" : key === "roleId" ? "role" : key
       const allowed = new Set([
-        "username",
-        "password",
+        ...(employee ? [] : ["username", "password"]),
         "fullName",
         "email",
         "phone",
@@ -147,7 +167,7 @@ export function EmployeeForm({ open, onOpenChange, employee, serverFieldErrors, 
         "role",
       ])
       if (allowed.has(field)) {
-        form.setError(field as keyof EmployeeCreateFormData, { type: "server", message })
+        form.setError(field as any, { type: "server", message })
       }
     })
   }, [open, serverFieldErrors, employee, form])
@@ -175,8 +195,9 @@ export function EmployeeForm({ open, onOpenChange, employee, serverFieldErrors, 
     const role = form.getValues("role") as Employee["role"]
     setFetchingStaffCode(true)
     try {
+      const roleId = roleOptions.find((o) => o.label === role)?.roleId ?? roleUiToRoleId(role)
       const data = await getNextStaffCode({
-        roleId: roleUiToRoleId(role),
+        roleId,
         staffFamily: staffFamilyFromUiRole(role),
       })
       form.setValue("employeeCode", data.nextCode, { shouldValidate: true })
@@ -307,10 +328,12 @@ export function EmployeeForm({ open, onOpenChange, employee, serverFieldErrors, 
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Admin">Admin (Toàn quyền)</SelectItem>
-                  <SelectItem value="Manager">Manager (Quản lý)</SelectItem>
-                  <SelectItem value="Warehouse">Warehouse (Kho)</SelectItem>
-                  <SelectItem value="Staff">Staff (Nhân viên)</SelectItem>
+                  {roleOptions.some((o) => o.label === "Admin") && (
+                    <SelectItem value="Admin">Admin (Toàn quyền)</SelectItem>
+                  )}
+                  {roleOptions.some((o) => o.label === "Staff") && (
+                    <SelectItem value="Staff">Staff (Nhân viên)</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
               {form.formState.errors.role && (

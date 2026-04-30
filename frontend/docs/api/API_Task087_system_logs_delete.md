@@ -19,11 +19,16 @@ Nhiều hệ thống **cấm xóa** log bảo mật — nếu policy vậy, endp
 
 ## 3. RBAC
 
-**Admin** (hoặc Owner có flag đặc biệt).
+**Admin** (hoặc Owner có flag đặc biệt) và tuân theo policy tuân thủ (có thể cấm xóa log).
+
+> **GAP (đồng bộ codebase):** Backend hiện chưa có key quyền cho “xem/xóa system logs” trong JWT claim `mp` (`MenuPermissionClaims.MENU_KEYS`).
 
 ---
 
 ## 4. `204` / `200`
+
+> **[CẦN CHỐT]** Dự án thường dùng envelope JSON; nếu cần đồng nhất, chọn `200` với body theo `API_RESPONSE_ENVELOPE.md`.  
+> Nếu muốn “chuẩn REST” có thể dùng `204 No Content`.
 
 ---
 

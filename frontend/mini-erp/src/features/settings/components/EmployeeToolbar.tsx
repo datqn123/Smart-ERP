@@ -43,8 +43,6 @@ export function EmployeeToolbar({
           <SelectContent position="popper" className="bg-white border-slate-200 rounded-xl shadow-xl">
             <SelectItem value="all">Tất cả vai trò</SelectItem>
             <SelectItem value="Admin">Admin</SelectItem>
-            <SelectItem value="Manager">Manager</SelectItem>
-            <SelectItem value="Warehouse">Warehouse</SelectItem>
             <SelectItem value="Staff">Staff</SelectItem>
           </SelectContent>
         </Select>

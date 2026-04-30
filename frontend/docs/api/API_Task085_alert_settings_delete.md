@@ -19,7 +19,9 @@ Owner của `owner_id` trên bản ghi.
 
 ## 3. Response
 
-**204 No Content** hoặc envelope `success: true` (thống nhất với codebase).
+**204 No Content** (không có body).
+
+**Hành vi nghiệp vụ:** không xóa vật lý; `DELETE` = set `isEnabled=false`.
 
 ---
 

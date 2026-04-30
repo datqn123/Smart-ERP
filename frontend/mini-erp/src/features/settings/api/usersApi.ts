@@ -1,6 +1,16 @@
 import { apiJson } from "@/lib/api/http"
 import type { Employee } from "../types"
 
+export type RoleItemData = {
+  id: number
+  name: string
+  permissions: Record<string, boolean>
+}
+
+export type RolesListData = {
+  items: RoleItemData[]
+}
+
 /** Task078 — response `data` (Task077 shape, camelCase). */
 export type UserResponseData = {
   id: number
@@ -15,6 +25,20 @@ export type UserResponseData = {
   avatar?: string | null
 }
 
+/** Task077 — response `data` (page). */
+export type UsersListPageData = {
+  items: UserResponseData[]
+  page: number
+  limit: number
+  total: number
+}
+
+/** Task079 — response `data` (detail). */
+export type UserDetailData = UserResponseData & {
+  username?: string | null
+  lastLogin?: string | null
+}
+
 export type UserCreateBody = {
   username: string
   password: string
@@ -24,6 +48,10 @@ export type UserCreateBody = {
   staffCode?: string
   roleId: number
   status?: "Active" | "Inactive"
+}
+
+export type UserPatchBody = Partial<Omit<UserCreateBody, "username" | "password">> & {
+  password?: string
 }
 
 /** Giá trị form tạo mới — khớp field gửi `POST /api/v1/users` (Task078). */
@@ -52,19 +80,38 @@ export function buildUserCreateBody(values: EmployeeCreateFormInput): UserCreate
   }
 }
 
-/**
- * Seed `Roles` (V1 baseline): 1 Owner, 2 Staff, 3 Admin — không có Manager/Warehouse;
- * map UI tạm thời để form vẫn dùng 4 nhãn (đồng bộ sau khi có API roles / migration đủ role).
- */
+/** Task076 — Bearer; GET roles (dropdown). */
+export function getRoles() {
+  return apiJson<RolesListData>("/api/v1/roles", { method: "GET", auth: true })
+}
+
+/** Task077 — Bearer; GET list. */
+export function getUsersList(query: {
+  search?: string
+  status?: "all" | "Active" | "Inactive"
+  roleId?: number
+  page?: number
+  limit?: number
+}) {
+  const q = new URLSearchParams()
+  if (query.search?.trim()) q.set("search", query.search.trim())
+  if (query.status) q.set("status", query.status)
+  if (query.roleId) q.set("roleId", String(query.roleId))
+  q.set("page", String(query.page ?? 1))
+  q.set("limit", String(query.limit ?? 20))
+  return apiJson<UsersListPageData>(`/api/v1/users?${q.toString()}`, { method: "GET", auth: true })
+}
+
+/** Task079 — Bearer; GET by id (detail). */
+export function getUserById(userId: number) {
+  return apiJson<UserDetailData>(`/api/v1/users/${userId}`, { method: "GET", auth: true })
+}
+
 /** Khớp query `staffFamily` — Task078_02 (prefix theo dòng form). */
-export function staffFamilyFromUiRole(role: Employee["role"]): "ADMIN" | "MANAGER" | "WAREHOUSE" | "STAFF" {
+export function staffFamilyFromUiRole(role: Employee["role"]): "ADMIN" | "STAFF" {
   switch (role) {
     case "Admin":
       return "ADMIN"
-    case "Manager":
-      return "MANAGER"
-    case "Warehouse":
-      return "WAREHOUSE"
     case "Staff":
       return "STAFF"
     default:
@@ -97,10 +144,6 @@ export function roleUiToRoleId(role: Employee["role"]): number {
       return 3
     case "Staff":
       return 2
-    case "Manager":
-      return 3
-    case "Warehouse":
-      return 2
     default:
       return 2
   }
@@ -113,9 +156,7 @@ export function userResponseToEmployee(u: UserResponseData): Employee {
       ? "Admin"
       : roleLabel === "Staff"
         ? "Staff"
-        : roleLabel === "Owner"
-          ? "Admin"
-          : "Staff"
+        : "Staff"
 
   return {
     id: u.id,
@@ -137,4 +178,18 @@ export function postCreateUser(body: UserCreateBody) {
     body: JSON.stringify(body),
     auth: true,
   })
+}
+
+/** Task080 — Bearer; PATCH partial. */
+export function patchUser(userId: number, body: UserPatchBody) {
+  return apiJson<UserDetailData>(`/api/v1/users/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+    auth: true,
+  })
+}
+
+/** Task081 — Bearer; DELETE (soft lock), success 204 no body. */
+export function deleteUser(userId: number) {
+  return apiJson<void>(`/api/v1/users/${userId}`, { method: "DELETE", auth: true })
 }

@@ -13,7 +13,11 @@
 
 ## 2. RBAC
 
-**Admin** / **Owner** có `can_view_system_logs` (hoặc tương đương trong `permissions`). Staff thường → **403**.
+**Admin** / **Owner** có **quyền xem nhật ký hệ thống**.
+
+> **GAP (đồng bộ codebase):** Backend hiện chỉ map quyền menu từ JWT claim `mp` theo `MenuPermissionClaims.MENU_KEYS` và **chưa có** key `can_view_system_logs`.  
+> - Đề xuất: thêm key `can_view_system_logs` (và seed Roles.permissions)  
+> - Hoặc PO chốt reuse một key hiện có trong `mp` (vd. `can_manage_staff` / `can_configure_alerts`).
 
 ---
 
@@ -39,7 +43,7 @@
 | `module` | `module` |
 | `description` | `message` |
 | `severity` | `INFO`→`Info`, `WARNING`→`Warning`, … (Pascal cho FE) |
-| `ipAddress` | `ip_address` hoặc `context_data->>'clientIp'` |
+| `ipAddress` | `context_data->>'clientIp'` (DB không có cột `ip_address`) |
 
 ```json
 {

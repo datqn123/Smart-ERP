@@ -4,6 +4,7 @@
 
 | Call code | Role | Instructions |
 | :--- | :--- | :--- |
+| `DEBUG` | Senior Java/Spring Boot Debugger (picture or text error) | [`DEBUG_AGENT_INSTRUCTIONS.md`](DEBUG_AGENT_INSTRUCTIONS.md) |
 | `AI_PLANNER` | Requirement Analyst & Architect (Fullstack, PRD-first) | [`../../AGENTS/AI_PLANNER_AGENT_INSTRUCTIONS.md`](../../AGENTS/AI_PLANNER_AGENT_INSTRUCTIONS.md) |
 | `BA` | Business Analyst | [`BA_AGENT_INSTRUCTIONS.md`](BA_AGENT_INSTRUCTIONS.md) |
 | `SQL` | SQL / Data (schema, performance, integrity, Spring DB) | [`SQL_AGENT_INSTRUCTIONS.md`](SQL_AGENT_INSTRUCTIONS.md) |

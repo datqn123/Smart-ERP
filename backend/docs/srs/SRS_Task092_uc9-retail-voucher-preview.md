@@ -1,10 +1,10 @@
-# SRS — UC9 POS — API xem trước / kiểm tra voucher trước checkout bán lẻ — Task092
+# SRS — UC9 POS / thanh toán hoá đơn lẻ — API danh sách, chi tiết & áp dụng voucher — Task092
 
 > **File (Spring / `smart-erp`):** `backend/docs/srs/SRS_Task092_uc9-retail-voucher-preview.md`  
-> **Người soạn:** Agent BA (Draft)  
+> **Người soạn:** Agent BA + phân tích SQL  
 > **Ngày:** 30/04/2026  
-> **Trạng thái:** `Draft`  
-> **PO duyệt (khi Approved):** *(chưa)*
+> **Trạng thái:** `Approved`  
+> **PO duyệt:** Owner / PO — đồng bộ theo §4.3 (30/04/2026)
 
 ---
 
@@ -12,31 +12,31 @@
 
 | Nguồn | Đường dẫn / ghi chú |
 | :--- | :--- |
+| Yêu cầu chức năng (phiên bản mới) | Owner: màn thanh toán hoá đơn lẻ — **GET danh sách voucher áp dụng được**, **GET/đánh giá chi tiết** (áp dụng + %/tiền), **cơ chế khi bấm thanh toán**; **không** SRS màn quản lý voucher (làm sau) |
 | SRS nền UC9 đơn / POS / checkout | [`SRS_Task054-060_sales-orders-pos-and-retail-checkout.md`](SRS_Task054-060_sales-orders-pos-and-retail-checkout.md) — **Approved**; **OQ-3** bảng `vouchers`, áp dụng tại checkout |
-| SRS trừ tồn checkout | [`SRS_Task090_uc9-retail-checkout-stock-deduction.md`](SRS_Task090_uc9-retail-checkout-stock-deduction.md) — **Approved**; không đổi công thức voucher |
-| API checkout hiện tại | [`../../../frontend/docs/api/API_Task060_sales_orders_retail_checkout.md`](../../../frontend/docs/api/API_Task060_sales_orders_retail_checkout.md) — body `lines`, `discountAmount`, `voucherCode` |
+| SRS trừ tồn checkout | [`SRS_Task090_uc9-retail-checkout-stock-deduction.md`](SRS_Task090_uc9-retail-checkout-stock-deduction.md) — **Approved** |
+| API checkout hiện tại | [`../../../frontend/docs/api/API_Task060_sales_orders_retail_checkout.md`](../../../frontend/docs/api/API_Task060_sales_orders_retail_checkout.md) — body `voucherCode`, ghi `salesorders.voucher_id` |
 | Envelope JSON | [`../../../frontend/docs/api/API_RESPONSE_ENVELOPE.md`](../../../frontend/docs/api/API_RESPONSE_ENVELOPE.md) |
 | Khung API | [`../../../frontend/docs/api/API_PROJECT_DESIGN.md`](../../../frontend/docs/api/API_PROJECT_DESIGN.md) §4.10 |
-| Flyway `vouchers` + cột `salesorders.voucher_id` | [`../../smart-erp/src/main/resources/db/migration/V19__sales_uc9_vouchers_walkin_pos_shift.sql`](../../smart-erp/src/main/resources/db/migration/V19__sales_uc9_vouchers_walkin_pos_shift.sql) |
-| UI index | [`../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md`](../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md) — nhóm orders / retail |
-| API markdown Task092 | **GAP:** sau khi PO Approved — tạo `frontend/docs/api/API_Task092_sales_orders_retail_voucher_preview.md` (hoặc tên thống nhất PM) và cập nhật `API_PROJECT_DESIGN.md` |
-
+| Flyway `vouchers` | [`V19`](../../smart-erp/src/main/resources/db/migration/V19__sales_uc9_vouchers_walkin_pos_shift.sql) (bảng); [`V24`](../../smart-erp/src/main/resources/db/migration/V24__task092_voucher_usage_and_redemptions.sql) (`used_count`, `max_uses`, `voucher_redemptions`) |
+| Mã tham chiếu BE | `VoucherJdbcRepository`, `VoucherService`, `VouchersController`, `SalesOrderService.retailCheckout` / `retailVoucherPreview` — **Task092:** lock voucher, `used_count`, `voucher_redemptions` |
+| API markdown Task092 | [`../../../frontend/docs/api/API_Task092_vouchers_and_retail_preview.md`](../../../frontend/docs/api/API_Task092_vouchers_and_retail_preview.md) |
+| UI index | [`../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md`](../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md) — `/orders/retail`, `POSCartPanel` |
 ---
+
 
 ## 1. Tóm tắt điều hành
 
-- **Vấn đề:** Màn POS bán lẻ đã gọi `POST …/retail/checkout` với `voucherCode`, nhưng **không** có API tách riêng để kiểm tra mã hoặc **xem trước** số tiền giảm trước khi thanh toán. Người dù
-ng chỉ biết mã lỗi khi checkout thất bại (**400**).
-- **Mục tiêu nghiệp vụ:** Cung cấp **một endpoint đọc** (không tạo đơn, không trừ tồn) để client gọi khi nhấn «Áp dụng» (hoặc tương đương) trên giỏ POS, trả về thông tin voucher hợp lệ và **các số tiền** tính **cùng công thức** với `retailCheckout` (SRS Task054–060 / mã `SalesOrderService`).
-- **Đối tượng:** Nhân viên có quyền bán lẻ (cùng chính sách với Task060); client Mini-ERP.
+- **Vấn đề:** Giao diện thanh toán hoá đơn bán lẻ cần **chọn voucher từ danh sách**, **xem chi tiết** (có áp dụng cho giỏ hiện tại không, hiển thị **% hoặc số tiền** giảm), và **thanh toán** đồng bộ checkout + **lượt dùng / log** (**§4.3**). SRS này chốt **GET** catalog + **POST** preview dưới **retail** + checkout hiện có.
+- **Mục tiêu nghiệp vụ:** Chuẩn hoá **hợp đồng HTTP** (đọc danh sách, đọc/đánh giá chi tiết có ngữ cảnh giỏ, và **ghi nhận áp dụng voucher** khi thanh toán) **không mâu thuẫn** với checkout Task060 / Task090; đồng bộ công thức giảm với `computeVoucherDiscount`. **Sau chốt PO (§4.3):** danh sách **mới nhất trước** (`created_at DESC`), **phân trang 5** mã/trang; preview **POST** giữ namespace **bán lẻ**; checkout **trừ lượt dùng** voucher và **ghi log** gắn đơn (**OQ-10**).
+- **Đối tượng:** Nhân viên POS (`can_manage_orders` như Task060); client Mini-ERP.
+- **Ngoài phạm vi SRS này:** Màn **quản trị** CRUD voucher (Owner/Admin) — **làm sau**; không mô tả UI quản lý trong file này.
 
 ### 1.1 Giao diện Mini-ERP
 
-> Nhãn menu theo [`Sidebar.tsx`](../../../frontend/mini-erp/src/components/shared/layout/Sidebar.tsx) — nhóm «Đơn hàng».
-
-| Nhãn menu (Sidebar) | Route | Page (export) | Component / vùng chính | File (dưới `frontend/mini-erp/src/features/`) |
+| Nhãn menu (Sidebar) | Route | Page (export) | Component / vùng chính | File |
 | :--- | :--- | :--- | :--- | :--- |
-| Đơn bán lẻ (POS) | `/orders/retail` | `RetailPage` | `POSCartPanel` — ô «Mã voucher», nút áp dụng; sau triển khai: gọi **Task092** rồi hiển thị preview / lỗi | `orders/pages/RetailPage.tsx`, `orders/components/POSCartPanel.tsx` |
+| Đơn bán lẻ (POS) / thanh toán hoá đơn lẻ | `/orders/retail` | `RetailPage` | `POSCartPanel` — danh sách voucher, chi tiết/preview, nút thanh toán → checkout Task060 | `orders/pages/RetailPage.tsx`, `orders/components/POSCartPanel.tsx` |
 
 ---
 
@@ -44,11 +44,11 @@ ng chỉ biết mã lỗi khi checkout thất bại (**400**).
 
 | # | Capability | Kích hoạt bởi | Kết quả mong đợi | Ghi chú |
 | :---: | :--- | :--- | :--- | :--- |
-| C1 | Xem trước voucher trên giỏ hiện tại | `POST` endpoint §8.1 | `200` + `data` có breakdown tiền (§8.4) | **Không** `INSERT salesorders`; **không** trừ tồn (Task090) |
-| C2 | Từ chối mã không hợp lệ | Cùng endpoint khi mã sai / hết hạn / inactive | `400` + message nghiệp vụ (§8.5) | Giống ngữ nghĩa lỗi voucher tại checkout |
-| C3 | Từ chối giỏ không hợp lệ | `lines` rỗng hoặc validation giống checkout dòng hàng | `400` | Reuse rule `validateLines` / `computeSubtotal` (§5.2) |
+| **C1** | Liệt kê voucher **đang có thể** dùng cho thanh toán bán lẻ | `GET` danh sách (§8.1) | `200` + danh sách (phân trang) | Tiêu chí “đang áp dụng được” = **active + trong hạn ngày** (cùng logic `findActiveByCodeIgnoreCase` về mặt ngày/active — **không** cần giỏ hàng). **Đã chốt:** sắp xếp **`created_at DESC`**, **5** bản ghi/trang (**§4.3 OQ-2**). |
+| **C2** | Xem **chi tiết** một voucher + **có áp dụng được cho giỏ hiện tại không** + **số tiền / %** hiển thị | `GET` theo `id` (§8.2) + **`POST` preview** có `lines` (§8.3) | `200` với metadata + cờ `applicable` + số tiền giảm dự kiến | **Đã chốt (OQ-8A):** `GET` chỉ metadata; **POST preview** (namespace retail — **OQ-9A**) tính áp dụng + tiền. |
+| **C3** | **Ghi nhận** voucher khi người dùng bấm **thanh toán** | `POST …/retail/checkout` (đã có) | `201` + `salesorders.voucher_id` | **Đã chốt (OQ-10):** trong transaction checkout — **tăng lượt đã dùng** (giới hạn `max_uses`), **ghi log** dùng voucher cho đơn; chi tiết §3.3, §10.5. |
 
-**Ngoài phạm vi SRS này (tuỳ OQ-6):** CRUD danh sách voucher trên UI Owner/Admin; `GET` công khai danh sách mã.
+**Ngoài phạm vi:** CRUD bảng `vouchers` trên UI (task sau).
 
 ---
 
@@ -56,172 +56,241 @@ ng chỉ biết mã lỗi khi checkout thất bại (**400**).
 
 ### 3.1 In-scope
 
-- Một endpoint **POST** (đề xuất baseline — **OQ-3** cho phép đổi path/method sau khi PO chốt) nhận **`voucherCode`** + **`lines[]`** (+ optional **`discountAmount`**) và trả preview **khớp** checkout về: subtotal, giảm voucher, giảm tay, tổng giảm (cap), số phải thu.
-- RBAC **cùng** checkout bán lẻ: JWT + quyền quản lý đơn (`can_manage_orders` — thống nhất Task060; nếu dự án đổi claim → cập nhật §6 + API doc).
-- Đọc bảng **`vouchers`** (đã có Flyway **V19**); không migration mới **trừ khi** OQ mở thêm cột (ghi GAP).
+- **GET** danh sách voucher lọc theo điều kiện thanh toán bán lẻ (§8.1) — phân trang **5**/trang, `created_at DESC`.
+- **GET** chi tiết voucher theo `id` (§8.2) — tối thiểu: `code`, `name`, `discountType`, `discountValue`, `validFrom`, `validTo`, `isActive`.
+- **POST** đánh giá áp dụng + số tiền trên giỏ — **`POST /api/v1/sales-orders/retail/voucher-preview`** (§8.3, **OQ-9A**).
+- **Checkout:** trừ lượt dùng voucher + log sử dụng (**OQ-10**, §3.3, §10.5).
+- RBAC: cùng nhóm quyền với checkout bán lẻ (**OQ-4A**).
 
 ### 3.2 Out-of-scope
 
-- Tạo / sửa / xóa bản ghi `vouchers` (trừ khi PO chọn **OQ-6B** — tách SRS / task khác).
-- Thay đổi body hoặc semantics **`POST …/retail/checkout`** (Task060).
-- Kiểm tra tồn kho tại bước preview (vẫn chỉ ở checkout Task090).
+- Màn hình **quản lý** voucher (tạo/sửa/xóa/seed UI).
+- Thay đổi công thức tổng tiền đơn ngoài thống nhất Task060 (trừ khi mở CR riêng).
 
----
+### 3.3 Phân tích codebase & SQL — “update voucher” khi bấm thanh toán
 
-## 4. Câu hỏi làm rõ cho PO (Open Questions)
-
-> BA không chốt thay PO. **§8** mô tả **baseline** (hàng **Đề xuất SRS**). Nếu PO chọn phương án khác — Dev/API doc điều chỉnh cho khớp quyết định.
-
-### 4.1 Bảng OQ + phương án
-
-| ID | Câu hỏi | Phương án | Ghi chú ngắn |
-| :--- | :--- | :--- | :--- |
-| **OQ-1** | Mức độ thông tin trả về? | **A** — Chỉ `valid: true/false` + `message` (không số tiền). **B** — Đủ breakdown như §8.4 (preview tiền). **C** — Chỉ metadata voucher (`name`, `discountType`, `discountValue`) để **client tự nhân** — *không khuyến nghị* (hai nguồn tính). | Đề xuất SRS: **B**. |
-| **OQ-2** | Đầu vào tính subtotal? | **A** — Client gửi một trường `subtotal` (đơn giản, dễ lệch giỏ). **B** — Client gửi **`lines[]` giống Task060**; server tính subtotal — *khớp checkout*. | Đề xuất SRS: **B** (baseline §8). |
-| **OQ-3** | Method + URL? | **A** — `GET …/vouchers/preview?code=&subtotal=` (chỉ hợp nếu OQ-2A). **B** — `POST /api/v1/sales-orders/retail/voucher-preview` (gắn ngữ cảnh retail). **C** — `POST /api/v1/vouchers/preview` (module voucher trung tính). | Đề xuất SRS: **B**. |
-| **OQ-4** | RBAC? | **A** — Giống Task060 (`can_manage_orders`). **B** — Mọi user đăng nhập. **C** — Chỉ Owner/Admin. | Đề xuất SRS: **A**. |
-| **OQ-5** | Giới hạn tần suất gọi? | **A** — Không throttle. **B** — Throttle (SRS NFR; ví dụ **429** + `TOO_MANY_REQUESTS`). | Đề xuất SRS: **A** v1; **B** nếu lo brute-force mã. |
-| **OQ-6** | Quản lý danh mục voucher? | **A** — Không (seed/SQL như hiện tại). **B** — SRS/task sau: CRUD Owner/Admin. **C** — Chỉ `GET` list read-only. | Không blocker cho C1–C3. |
-| **OQ-7** | Preview có gửi `discountAmount` tay không? | **A** — Có (optional); response trả `totalDiscountAmount` / `payableAmount` giống checkout (tổng giảm = tay + voucher, cap subtotal). **B** — Không; preview **chỉ** phần voucher; UI tự cộng tay. | Đề xuất SRS: **A** để một nguồn sự thật với server. |
-
-### 4.2 Blocker
-
-| ID | Mô tả |
+| Hiện trạng (bằng chứng) | Diễn giải |
 | :--- | :--- |
-| **OQ-3** | Nếu PO đổi path hoặc method so **§8.1** → cập nhật §8 toàn bộ + file `API_Task092` + `API_PROJECT_DESIGN.md` trước khi coi SRS đồng bộ triển khai. |
+| `V19__…` (baseline) | Bảng `vouchers` chưa có `used_count` / `max_uses` / bảng log — **cần Flyway mới** theo §10.5 (**PO đã chốt OQ-10**). |
+| `SalesOrderService.retailCheckout` (hiện tại) | `INSERT` `salesorders` kèm `voucher_id`; tính `discount_amount`; **chưa** trừ lượt / log — **bổ sung** theo §10.5. |
+| Trigger `trg_vouchers_updated` | Cập nhật `updated_at` khi **UPDATE** dòng `vouchers` (checkout trừ lượt sẽ chạm trigger). |
 
-### 4.3 Trả lời PO (điền khi chốt)
+**Kết luận (Approved):** **Áp dụng voucher khi thanh toán** = **`POST …/retail/checkout`** (Task060 + Task090) **và** trong **cùng transaction**: (1) validate voucher còn lượt; (2) `UPDATE vouchers` tăng `used_count` (hoặc tương đương atomic); (3) **`INSERT` log** liên kết `voucher_id` + `sales_order_id`; (4) nếu hết lượt / race → **409**, rollback toàn bộ. **Không** tách API reserve (**loại C**).
 
-| ID | Quyết định PO | Ngày |
-| :--- | :--- | :--- |
-| OQ-1 | | |
-| OQ-2 | | |
-| OQ-3 | | |
-| OQ-4 | | |
-| OQ-5 | | |
-| OQ-6 | | |
-| OQ-7 | | |
+| Phương án | Trạng thái |
+| :--- | :--- |
+| **A** — Không `UPDATE vouchers` | **Không chọn** (thay bằng B + log). |
+| **B** — Trừ lượt + log đơn | **Đã chốt (OQ-10)** — Flyway + §10.5. |
+| **C** — Reserve hai bước | **Không áp dụng** SRS này. |
 
 ---
 
-## 5. Phân tích scope tệp & bằng chứng (Evidence scope)
+## 4. Open Questions — đã chốt (PO / Owner)
 
-### 5.1 Tài liệu đã đối chiếu (read)
+> Các phương án lịch sử nằm trong git history / bản Draft. Dưới đây là **hợp đồng SRS** sau khi PO điền §4.3 (30/04/2026).
 
-- `SRS_Task054-060`, `API_Task060`, `API_RESPONSE_ENVELOPE`, `FEATURES_UI_INDEX`, Flyway **V19**, mã tham chiếu `SalesOrderService.retailCheckout`, `VoucherJdbcRepository.findActiveByCodeIgnoreCase`, `computeVoucherDiscount` (logic tính voucher).
+### 4.1 Tóm tắt quyết định
 
-### 5.2 Mã / migration dự kiến (write / verify)
+| ID | Quyết định (đã chốt) |
+| :--- | :--- |
+| **OQ-1** | **A** — Danh sách chỉ voucher **đang trong hạn** (khớp checkout). |
+| **OQ-2** | **Phân trang cố định 5** mã/trang; sắp xếp **mới nhất trước** theo **`created_at DESC`** (và tie-breaker **`id DESC`** ổn định). “Xem thêm” = trang tiếp theo (`page` tăng), mỗi trang **5** bản ghi. |
+| **OQ-3** | Cùng **OQ-2** — không dùng `code ASC` cho list POS. |
+| **OQ-4** | **A** — RBAC giống Task060: **`can_manage_orders`**. |
+| **OQ-5** | **A** — Không rate limit riêng cho list/preview (nội bộ). |
+| **OQ-6** | Màn **quản lý** voucher — **out of scope** task này. |
+| **OQ-7** | **A** — Checkout chỉ gửi **`voucherCode`** (Task060). |
+| **OQ-8** | **A** — `GET …/{id}` metadata; **POST preview** có `lines` để `applicable` + số tiền. |
+| **OQ-9** | **A** — **POST preview** giữ namespace **bán lẻ**: **`POST /api/v1/sales-orders/retail/voucher-preview`**. **GET** list + **GET** theo id vẫn dùng **`/api/v1/vouchers`** (đọc catalog voucher). |
+| **OQ-10** | **Trừ lượt dùng** khi checkout thành công (`max_uses` / `used_count` hoặc tương đương) + **bảng log** (voucher + đơn hàng). Không reserve hai bước. |
 
-- **BE:** `SalesOrdersController` (mapping mới) hoặc controller con; `SalesOrderService` (method `previewRetailVoucher` hoặc tách `VoucherPreviewService`) — **reuse** validation dòng hàng + `computeSubtotal` + lookup voucher + `computeVoucherDiscount` để tránh lệch công thức.
-- **FE:** `salesOrdersApi.ts` — hàm `postRetailVoucherPreview`; `POSCartPanel.tsx` — gọi API khi áp mã; hiển thị lỗi / breakdown.
-- **Test:** WebMvcTest / slice test 400/200; có thể tái dụng fixture seed `DISCOUNT10` từ V19.
+### 4.2 Bổ sung BA (không blocker triển khai — đã ghi §8/§11)
 
-### 5.3 Rủi ro phát hiện sớm
+| ID | Quyết định |
+| :--- | :--- |
+| **OQ-11** | **A** — Preview: voucher hợp lệ nhưng **không** áp dụng được giỏ → **200** + `applicable: false` + `message` ngắn (tiếng Việt). |
+| **OQ-12** | **400** — Không tìm thấy / không dùng được voucher theo `voucherCode` hoặc `voucherId` trên **preview** (thống nhất hướng `retailCheckout`). `GET …/{id}` không tồn tại → **404**. |
 
-- Hai nhánh tính voucher (checkout vs preview) nếu copy-paste → lệch số; **mitigation:** một hàm dùng chung (package `sales` util hoặc method `protected`/`package` — Tech Lead chọn).
-- Preview **không** thay thế xác nhận cuối lúc checkout: giá/ tồn vẫn có thể đổi giữa hai request → SRS **BR-4**.
+### 4.3 PO sign-off (bảng gốc — đồng bộ ngôn nghĩa)
+
+| ID | Quyết định PO (nguyên văn đã chuẩn hoá §4.1) | Ngày | Người xác nhận |
+| :--- | :--- | :--- | :--- |
+| OQ-1 | A — chỉ voucher trong hạn | 30/04/2026 | Owner / PO |
+| OQ-2 | Voucher mới nhất theo `created_at`; **5** mã/trang; xem thêm **+5** | 30/04/2026 | Owner / PO |
+| OQ-3 | Theo OQ-2 | 30/04/2026 | Owner / PO |
+| OQ-4 | A — `can_manage_orders` | 30/04/2026 | Owner / PO |
+| OQ-5 | A — không throttle | 30/04/2026 | Owner / PO |
+| OQ-6 | Out of scope (task sau) | 30/04/2026 | Owner / PO |
+| OQ-7 | A — `voucherCode` | 30/04/2026 | Owner / PO |
+| OQ-8 | A — GET + POST preview | 30/04/2026 | Owner / PO |
+| OQ-9 | A — POST preview dưới **retail** | 30/04/2026 | Owner / PO |
+| OQ-10 | Giới hạn số lần dùng; **giảm lượt** khi dùng; **log** theo đơn | 30/04/2026 | Owner / PO |
+
+---
+
+## 5. Phân tích scope tệp & bằng chứng
+
+### 5.1 Đã đối chiếu
+
+- Flyway **V19** (`vouchers`, `salesorders.voucher_id`), `VoucherJdbcRepository`, `SalesOrderService.retailCheckout`, `RetailCheckoutRequest`, SRS Task054–060, Task090.
+
+### 5.2 Dự kiến chỉnh sửa (Dev)
+
+- Controller **`VouchersController`** (hoặc tương đương) cho **GET** `/api/v1/vouchers`, **GET** `/api/v1/vouchers/{id}`.
+- Mở rộng **`SalesOrdersController`** (hoặc service retail) cho **`POST /api/v1/sales-orders/retail/voucher-preview`** (**OQ-9A**).
+- `VoucherJdbcRepository`: list theo filter active + hạn + **`ORDER BY created_at DESC, id DESC`** + phân trang; `findById`.
+- Service preview: tái dụng `validateLines` / `computeSubtotal` / `computeVoucherDiscount` từ `SalesOrderService` (extract nếu cần).
+- **Checkout (`retailCheckout`):** Flyway **`used_count` / `max_uses`** (hoặc tên Tech Lead chốt) + bảng **`voucher_redemptions`** (hoặc tên tương đương) + `UPDATE` + `INSERT` log trong **một transaction**; xử lý **409** hết lượt.
+
+### 5.3 Rủi ro
+
+- Hai nguồn filter “đang áp dụng” (list GET vs validate checkout) lệch → **một hàm** `isVoucherRowCurrentlyUsable(row, today)` dùng chung.
+- List lớn không `LIMIT` → full scan.
 
 ---
 
 ## 6. Persona & RBAC
 
-| Vai trò / điều kiện | Quyền | HTTP khi từ chối |
+| Điều kiện | Quyền | HTTP khi từ chối |
 | :--- | :--- | :--- |
-| Đã đăng nhập, JWT hợp lệ, **`can_manage_orders: true`** (cùng policy Task060) | Gọi endpoint preview | — |
-| Thiếu / hết hạn JWT | Không | **401** `UNAUTHORIZED` |
-| JWT hợp lệ nhưng không đủ quyền | Không | **403** `FORBIDDEN` |
+| JWT hợp lệ + **`can_manage_orders`** (**OQ-4**) | Gọi C1, C2, C3 (preview) + checkout | — |
+| Thiếu / hết hạn JWT | — | **401** |
+| Không đủ quyền | — | **403** |
 
 ---
 
-## 7. Actor & luồng nghiệp vụ
+## 7. Actor & luồng
 
-### 7.1 Danh sách actor
+### 7.1 Actor
 
-| Actor | Mô tả |
+| Actor | Vai trò |
 | :--- | :--- |
-| Nhân viên POS | Nhập mã voucher, xem preview trên giỏ |
-| Client Mini-ERP | Gửi `POST` JSON |
-| API `smart-erp` | Validate, tra `vouchers`, tính tiền |
-| PostgreSQL | `SELECT` `vouchers` (và validation dòng hàng qua bảng catalog hiện có) |
+| Nhân viên POS | Chọn voucher, xem detail/preview, thanh toán |
+| Client Mini-ERP | GET list, GET detail, POST preview, POST checkout |
+| API | Lọc voucher, tính giảm, tạo đơn |
+| DB | `SELECT vouchers`; `INSERT salesorders` + **log**; **`UPDATE vouchers`** (trừ lượt) |
 
-### 7.2 Luồng chính (narrative)
+### 7.2 Narrative
 
-1. Nhân viên có giỏ `lines` trên POS; nhập `voucherCode` và nhấn áp dụng.
-2. Client gửi `POST` kèm `lines` + `voucherCode` (+ optional `discountAmount`).
-3. API xác thực JWT + RBAC; validate `lines`; tính `subtotal`.
-4. API tra voucher theo mã (active, hạn) — **cùng** logic `findActiveByCodeIgnoreCase`.
-5. API tính `voucherDiscount`, cộng `manualDiscount`, cap; trả JSON **200** (§8.4).
-6. Nếu mã không hợp lệ → **400** với message người dùng đọc được (không lộ stack/SQL).
+1. Mở màn thanh toán → **GET** danh sách voucher đang dùng được → hiển thị picker.
+2. Chọn một voucher → **GET** metadata theo `id` (tên, %/tiền, hạn).
+3. **POST** **`/api/v1/sales-orders/retail/voucher-preview`** với `lines` (+ optional `discountAmount`) để hiển thị **có áp dụng được** + **số tiền giảm** / **thành tiền sau giảm** (**OQ-8A**, **OQ-9A**).
+4. Bấm thanh toán → **POST** `…/retail/checkout` với **`voucherCode`** — server **validate lại**; ghi đơn; (Task090) trừ tồn; **trừ lượt voucher** + **ghi log** (**OQ-10**).
 
-### 7.3 Sơ đồ
+### 7.3 Sơ đồ (đã chốt)
 
 ```mermaid
 sequenceDiagram
-  participant U as Nhân viên POS
-  participant C as Mini-ERP Client
-  participant A as API smart-erp
+  participant C as Client POS
+  participant V as API Vouchers
+  participant S as API SalesOrders
   participant D as PostgreSQL
-  U->>C: Nhập mã, bấm Áp dụng
-  C->>A: POST /api/v1/sales-orders/retail/voucher-preview
-  A->>A: JWT, RBAC, validate lines
-  A->>D: SELECT vouchers (theo code, active, hạn)
-  D-->>A: Row hoặc rỗng
-  A-->>C: 200 data preview hoặc 400
+  C->>V: GET /api/v1/vouchers?page=&limit=
+  V->>D: SELECT vouchers (active, window, order created_at desc)
+  D-->>V: rows
+  V-->>C: 200 list
+  C->>V: GET /api/v1/vouchers/{id}
+  V->>D: SELECT by id
+  D-->>V: row
+  V-->>C: 200 detail
+  C->>S: POST /api/v1/sales-orders/retail/voucher-preview
+  S->>D: SELECT voucher + validate lines
+  S-->>C: 200 applicable + amounts
+  C->>S: POST /retail/checkout (voucherCode, lines, …)
+  S->>D: BEGIN … UPDATE vouchers used_count … INSERT voucher_redemptions … INSERT salesorders + lines + stock …
+  Note over S,D: Rollback nếu hết lượt / conflict → 409
+  S-->>C: 201
 ```
 
 ---
 
-## 8. Hợp đồng HTTP & ví dụ JSON
+## 8. Hợp đồng HTTP & ví dụ JSON (Approved)
 
-### 8.1 Tổng quan endpoint (baseline — chờ OQ-3)
+> **Đã chốt:** **GET** list + **GET** detail → **`/api/v1/vouchers`**. **POST preview** → **`/api/v1/sales-orders/retail/voucher-preview`** (**OQ-9A**). Thanh toán → **`POST /api/v1/sales-orders/retail/checkout`** + **trừ lượt + log** (**OQ-10**).
 
-| Thuộc tính | Giá trị |
-| :--- | :--- |
-| Method + path | `POST /api/v1/sales-orders/retail/voucher-preview` |
-| Auth | Bearer JWT |
-| Content-Type | `application/json` |
+### 8.1 — C1: `GET /api/v1/vouchers`
 
-### 8.2 Request — schema logic (field-level)
+**Query**
 
-| Field | Vị trí | Kiểu | Bắt buộc | Validation | Ghi chú |
-| :--- | :--- | :--- | :---: | :--- | :--- |
-| `voucherCode` | body | string | Có | trim, độ dài tối đa **50** (khớp `RetailCheckoutRequest`) | Không cho rỗng / chỉ khoảng trắng |
-| `lines` | body | array | Có | Giống Task060: mỗi phần tử `productId`, `unitId`, `quantity`, `unitPrice`; `quantity` > 0; đơn vị thuộc sản phẩm | Cùng rule `validateLines` như checkout |
-| `discountAmount` | body | number (decimal) | Không | ≥ 0, ≤ `subtotal` sau khi tính từ `lines` | Mặc định **0**; **OQ-7** nếu PO chọn B thì bỏ field khỏi contract |
+| Param | Kiểu | Bắt buộc | Mô tả |
+| :--- | :--- | :---: | :--- |
+| `page` | int | Không | Mặc định **1** (≥ 1) |
+| `limit` | int | Không | Mặc định **5**, max **50** — mỗi lần “xem thêm” tăng `page`, giữ `limit=5` (**OQ-2**) |
 
-### 8.3 Request — ví dụ JSON đầy đủ
-
-```json
-{
-  "voucherCode": "DISCOUNT10",
-  "discountAmount": 5000,
-  "lines": [
-    {
-      "productId": 12,
-      "unitId": 101,
-      "quantity": 2,
-      "unitPrice": 6000
-    }
-  ]
-}
-```
-
-### 8.4 Response thành công — ví dụ JSON đầy đủ (`200`)
-
-**Quy tắc số (bắt buộc khớp checkout):**
-
-- `subtotal` = Σ (`quantity` × `unitPrice`).
-- `voucherDiscountAmount` = hàm tương đương `computeVoucherDiscount(subtotal, voucherRow)` — `Percent` làm tròn **2 chữ số** HALF_UP; `FixedAmount` = min(value, subtotal), không âm.
-- `manualDiscountAmount` = `discountAmount` từ request (hoặc 0).
-- `totalDiscountAmount` = min(`manualDiscountAmount` + `voucherDiscountAmount`, `subtotal`).
-- `payableAmount` = `subtotal` − `totalDiscountAmount`.
-
-*Ví dụ:* `subtotal` = 24000, `discountAmount` = 5000, voucher 10% → `voucherDiscountAmount` = 2400; `totalDiscountAmount` = min(7400, 24000) = 7400; `payableAmount` = 16600.
+**200 — ví dụ**
 
 ```json
 {
   "success": true,
   "data": {
+    "items": [
+      {
+        "id": 1,
+        "code": "DISCOUNT10",
+        "name": "Giảm 10%",
+        "discountType": "Percent",
+        "discountValue": 10,
+        "validFrom": null,
+        "validTo": null,
+        "isActive": true,
+        "usedCount": 3,
+        "maxUses": 100,
+        "createdAt": "2026-04-28T10:00:00"
+      }
+    ],
+    "page": 1,
+    "limit": 5,
+    "total": 1
+  },
+  "message": "Thao tác thành công"
+}
+```
+
+**Lọc nghiệp vụ (BR, đồng bộ checkout):** chỉ `is_active = true` **và** `CURRENT_DATE` nằm trong `[valid_from, valid_to]` với null = không giới hạn đầu/cuối (**OQ-1**). **Sắp xếp:** `created_at DESC`, `id DESC` (**OQ-2/OQ-3**).
+
+### 8.2 — C2a: `GET /api/v1/vouchers/{id}`
+
+Sau Flyway **OQ-10**, response nên kèm **`usedCount`** / **`maxUses`** (nullable = không giới hạn) để UI hiển thị lượt còn lại.
+
+**200 — ví dụ**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "code": "DISCOUNT10",
+    "name": "Giảm 10%",
+    "discountType": "Percent",
+    "discountValue": 10,
+    "validFrom": null,
+    "validTo": null,
+    "isActive": true,
+    "usedCount": 3,
+    "maxUses": 100
+  },
+  "message": "Thao tác thành công"
+}
+```
+
+**404** nếu `id` không tồn tại — envelope chuẩn.
+
+### 8.3 — C2b: `POST /api/v1/sales-orders/retail/voucher-preview` (áp dụng cho giỏ + số tiền)
+
+| Field | Kiểu | Bắt buộc | Ghi chú |
+| :--- | :--- | :---: | :--- |
+| `voucherId` | int | Điều kiện | Một trong `voucherId` **hoặc** `voucherCode` |
+| `voucherCode` | string | Điều kiện | Trim, max 50 |
+| `lines` | array | Có | Giống Task060 |
+| `discountAmount` | decimal | Không | Mặc định 0 (đồng bộ Task060 checkout) |
+
+**200 — ví dụ** (cùng công thức thanh toán Task060; thêm `applicable`)
+
+```json
+{
+  "success": true,
+  "data": {
+    "applicable": true,
     "voucherId": 1,
     "voucherCode": "DISCOUNT10",
     "voucherName": "Giảm 10%",
@@ -237,172 +306,158 @@ sequenceDiagram
 }
 ```
 
-### 8.5 Response lỗi — ví dụ JSON đầy đủ
+- **400** — `lines` / catalog không hợp lệ; mã voucher không tồn tại / không trong hạn (**OQ-12**).
+- **200** + `applicable: false` — voucher tồn tại và còn hạn nhưng **không áp dụng được** giỏ (điều kiện nghiệp vụ sau này); kèm `message` ngắn (**OQ-11**).
 
-**400 — `BAD_REQUEST` (mã voucher không hợp lệ)**
+### 8.4 — C3: Thanh toán + trừ lượt + log (**OQ-10**)
 
-```json
-{
-  "success": false,
-  "error": "BAD_REQUEST",
-  "message": "Mã giảm giá không hợp lệ hoặc đã hết hiệu lực.",
-  "details": {}
-}
-```
+- Client gọi **`POST /api/v1/sales-orders/retail/checkout`** như Task060 với `voucherCode` trùng mã đã preview (server validate lại).
+- Trong **cùng transaction** với tạo đơn: **atomic** tăng `used_count` (hoặc tương đương) nếu `used_count < max_uses` (hoặc `max_uses IS NULL` = không giới hạn); **INSERT** dòng **log** (`voucher_id`, `sales_order_id`, timestamp); nếu không đủ lượt → **409**, không ghi đơn.
+- **Không** bắt buộc `PATCH /api/v1/vouchers/{id}` riêng.
 
-**400 — `BAD_REQUEST` (lines rỗng / validation)**
+### 8.5 Lỗi (mẫu rút gọn)
 
-```json
-{
-  "success": false,
-  "error": "BAD_REQUEST",
-  "message": "Thông tin không hợp lệ: kiểm tra lại giỏ hàng và số lượng.",
-  "details": {
-    "lines": "Danh sách dòng hàng không được rỗng"
-  }
-}
-```
+- **400** `BAD_REQUEST` — validation; voucher không tìm thấy / không dùng được (preview + checkout).
+- **401** / **403** — như envelope chuẩn.
+- **404** — `GET /api/v1/vouchers/{id}` không có bản ghi.
+- **409** — hết lượt dùng voucher / xung đột cập nhật lượt (**OQ-10**).
+- **500** — lỗi không lường trước.
 
-**401 — `UNAUTHORIZED`**
+### 8.6 Ghi chú
 
-```json
-{
-  "success": false,
-  "error": "UNAUTHORIZED",
-  "message": "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
-  "details": {}
-}
-```
-
-**403 — `FORBIDDEN`**
-
-```json
-{
-  "success": false,
-  "error": "FORBIDDEN",
-  "message": "Bạn không có quyền thực hiện thao tác này.",
-  "details": {}
-}
-```
-
-**429 — `TOO_MANY_REQUESTS`** *(chỉ khi PO chọn **OQ-5B**)*
-
-```json
-{
-  "success": false,
-  "error": "TOO_MANY_REQUESTS",
-  "message": "Bạn thao tác quá nhanh. Vui lòng thử lại sau ít phút.",
-  "details": {}
-}
-```
-
-**500 — `INTERNAL_SERVER_ERROR`**
-
-```json
-{
-  "success": false,
-  "error": "INTERNAL_SERVER_ERROR",
-  "message": "Không thể hoàn tất thao tác. Vui lòng thử lại hoặc liên hệ quản trị.",
-  "details": {}
-}
-```
-
-### 8.6 Ghi chú envelope
-
-- Bám [`API_RESPONSE_ENVELOPE.md`](../../../frontend/docs/api/API_RESPONSE_ENVELOPE.md). **`404`** không dùng cho «mã voucher sai» — dùng **400** (nghiệp vụ validation) để thống nhất với checkout hiện tại.
+- **OQ-11 / OQ-12** đã chốt tại §4.2.
 
 ---
 
-## 9. Quy tắc nghiệp vụ (bảng)
+## 9. Quy tắc nghiệp vụ
 
-| Mã | Điều kiện | Hành động / kết quả |
+| Mã | Điều kiện | Kết quả |
 | :--- | :--- | :--- |
-| BR-1 | `voucherCode` không tìm thấy bản ghi **active** trong hạn | **400**, message chức năng (§8.5) |
-| BR-2 | `discountAmount` < 0 hoặc > `subtotal` | **400** |
-| BR-3 | `lines` không thỏa rule đơn vị / sản phẩm như checkout | **400** (cùng family message với Task060 khi có thể) |
-| BR-4 | Preview thành công | **Không** cam kết checkout sau đó vẫn **201** — giá/tồn/voucher có thể thay đổi; client vẫn phải xử lý lỗi checkout |
+| BR-1 | Voucher không thỏa active + ngày | Không xuất hiện trong **GET list** (**OQ-1**); preview/checkout (mã không hợp lệ) → **400** |
+| BR-2 | Công thức giảm | Cùng `computeVoucherDiscount` + cap tổng giảm ≤ subtotal như checkout |
+| BR-3 | Preview thành công | Checkout vẫn phải validate lại (giá, tồn Task090, voucher, **lượt còn**) |
+| BR-4 | **OQ-10** | `UPDATE vouchers` + `INSERT` log **cùng transaction** với tạo đơn; thất bại (hết lượt) → **409**, rollback |
 
 ---
 
-## 10. Dữ liệu & SQL tham chiếu (phối hợp Agent SQL)
+## 10. Dữ liệu & SQL tham chiếu (Agent SQL)
 
-### 10.1 Bảng / quan hệ (tên Flyway thực tế)
+### 10.1 Bảng
 
 | Bảng | Read / Write | Ghi chú |
 | :--- | :--- | :--- |
-| `vouchers` | **Read** | Lookup theo `code` (case-insensitive), `is_active`, `valid_from`, `valid_to` — logic hiện có trong `VoucherJdbcRepository` |
-| `productunits`, `products` | **Read** | Chỉ phục vụ validation `lines` (giống checkout) |
+| `vouchers` | Read (C1, C2, preview); **Write** tại checkout (**OQ-10**) | V19 + **Flyway mới:** `used_count`, `max_uses` (nullable = không giới hạn) — tên cột do Tech Lead chốt trong migration |
+| **`voucher_redemptions`** (hoặc tên tương đương) | **Write** tại checkout | **Flyway mới:** `id`, `voucher_id` FK, `sales_order_id` FK, `created_at` — một dòng mỗi lần áp dụng thành công trên đơn |
+| `salesorders` | Write tại checkout | `voucher_id` đã có (V19) |
+| `productunits`, `products` | Read | Validate `lines` khi preview |
 
-### 10.2 SQL / ranh giới transaction
+### 10.2 SELECT danh sách (PostgreSQL — tham chiếu)
 
-- **Chỉ đọc**; không bắt buộc transaction dài; có thể dùng một query voucher + các query tồn tại validate line.
-- Tham chiếu seed / từ chối: [`../../AGENTS/SQL_AGENT_INSTRUCTIONS.md`](../../AGENTS/SQL_AGENT_INSTRUCTIONS.md) mục seed `vouchers` nếu Tester cần.
+```sql
+SELECT id, code, name, discount_type, discount_value, is_active, valid_from, valid_to,
+       created_at
+FROM vouchers
+WHERE is_active = TRUE
+  AND (valid_from IS NULL OR valid_from <= CURRENT_DATE)
+  AND (valid_to IS NULL OR valid_to >= CURRENT_DATE)
+ORDER BY created_at DESC, id DESC
+LIMIT :limit OFFSET :offset;
+```
 
-### 10.3 Index
+```sql
+SELECT COUNT(*) FROM vouchers
+WHERE is_active = TRUE
+  AND (valid_from IS NULL OR valid_from <= CURRENT_DATE)
+  AND (valid_to IS NULL OR valid_to >= CURRENT_DATE);
+```
 
-- Đã có index/policy theo V19; không bắt buộc migration mới cho preview.
+### 10.3 SELECT theo id
 
-### 10.4 Kiểm chứng dữ liệu cho Tester
+```sql
+SELECT id, code, name, discount_type, discount_value, is_active, valid_from, valid_to,
+       used_count, max_uses, created_at
+FROM vouchers
+WHERE id = :id
+LIMIT 1;
+```
 
-- Given seed `DISCOUNT10` active, When preview với `lines` subtotal 100000, Then `voucherDiscountAmount` = 10000 (Percent 10), `payableAmount` = 90000 (không có tay).
+### 10.4 Index (đề xuất)
+
+- List POS: index phục vụ **`ORDER BY created_at DESC, id DESC`** với filter active + cửa sổ ngày — ví dụ composite `(is_active, valid_from, valid_to, created_at DESC)` hoặc partial theo `is_active = TRUE` — **Tech Lead** xác nhận sau `EXPLAIN`.
+- Log: index `voucher_redemptions(voucher_id)`, `voucher_redemptions(sales_order_id)`.
+
+### 10.5 Transaction checkout (**OQ-10** — bắt buộc triển khai)
+
+- Trong `@Transactional` của `retailCheckout` (sau khi validate voucher + tồn + giá):
+  1. `UPDATE vouchers SET used_count = used_count + 1 WHERE id = :vid AND (max_uses IS NULL OR used_count < max_uses)` (hoặc `UPDATE … WHERE … RETURNING`); nếu **0 dòng** → **409**, rollback toàn bộ.
+  2. `INSERT INTO voucher_redemptions (voucher_id, sales_order_id, …) VALUES (…)` sau khi đã có `sales_order_id` (hoặc thứ tự: insert order trước rồi log — **một transaction**).
+  3. Khuyến nghị khóa lạc quan: `SELECT id FROM vouchers WHERE id = :vid FOR UPDATE` trước bước (1) nếu tải đồng thời cao.
+  4. Thứ tự `INSERT salesorders` / `INSERT` log / `UPDATE` lượt do Tech Lead khớp code `retailCheckout` hiện có, **miễn** toàn bộ nằm trong **một transaction** và **409** rollback hết.
 
 ---
 
-## 11. Acceptance criteria (Given / When / Then)
+## 11. Acceptance criteria (rút gọn)
 
 ```text
-Given nhân viên đã đăng nhập và có can_manage_orders
-And giỏ có ít nhất một dòng hợp lệ
-When POST preview với voucherCode hợp lệ và discountAmount = 0
-Then 200 và voucherDiscountAmount + payableAmount khớp công thức §8.4
+Given có ít nhất một voucher active trong hạn với created_at khác nhau
+When GET /api/v1/vouchers?page=1&limit=5
+Then 200, limit=5, items sắp created_at giảm dần, không có voucher inactive / ngoài hạn
 ```
 
 ```text
-Given cùng điều kiện
-When POST preview với voucherCode không tồn tại
-Then 400 và message không tiết lộ chi tiết kỹ thuật server
+Given voucher id tồn tại
+When GET /api/v1/vouchers/{id}
+Then 200 và body khớp bản ghi DB
 ```
 
 ```text
-Given JWT hợp lệ nhưng không có quyền quản lý đơn
-When POST preview
-Then 403 FORBIDDEN
+Given giỏ lines hợp lệ và voucher hợp lệ
+When POST /api/v1/sales-orders/retail/voucher-preview với voucherId và lines
+Then 200, applicable=true, payableAmount khớp công thức checkout
 ```
 
 ```text
-Given không gửi Authorization
-When POST preview
-Then 401 UNAUTHORIZED
+Given voucher không áp dụng được giỏ (điều kiện nghiệp vụ sau này)
+When POST /api/v1/sales-orders/retail/voucher-preview
+Then 200, applicable=false, message tiếng Việt (OQ-11)
 ```
 
 ```text
-Given lines rỗng
-When POST preview
-Then 400 BAD_REQUEST
+Given đã preview thành công và voucher còn lượt
+When POST retail/checkout với cùng voucherCode và lines
+Then 201, salesorders.voucher_id khác null, có bản ghi voucher_redemptions, used_count tăng 1 (OQ-10)
+```
+
+```text
+Given voucher đã hết lượt
+When POST retail/checkout với voucherCode đó
+Then 409 (hoặc 400 theo envelope chuẩn dự án), không tạo đơn
 ```
 
 ---
 
 ## 12. GAP & giả định
 
-| GAP / Giả định | Tác động | Hành động đề xuất |
-| :--- | :--- | :--- |
-| Chưa có `API_Task092_*.md` | FE / API_BRIDGE chưa có hợp đồng chính thức | Sau Approved: thêm file API + mục trong `API_PROJECT_DESIGN.md` |
-| `401` từ filter Spring có thể chưa envelope | UI có thể parse lỗi khác | Theo roadmap Security — ngoài scope Task092 trừ khi Owner gộp |
-| OQ-1A (chỉ valid bit) | §8.4 phải rút gọn | PO chọn A → sửa §2, §8.4, §11 |
+| GAP | Hành động |
+| :--- | :--- |
+| ~~Chưa có `API_Task092` + catalog~~ | Đã bổ sung `API_Task092_vouchers_and_retail_preview.md` + `API_PROJECT_DESIGN.md` §4.10 |
+| ~~Chưa có Flyway lượt dùng~~ | **V24** — kiểm tra `mvn flyway:migrate` trên môi trường |
 
 ---
 
-## 13. PO sign-off (chỉ điền khi Approved)
+## 13. PO sign-off
 
-- [ ] Đã trả lời / đóng các **OQ blocker** (OQ-3 nếu đổi URL/method)
-- [ ] JSON request/response khớp ý đồ sản phẩm
-- [ ] Phạm vi In/Out đã đồng ý
-
-**Chữ ký / nhãn PR:** *(chưa)*
+- **SRS:** `SRS_Task092_uc9-retail-voucher-preview.md` — **Approved** (30/04/2026).
+- **Nội dung chốt:** §4.1–§4.3 (OQ-1…OQ-10) + §4.2 (OQ-11/OQ-12 do BA chuẩn hoá đồng bộ §8).
+- **Ký xác nhận:** Owner / PO (theo quy trình dự án).
 
 ---
 
-**Brittle zones:** 1) Đồng bộ công thức voucher với `retailCheckout`. 2) Client bỏ qua preview vẫn có thể checkout — hành vi hợp lệ.
+## Phụ lục — OQ-11 / OQ-12
 
-**Risks:** Brute-force mã voucher nếu không throttle (**OQ-5**).
+Đã gộp vào **§4.2** (không còn mở).
+
+---
+
+**Brittle zones:** Đồng bộ filter list vs checkout; **race** khi hai POS cùng trừ lượt (**§10.5**).  
+**Risks:** Lộ mã marketing qua GET list — đã giảm nhờ **RBAC** (**OQ-4**); không throttle (**OQ-5**).

@@ -7,7 +7,7 @@
 
 ## 1. Mục tiêu
 
-Trả về một **`partner_debts`** + `partnerName` + `remainingAmount`.
+Trả về một bản ghi **`partnerdebts`** + `partnerName` + `remainingAmount`.
 
 ---
 
@@ -19,7 +19,8 @@ Trả về một **`partner_debts`** + `partnerName` + `remainingAmount`.
 
 ## 3. Tham chiếu
 
-[`Database_Specification.md`](../UC/Database_Specification.md) §12.2.
+[`Database_Specification.md`](../UC/Database_Specification.md) §12.2.  
+**SRS (BE):** [`../../../backend/docs/srs/SRS_Task069-072_debts-api.md`](../../../backend/docs/srs/SRS_Task069-072_debts-api.md) — *Draft*.
 
 ---
 
@@ -28,13 +29,13 @@ Trả về một **`partner_debts`** + `partnerName` + `remainingAmount`.
 | Thuộc tính | Giá trị |
 | :--------- | :------ |
 | **Authentication** | `Bearer` |
-| **RBAC** | Giống Task069 |
+| **RBAC** | Giống Task069 — **`mp.can_view_finance === true`**. |
 
 ---
 
 ## 5. `200 OK`
 
-Cùng shape một phần tử trong `data.items` của Task069; có thể thêm `createdAt` nếu cần audit.
+Cùng shape một phần tử trong `data.items` của Task069; **bắt buộc** thêm **`createdAt`** (đồng bộ SRS / audit).
 
 ---
 

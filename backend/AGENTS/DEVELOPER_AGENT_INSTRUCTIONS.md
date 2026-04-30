@@ -51,6 +51,13 @@ Không gộp bước này vào `mvn verify` — đây là phiên Cursor/agent th
 - Sửa rẻ (một vài dòng, rõ ràng) → **làm ngay** trong PR.  
 - Cần **tái cấu trúc nhiều file** → ghi **tech debt** trong PR (mô tả + ticket follow-up), không nhét ngầm vào feature PR lớn không liên quan.
 
+### 6.1 Ưu tiên có đo được (mã dài hơn nếu nhanh hơn — đồng bộ SQL Agent)
+
+- **Ưu tiên đường đi có chứng cứ:** trước khi giữ một biến thể “tối ưu”, nên có ít nhất một tín hiệu đo được (vd. `EXPLAIN` / thời gian truy vấn trên volume tương đương prod nhỏ, profiler JVM trên hot path, hoặc benchmark / test tải nhỏ có mục tiêu rõ) — bám tinh thần [`SQL_AGENT_INSTRUCTIONS.md`](SQL_AGENT_INSTRUCTIONS.md) (toàn vẹn trước tối ưu; tránh N+1; index có lý do).
+- **Chấp nhận mã dài hơn hoặc kém “gọn văn học”** nếu biến thể đó **đo được nhanh hơn** hoặc **tránh rõ ràng** chi phí nóng (vòng lặp + I/O, allocation trong request path, v.v.) so với bản rút gọn — không ưu tiên ngắn dòng thuần tuý khi đã có căn cứ.
+- **Trong mô tả PR:** thêm **một dòng** (vd. *“Perf: batch query thay N+1 — EXPLAIN trước/sau”* hoặc *“Chấp nhận duplicate logic nhỏ để giữ một round-trip DB”*) để reviewer/Tech Lead đối chiếu.
+- **Không** dùng mục này để bỏ qua đọc được, test, hoặc ràng buộc transaction / correctness.
+
 ## 7. Git & nhánh
 
 - **Không** commit/push trực tiếp lên `main` hoặc `develop`.  

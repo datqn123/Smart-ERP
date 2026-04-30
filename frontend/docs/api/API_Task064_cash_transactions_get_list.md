@@ -1,6 +1,7 @@
 # 📄 API SPEC: `GET /api/v1/cash-transactions` — Danh sách giao dịch thu chi — Task064
 
-> **Trạng thái**: Draft  
+> **Trạng thái**: Approved (đồng bộ SRS Task064–068 — 30/04/2026)  
+> **SRS backend:** [`../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md`](../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md)  
 > **Feature**: Cashflow — màn **Giao dịch thu chi** (`TransactionsPage`, `/cashflow/transactions`)  
 > **Tags**: RESTful, Finance, Pagination
 
@@ -34,7 +35,7 @@
 | **Endpoint** | `/api/v1/cash-transactions` |
 | **Method** | `GET` |
 | **Authentication** | `Bearer` |
-| **RBAC** | Owner / Staff có quyền thu chi (policy đồng nhất với PATCH); không đủ → **403** |
+| **RBAC** | Claim JWT `mp.can_view_finance === true` (Task063 + **V25** bật thêm cho Staff). Không đủ → **403** |
 
 ---
 
@@ -48,7 +49,7 @@
 | `status` | `Pending` \| `Completed` \| `Cancelled` | — | |
 | `dateFrom` | date | — | `transaction_date >=` |
 | `dateTo` | date | — | `transaction_date <=` |
-| `search` | string | — | `ILIKE` trên `transaction_code`, `category`, `description` |
+| `search` | string | — | `ILIKE` trên `transaction_code`, `category`, `description`, **`full_name`** người tạo & người thực hiện (JOIN `users`) |
 | `page` | int | `1` | |
 | `limit` | int 1–100 | `20` | |
 
@@ -61,6 +62,10 @@
 | `type` | `direction` (cùng giá trị enum) |
 | `date` | `transactionDate` |
 | `transactionCode` | `transactionCode` |
+| Người tạo | `createdBy`, `createdByName` |
+| Người thực hiện gần nhất | `performedBy`, `performedByName` |
+
+**Sắp xếp & lọc ngày (SRS §4 OQ-5 / BR-11):** Nếu **không** gửi cả `dateFrom` và `dateTo` → không lọc theo `transaction_date`, sort **`created_at DESC, id DESC`**. Nếu gửi **ít nhất một** mốc ngày → lọc `transaction_date` tương ứng, sort **`transaction_date DESC, id DESC`**.
 
 ---
 
@@ -82,6 +87,10 @@
         "status": "Completed",
         "transactionDate": "2026-04-22",
         "financeLedgerId": 1005,
+        "createdBy": 3,
+        "createdByName": "Nguyễn Văn A",
+        "performedBy": 3,
+        "performedByName": "Nguyễn Văn A",
         "createdAt": "2026-04-22T10:00:00Z",
         "updatedAt": "2026-04-22T10:00:00Z"
       }
@@ -98,7 +107,7 @@
 
 ## 8. Database
 
-`SELECT` từ `cash_transactions` + `WHERE` theo filter + `ORDER BY transaction_date DESC, id DESC` + phân trang.
+`SELECT` từ `cashtransactions` + JOIN `users` (tên người tạo / thực hiện) + `WHERE` theo filter + `ORDER BY` theo có/không mốc ngày (SRS **BR-11**) + `LIMIT/OFFSET`.
 
 ---
 

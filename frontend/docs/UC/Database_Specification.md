@@ -848,16 +848,18 @@ AND od.order_id = ?;
 | `payment_method` | VARCHAR(30) | NOT NULL | `'Cash'` | `Cash`, `BankTransfer`, … |
 | `status` | VARCHAR(20) | NOT NULL, CHECK | `'Pending'` | `Pending`, `Completed`, `Cancelled` |
 | `transaction_date` | DATE | NOT NULL | - | Ngày giao dịch nghiệp vụ |
-| `finance_ledger_id` | BIGINT | NULL, FK → FinanceLedger(id) | NULL | Liên kết bút toán sổ cái sau khi **hoàn tất** (`FinanceLedger.id` là BIGSERIAL) |
-| `created_by` | INT | NOT NULL, FK → Users(id) | - | Người tạo |
+| `finance_ledger_id` | INT | NULL, FK → FinanceLedger(id) | NULL | Liên kết bút toán sổ cái sau khi **hoàn tất** (khớp Flyway V1: `FinanceLedger.id` SERIAL) |
+| `created_by` | INT | NOT NULL, FK → Users(id) | - | Người tạo phiếu; **chỉ** user này được PATCH/DELETE (SRS Task064–068 Approved) |
+| `performed_by` | INT | NOT NULL, FK → Users(id) | = `created_by` lúc tạo | Người thực hiện thao tác gần nhất (PATCH cập nhật); Flyway **V25** |
 | `created_at` | TIMESTAMP | NOT NULL | CURRENT_TIMESTAMP | |
 | `updated_at` | TIMESTAMP | NOT NULL | CURRENT_TIMESTAMP | |
 
 #### Business Rules
 
 1. Khi `status` chuyển sang **`Completed`**: trong **một transaction** — `INSERT FinanceLedger` (`amount` > 0 nếu `Income`, `amount` < 0 nếu `Expense`), `reference_type = 'CashTransaction'`, `reference_id = cash_transactions.id`, `transaction_type` = `SalesRevenue` (Income) hoặc `OperatingExpense` (Expense) theo policy; ghi `finance_ledger_id`.  
-2. `Pending` → cho phép **PATCH** / **DELETE**; `Completed` → **không** sửa/xóa (chỉ đọc); `Cancelled` → không ghi sổ.  
-3. `transaction_code` sinh theo tiền tố PT/PC + quy tắc năm + sequence.
+2. `Pending` → cho phép **PATCH** / **DELETE** (bởi **người tạo**); `Completed` → **không** sửa/xóa (chỉ đọc); `Cancelled` → không ghi sổ; cho phép PATCH **mô tả** theo SRS.  
+3. `transaction_code` sinh theo tiền tố PT/PC + quy tắc năm + sequence.  
+4. **Đọc** danh sách/chi tiết: mọi user có quyền xem tài chính; **ghi** (PATCH/DELETE): chỉ `created_by` = user hiện tại (xem SRS Task064–068).
 
 #### Migration (PostgreSQL)
 
@@ -873,13 +875,15 @@ CREATE TABLE cash_transactions (
   status VARCHAR(20) NOT NULL DEFAULT 'Pending'
     CHECK (status IN ('Pending','Completed','Cancelled')),
   transaction_date DATE NOT NULL,
-  finance_ledger_id BIGINT NULL REFERENCES finance_ledger(id),
+  finance_ledger_id INT NULL REFERENCES finance_ledger(id),
   created_by INT NOT NULL REFERENCES users(id),
+  performed_by INT NOT NULL REFERENCES users(id),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_cash_tx_date ON cash_transactions (transaction_date DESC);
 CREATE INDEX idx_cash_tx_status ON cash_transactions (status);
+CREATE INDEX idx_cash_tx_created_at ON cash_transactions (created_at DESC, id DESC);
 ```
 
 ---

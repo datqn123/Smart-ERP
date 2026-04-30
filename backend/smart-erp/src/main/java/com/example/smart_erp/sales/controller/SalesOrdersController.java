@@ -24,9 +24,11 @@ import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.api.ApiSuccessResponse;
 import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.sales.dto.RetailCheckoutRequest;
+import com.example.smart_erp.sales.dto.RetailVoucherPreviewRequest;
 import com.example.smart_erp.sales.dto.SalesOrderCancelBody;
 import com.example.smart_erp.sales.dto.SalesOrderCreateRequest;
 import com.example.smart_erp.sales.response.SalesOrderCancelData;
+import com.example.smart_erp.sales.response.RetailVoucherPreviewData;
 import com.example.smart_erp.sales.response.SalesOrderDetailData;
 import com.example.smart_erp.sales.response.SalesOrderListPageData;
 import com.example.smart_erp.sales.service.SalesOrderService;
@@ -91,6 +93,15 @@ public class SalesOrdersController {
 		Jwt jwt = requireJwt(authentication);
 		SalesOrderDetailData data = salesOrderService.retailCheckout(body, jwt);
 		return ResponseEntity.status(201).body(ApiSuccessResponse.of(data, "Thanh toán thành công"));
+	}
+
+	@PostMapping(value = "/retail/voucher-preview", consumes = MediaType.APPLICATION_JSON_VALUE)
+	@PreAuthorize("hasAuthority('can_manage_orders')")
+	public ResponseEntity<ApiSuccessResponse<RetailVoucherPreviewData>> retailVoucherPreview(
+			Authentication authentication, @Valid @RequestBody RetailVoucherPreviewRequest body) {
+		Jwt jwt = requireJwt(authentication);
+		RetailVoucherPreviewData data = salesOrderService.retailVoucherPreview(body, jwt);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thao tác thành công"));
 	}
 
 	@PatchMapping(value = "/{id:[0-9]+}", consumes = MediaType.APPLICATION_JSON_VALUE)

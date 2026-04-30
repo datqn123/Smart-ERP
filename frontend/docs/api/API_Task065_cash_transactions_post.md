@@ -1,6 +1,7 @@
 # 📄 API SPEC: `POST /api/v1/cash-transactions` — Tạo giao dịch thu chi — Task065
 
-> **Trạng thái**: Draft  
+> **Trạng thái**: Approved (đồng bộ SRS Task064–068 — 30/04/2026)  
+> **SRS backend:** [`../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md`](../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md)  
 > **Feature**: Cashflow — **Giao dịch thu chi**  
 > **Tags**: RESTful, Finance, Create
 
@@ -8,7 +9,7 @@
 
 ## 1. Mục tiêu Task
 
-- **Nghiệp vụ**: Tạo bản ghi **`cash_transactions`** mới (thường `Pending`); tùy policy có thể tạo thẳng `Completed` và **đồng thời** ghi `FinanceLedger` (xem §8).
+- **Nghiệp vụ**: Tạo bản ghi **`cash_transactions`** mới **luôn** `Pending`; hoàn tất / ghi sổ chỉ qua **PATCH** Task067 (SRS **OQ-2**).
 - **Out of scope**: Sửa/xóa → Task067, 068.
 
 ---
@@ -30,7 +31,7 @@
 | Thuộc tính | Giá trị |
 | :--------- | :------ |
 | **Authentication** | `Bearer` |
-| **RBAC** | Staff/Owner có quyền tạo thu chi |
+| **RBAC** | **`mp.can_view_finance === true`** (chi tiết & ngoại lệ Staff → SRS §4 **OQ-1**). Không đủ → **403** |
 
 ---
 
@@ -44,7 +45,7 @@
 | `description` | string | Không | |
 | `paymentMethod` | string | Không | Mặc định `Cash` |
 | `transactionDate` | date ISO | Có | |
-| `status` | enum | Không | Mặc định `Pending`; cho phép `Completed` nếu policy “ghi sổ ngay” |
+| `status` | — | **Không gửi** | Server luôn lưu `Pending`. Client gửi `Completed` / `Cancelled` → **400** |
 
 **Sinh `transaction_code`**: server-side (unique), ví dụ `PT-2026-{seq}` / `PC-2026-{seq}` theo `direction`.
 
@@ -68,6 +69,10 @@ Trả về bản ghi đầy đủ như Task066 (cùng shape `data`).
     "status": "Pending",
     "transactionDate": "2026-04-23",
     "financeLedgerId": null,
+    "createdBy": 3,
+    "createdByName": "Nguyễn Văn A",
+    "performedBy": 3,
+    "performedByName": "Nguyễn Văn A",
     "createdAt": "2026-04-23T08:00:00Z",
     "updatedAt": "2026-04-23T08:00:00Z"
   },
@@ -79,15 +84,9 @@ Trả về bản ghi đầy đủ như Task066 (cùng shape `data`).
 
 ## 7. Logic & Database
 
-1. Validate body → **400**.  
-2. `INSERT INTO cash_transactions (...)` với `created_by = current_user_id`.  
-3. Nếu `status = Completed` **ngay tại POST** (nếu cho phép): trong **một transaction DB**:  
-   - `INSERT INTO finance_ledger` (`transaction_date`, `transaction_type`, `reference_type`, `reference_id`, `amount`, `description`, `created_by`)  
-     - `reference_type = 'CashTransaction'`, `reference_id = cash_transactions.id`  
-     - `amount` dương nếu `Income`, âm nếu `Expense`  
-     - `transaction_type`: `SalesRevenue` (Income) hoặc `OperatingExpense` (Expense) — thống nhất với BA  
-   - `UPDATE cash_transactions SET finance_ledger_id = …`  
-4. Nếu chỉ `Pending`: không đụng `finance_ledger`.
+1. Validate body → **400** (gồm cả khi client gửi `status` khác `Pending` hoặc gửi `Completed`/`Cancelled`).  
+2. `INSERT INTO cashtransactions (...)` với `created_by = current_user_id`, **`performed_by = current_user_id`**, `status = 'Pending'`, không ghi `finance_ledger`.  
+3. Ghi sổ **chỉ** tại Task067 (PATCH `Completed`).
 
 ---
 
@@ -95,7 +94,7 @@ Trả về bản ghi đầy đủ như Task066 (cùng shape `data`).
 
 | Mã | Tình huống |
 | :--- | :----------- |
-| 400 | `amount <= 0`, thiếu trường bắt buộc, `status` không hợp lệ |
+| 400 | `amount <= 0`, thiếu trường bắt buộc, body có `status` không hợp lệ (chỉ được bỏ qua hoặc `Pending`) |
 | 401 | Chưa đăng nhập |
 | 403 | Không quyền |
 | 409 | Trùng `transaction_code` (hiếm nếu retry race — xử lý idempotent theo policy) |
@@ -115,7 +114,7 @@ export const CashTransactionCreateBodySchema = z.object({
   description: z.string().max(2000).optional(),
   paymentMethod: z.string().max(30).optional().default("Cash"),
   transactionDate: z.string().date(),
-  status: z.enum(["Pending", "Completed", "Cancelled"]).optional().default("Pending"),
+  status: z.literal("Pending").optional(),
 });
 ```
 
@@ -123,4 +122,4 @@ export const CashTransactionCreateBodySchema = z.object({
 
 ## 10. Ghi chú FE
 
-Sau khi tạo, refresh danh sách Task064; nếu `Completed`, có thể gọi thêm Task063 để cập nhật sổ cái.
+Sau khi tạo, refresh danh sách Task064; hoàn tất bằng Task067 rồi mới có dòng sổ cái Task063.

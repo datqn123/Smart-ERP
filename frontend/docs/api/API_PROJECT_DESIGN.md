@@ -196,8 +196,11 @@ _(Endpoint Owner xử lý yêu cầu reset mật khẩu nhân viên nằm trong 
 | POST | `/sales-orders/{id}/cancel` | Hủy đơn (`cancelled_by`, …) | [`API_Task058_sales_orders_cancel.md`](API_Task058_sales_orders_cancel.md) |
 | GET | `/pos/products` | Tìm hàng cho **POS / Bán lẻ** | [`API_Task059_pos_products_get_search.md`](API_Task059_pos_products_get_search.md) |
 | POST | `/sales-orders/retail/checkout` | Thanh toán **một lần** (bán lẻ) | [`API_Task060_sales_orders_retail_checkout.md`](API_Task060_sales_orders_retail_checkout.md) |
+| GET | `/vouchers` | Danh sách voucher áp dụng được (POS) | [`API_Task092_vouchers_and_retail_preview.md`](API_Task092_vouchers_and_retail_preview.md) |
+| GET | `/vouchers/{id}` | Chi tiết voucher | [`API_Task092_vouchers_and_retail_preview.md`](API_Task092_vouchers_and_retail_preview.md) |
+| POST | `/sales-orders/retail/voucher-preview` | Preview giảm giá theo giỏ | [`API_Task092_vouchers_and_retail_preview.md`](API_Task092_vouchers_and_retail_preview.md) |
 
-**Lưu ý schema UC9:** `SalesOrders` cần bổ sung `order_channel`, `payment_status`, (tuỳ chọn) `ref_sales_order_id` — DDL trong [`API_Task054_sales_orders_get_list.md`](API_Task054_sales_orders_get_list.md).
+**Lưu ý schema UC9:** `SalesOrders` cần bổ sung `order_channel`, `payment_status`, (tuỳ chọn) `ref_sales_order_id` — DDL trong [`API_Task054_sales_orders_get_list.md`](API_Task054_sales_orders_get_list.md). **Task092:** `vouchers.used_count` / `max_uses`, bảng `voucher_redemptions` — Flyway `V24`.
 
 ### 4.11 Xuất kho (UC10 — Manage inventory dispatch)
 
@@ -365,14 +368,15 @@ Mỗi file `API_TaskXXX` phải ghi rõ **`RBAC Roles`** và điều kiện **ow
 | [`API_Task058_sales_orders_cancel.md`](API_Task058_sales_orders_cancel.md) | Draft — `POST /sales-orders/{id}/cancel` |
 | [`API_Task059_pos_products_get_search.md`](API_Task059_pos_products_get_search.md) | Draft — `GET /pos/products` (UC9 — POS bán lẻ) |
 | [`API_Task060_sales_orders_retail_checkout.md`](API_Task060_sales_orders_retail_checkout.md) | Draft — `POST /sales-orders/retail/checkout` |
+| [`API_Task092_vouchers_and_retail_preview.md`](API_Task092_vouchers_and_retail_preview.md) | Draft — `GET /vouchers`, `GET /vouchers/{id}`, `POST /sales-orders/retail/voucher-preview` (UC9 POS) |
 | [`API_Task061_approvals_pending_get_list.md`](API_Task061_approvals_pending_get_list.md) | Draft — `GET /approvals/pending` (UC4 — Chờ phê duyệt) |
 | [`API_Task062_approvals_history_get_list.md`](API_Task062_approvals_history_get_list.md) | Draft — `GET /approvals/history` (UC4 — Lịch sử phê duyệt) |
 | [`API_Task063_finance_ledger_get_list.md`](API_Task063_finance_ledger_get_list.md) | Draft — `GET /finance-ledger` (Sổ cái tài chính / `LedgerPage`) |
-| [`API_Task064_cash_transactions_get_list.md`](API_Task064_cash_transactions_get_list.md) | Draft — `GET /cash-transactions` (Giao dịch thu chi) |
-| [`API_Task065_cash_transactions_post.md`](API_Task065_cash_transactions_post.md) | Draft — `POST /cash-transactions` |
-| [`API_Task066_cash_transactions_get_by_id.md`](API_Task066_cash_transactions_get_by_id.md) | Draft — `GET /cash-transactions/{id}` |
-| [`API_Task067_cash_transactions_patch.md`](API_Task067_cash_transactions_patch.md) | Draft — `PATCH /cash-transactions/{id}` |
-| [`API_Task068_cash_transactions_delete.md`](API_Task068_cash_transactions_delete.md) | Draft — `DELETE /cash-transactions/{id}` |
+| [`API_Task064_cash_transactions_get_list.md`](API_Task064_cash_transactions_get_list.md) | Approved — `GET /cash-transactions` (SRS Task064–068 30/04/2026) |
+| [`API_Task065_cash_transactions_post.md`](API_Task065_cash_transactions_post.md) | Approved — `POST /cash-transactions` |
+| [`API_Task066_cash_transactions_get_by_id.md`](API_Task066_cash_transactions_get_by_id.md) | Approved — `GET /cash-transactions/{id}` |
+| [`API_Task067_cash_transactions_patch.md`](API_Task067_cash_transactions_patch.md) | Approved — `PATCH /cash-transactions/{id}` |
+| [`API_Task068_cash_transactions_delete.md`](API_Task068_cash_transactions_delete.md) | Approved — `DELETE /cash-transactions/{id}` |
 | [`API_Task069_debts_get_list.md`](API_Task069_debts_get_list.md) | Draft — `GET /debts` (Sổ nợ / `DebtPage`) |
 | [`API_Task070_debts_post.md`](API_Task070_debts_post.md) | Draft — `POST /debts` |
 | [`API_Task071_debts_get_by_id.md`](API_Task071_debts_get_by_id.md) | Draft — `GET /debts/{id}` |

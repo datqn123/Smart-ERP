@@ -1,6 +1,7 @@
 # 📄 API SPEC: `GET /api/v1/cash-transactions/{id}` — Chi tiết giao dịch thu chi — Task066
 
-> **Trạng thái**: Draft  
+> **Trạng thái**: Approved (đồng bộ SRS Task064–068 — 30/04/2026)  
+> **SRS backend:** [`../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md`](../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md)  
 > **Feature**: Cashflow — **Giao dịch thu chi** (form chi tiết / drawer)
 
 ---
@@ -28,7 +29,7 @@ Trả về **một** bản ghi `cash_transactions` theo `id`.
 | Thuộc tính | Giá trị |
 | :--------- | :------ |
 | **Authentication** | `Bearer` |
-| **RBAC** | Cùng quyền đọc danh sách Task064 |
+| **RBAC** | Giống Task064: **`mp.can_view_finance === true`** (Staff sau Flyway **V25**) |
 
 ---
 
@@ -57,6 +58,9 @@ Shape giống một phần tử `items` trong Task064:
     "transactionDate": "2026-04-22",
     "financeLedgerId": 1005,
     "createdBy": 3,
+    "createdByName": "Nguyễn Văn A",
+    "performedBy": 3,
+    "performedByName": "Nguyễn Văn A",
     "createdAt": "2026-04-22T10:00:00Z",
     "updatedAt": "2026-04-22T10:00:00Z"
   },

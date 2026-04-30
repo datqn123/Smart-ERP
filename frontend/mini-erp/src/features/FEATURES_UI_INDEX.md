@@ -81,8 +81,8 @@
 
 | Loại | File |
 | :--- | :--- |
-| API | `api/salesOrdersApi.ts` — Task054 list; **Task056** `POST /api/v1/sales-orders`; Task060 `postRetailCheckout`; Task058 cancel; `api/posProductsApi.ts` — Task059; `hooks/useSalesOrdersListQuery.ts` — OQ-8a |
-| POS / đơn | `pages/RetailPage.tsx`; `POSCartPanel.tsx` (Task060 checkout `useMutation`); `POSProductSelector.tsx` (Task059 `searchPosProducts`); `OrderTable.tsx`, `OrderToolbar.tsx`, `OrderDetailPanel.tsx`, `OrderDetailDialog.tsx`, `OrderFormDialog.tsx` |
+| API | `api/salesOrdersApi.ts` — Task054 list; **Task056** `POST /api/v1/sales-orders`; Task060 `postRetailCheckout`; **Task092** `postRetailVoucherPreview`; Task058 cancel; `api/posProductsApi.ts` — Task059; **`api/vouchersApi.ts`** — Task092 `getVouchersList`, `getVoucherById`; `hooks/useSalesOrdersListQuery.ts` — OQ-8a |
+| POS / đơn | `pages/RetailPage.tsx`; `POSCartPanel.tsx` (Task060 checkout; **Task092** danh sách voucher + “Xem thêm”, preview, **409** checkout); `POSProductSelector.tsx` (Task059 `searchPosProducts`); `OrderTable.tsx`, `OrderToolbar.tsx`, `OrderDetailPanel.tsx`, `OrderDetailDialog.tsx`, `OrderFormDialog.tsx` |
 | Trang danh sách | `pages/WholesalePage.tsx`, `pages/ReturnsPage.tsx` — list API + phân trang/sort/lọc |
 | Trả hàng | `components/ReturnFormDialog.tsx` |
 

@@ -1,13 +1,14 @@
 # 📄 API SPEC: `PATCH /api/v1/cash-transactions/{id}` — Cập nhật / hoàn tất thu chi — Task067
 
-> **Trạng thái**: Draft  
+> **Trạng thái**: Approved (đồng bộ SRS Task064–068 — 30/04/2026)  
+> **SRS backend:** [`../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md`](../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md)  
 > **Feature**: Cashflow — **Giao dịch thu chi**
 
 ---
 
 ## 1. Mục tiêu
 
-- Cập nhật các trường cho phép khi **`Pending`** (hoặc `Cancelled` nếu cho phép đổi ghi chú).  
+- Cập nhật khi **`Pending`** theo bảng §5; khi **`Cancelled`**: **chỉ** được PATCH **`description`** (nullable). **Cấm** `Cancelled` → `Pending` (SRS **BR-10**).  
 - Khi chuyển **`status` → `Completed`**: **một transaction** — insert `finance_ledger` + cập nhật `finance_ledger_id` (một lần duy nhất — idempotent).
 
 ---
@@ -29,7 +30,7 @@
 | Thuộc tính | Giá trị |
 | :--------- | :------ |
 | **Authentication** | `Bearer` |
-| **RBAC** | Quyền sửa thu chi |
+| **RBAC** | **`mp.can_view_finance === true`** và **`created_by` = user hiện tại** (người khác tạo → **403** — SRS **BR-9**) |
 
 ---
 
@@ -44,9 +45,9 @@ Tất cả trường **optional**; chỉ cập nhật field được gửi.
 | `description` | string | |
 | `paymentMethod` | string | |
 | `transactionDate` | date | |
-| `status` | enum | `Pending` → `Completed` hoặc `Cancelled` |
+| `status` | enum | `Pending` → `Completed` hoặc `Cancelled`; **không** đổi `status` khi đang **`Cancelled`** |
 
-**Cấm**: Sửa `direction`, `transactionCode`, hoặc bất kỳ field nào khi **`Completed`** (trừ có quyền admin đặc biệt — mặc định **409**).
+**Cấm**: Sửa `direction`, `transactionCode`, hoặc các field nghiệp vụ khi **`Completed`** → **409**. Khi **`Cancelled`**: body **chỉ** được chứa `description` (và không đổi `status`).
 
 ---
 
@@ -64,7 +65,8 @@ Trả về bản ghi sau cập nhật (cùng shape Task066).
 4. Nếu `PATCH` set `status = Completed`:  
    - Nếu đã có `finance_ledger_id` → **200** idempotent (không double-insert).  
    - Ngược lại: `INSERT finance_ledger` (như Task065) + `UPDATE cash_transactions SET finance_ledger_id = …, status = Completed, updated_at = now()`.  
-5. Nếu `status = Cancelled`: không tạo ledger; có thể yêu cầu `finance_ledger_id IS NULL`.
+5. Nếu `status = Cancelled`: không tạo ledger; `finance_ledger_id IS NULL`. PATCH sau đó: chỉ `description`, cập nhật `performed_by` = user hiện tại.  
+6. Mỗi PATCH hợp lệ (trừ idempotent Completed no-op): `UPDATE … performed_by = current_user_id`.
 
 ---
 
@@ -74,7 +76,7 @@ Trả về bản ghi sau cập nhật (cùng shape Task066).
 | :--- | :----------- |
 | 400 | Validation partial fail |
 | 401 | |
-| 403 | |
+| 403 | Thiếu `can_view_finance` **hoặc** không phải người tạo phiếu (`created_by`) |
 | 404 | Không có `id` |
 | 409 | Conflict: đã Completed, hoặc chuyển trạng thái không hợp lệ |
 | 500 | |

@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Trash2, Plus, Minus, User, CreditCard, Receipt, Tag, Loader2 } from "lucide-react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { useOrderStore } from "../store/useOrderStore"
 import { Separator } from "@/components/ui/separator"
@@ -11,13 +11,26 @@ import { ApiRequestError } from "@/lib/api/http"
 import {
   buildRetailCheckoutBody,
   postRetailCheckout,
+  postRetailVoucherPreview,
   SALES_ORDER_LIST_QUERY_KEY,
 } from "../api/salesOrdersApi"
+import { getVoucherById, getVouchersList, VOUCHERS_LIST_QUERY_KEY, type VoucherListItemDto } from "../api/vouchersApi"
 import { POS_PRODUCTS_SEARCH_QUERY_KEY } from "../api/posProductsApi"
+
+function numMoney(v: number | string): number {
+  const n = typeof v === "number" ? v : Number(v)
+  return Number.isFinite(n) ? n : 0
+}
 
 function checkoutErrorToast(e: unknown) {
   if (e instanceof ApiRequestError) {
     const msg = e.body?.message ?? e.message
+    if (e.status === 409) {
+      toast.error(msg, {
+        description: "Voucher có thể đã hết lượt (xung đột khi thanh toán). Gỡ mã hoặc chọn voucher khác.",
+      })
+      return
+    }
     const d = e.body?.details
     if (d && typeof d === "object") {
       const parts = Object.entries(d).map(([k, v]) => `${k}: ${v}`)
@@ -47,6 +60,54 @@ export function POSCartPanel() {
     setVoucher,
   } = useOrderStore()
   const [voucherInput, setVoucherInput] = useState("")
+  /** Khi chọn từ danh sách — gửi kèm `voucherId` cho preview/checkout khớp BE. */
+  const [selectedVoucherId, setSelectedVoucherId] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!voucherCode) setSelectedVoucherId(null)
+  }, [voucherCode])
+
+  const vouchersInfinite = useInfiniteQuery({
+    queryKey: [...VOUCHERS_LIST_QUERY_KEY, "retail-panel"],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => getVouchersList(pageParam, 5),
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((s, p) => s + p.items.length, 0)
+      if (loaded >= lastPage.total) return undefined
+      return lastPage.page + 1
+    },
+  })
+
+  const cartPreviewKey = cart
+    .map((i) => `${i.productId}:${i.unitId}:${i.quantity}:${i.unitPrice}`)
+    .join("|")
+
+  const previewQuery = useQuery({
+    queryKey: [
+      "retail-voucher-preview",
+      voucherCode,
+      selectedVoucherId,
+      cartPreviewKey,
+      discount,
+    ] as const,
+    enabled: Boolean(voucherCode?.trim()) && cart.length > 0,
+    queryFn: () => {
+      const snap = useOrderStore.getState()
+      const code = snap.voucherCode?.trim()
+      return postRetailVoucherPreview({
+        voucherId: selectedVoucherId ?? undefined,
+        voucherCode: code || undefined,
+        lines: snap.cart.map((i) => ({
+          productId: i.productId,
+          unitId: i.unitId,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+        })),
+        discountAmount: snap.discount,
+      })
+    },
+    retry: false,
+  })
 
   const checkoutMutation = useMutation({
     mutationFn: (paymentStatus: "Paid" | "Unpaid" | "Partial") => {
@@ -68,8 +129,10 @@ export function POSCartPanel() {
     },
     onSuccess: (data) => {
       clearCart()
+      setSelectedVoucherId(null)
       void queryClient.invalidateQueries({ queryKey: [...SALES_ORDER_LIST_QUERY_KEY] })
       void queryClient.invalidateQueries({ queryKey: [...POS_PRODUCTS_SEARCH_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [...VOUCHERS_LIST_QUERY_KEY] })
       toast.success(`Thanh toán thành công — ${data.orderCode}`)
     },
     onError: checkoutErrorToast,
@@ -78,9 +141,25 @@ export function POSCartPanel() {
   const handleApplyVoucher = () => {
     const v = voucherInput.trim()
     if (!v) return
+    setSelectedVoucherId(null)
     setVoucher(v)
     setVoucherInput("")
     toast.success("Đã lưu mã — xác nhận khi thanh toán.")
+  }
+
+  const handlePickVoucherFromList = async (item: VoucherListItemDto) => {
+    try {
+      const fresh = await getVoucherById(item.id)
+      setVoucher(fresh.code)
+      setSelectedVoucherId(fresh.id)
+      toast.success(`Đã chọn ${fresh.code}`)
+    } catch (err) {
+      if (err instanceof ApiRequestError) {
+        toast.error(err.body?.message ?? err.message)
+        return
+      }
+      toast.error(err instanceof Error ? err.message : "Không tải được voucher.")
+    }
   }
 
   const runCheckout = (paymentStatus: "Paid" | "Unpaid" | "Partial") => {
@@ -95,6 +174,16 @@ export function POSCartPanel() {
     new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(val)
 
   const pending = checkoutMutation.isPending
+  const voucherRows = vouchersInfinite.data?.pages.flatMap((p) => p.items) ?? []
+  const previewData = previewQuery.data
+  const previewErr = previewQuery.error
+  const preview400 =
+    previewErr instanceof ApiRequestError && previewErr.status === 400 ? previewErr.body?.message ?? previewErr.message : null
+  const previewApplicable = previewData?.applicable === true
+  const displayTotal =
+    voucherCode && previewApplicable && previewData
+      ? numMoney(previewData.payableAmount)
+      : getFinalTotal()
 
   return (
     <div className="flex flex-col h-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -170,7 +259,59 @@ export function POSCartPanel() {
         )}
       </div>
 
-      <div className="px-4 py-3 bg-slate-50 border-t border-slate-100">
+      <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 space-y-2">
+        <div>
+          <p className="text-[11px] uppercase font-bold text-slate-400 tracking-wider mb-1.5">Voucher áp dụng được</p>
+          {vouchersInfinite.isLoading ? (
+            <div className="flex items-center gap-2 text-xs text-slate-500 py-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Đang tải danh sách…
+            </div>
+          ) : vouchersInfinite.isError ? (
+            <p className="text-xs text-red-600">
+              {vouchersInfinite.error instanceof ApiRequestError
+                ? vouchersInfinite.error.body?.message ?? vouchersInfinite.error.message
+                : "Không tải được danh sách voucher."}
+            </p>
+          ) : (
+            <>
+              <ul className="max-h-28 overflow-y-auto space-y-1 pr-0.5">
+                {voucherRows.map((row) => (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => void handlePickVoucherFromList(row)}
+                      className="w-full text-left rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs hover:bg-slate-100 disabled:opacity-50 transition-colors"
+                    >
+                      <span className="font-semibold text-slate-900">{row.code}</span>
+                      {row.name ? <span className="text-slate-500 ml-1 truncate">{row.name}</span> : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {vouchersInfinite.hasNextPage ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="mt-1 h-8 text-xs text-slate-600 w-full"
+                  disabled={pending || vouchersInfinite.isFetchingNextPage}
+                  onClick={() => void vouchersInfinite.fetchNextPage()}
+                >
+                  {vouchersInfinite.isFetchingNextPage ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                      Đang tải…
+                    </>
+                  ) : (
+                    "Xem thêm"
+                  )}
+                </Button>
+              ) : null}
+            </>
+          )}
+        </div>
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -199,12 +340,32 @@ export function POSCartPanel() {
               <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100 border-none font-bold py-1 max-w-full truncate">
                 {voucherCode}
               </Badge>
-              <p className="text-slate-500 mt-1">Giảm giá theo mã do hệ thống tính khi thanh toán.</p>
+              {previewQuery.isFetching ? (
+                <p className="text-slate-500 mt-1 inline-flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Đang ước tính voucher…
+                </p>
+              ) : preview400 ? (
+                <p className="text-red-600 mt-1">{preview400}</p>
+              ) : previewData && !previewApplicable ? (
+                <p className="text-amber-700 mt-1">{previewData.message ?? "Voucher không áp dụng cho giỏ này."}</p>
+              ) : previewApplicable && previewData ? (
+                <p className="text-slate-600 mt-1">
+                  {previewData.message?.trim() ? `${previewData.message} · ` : null}
+                  Giảm voucher: {formatCurrency(numMoney(previewData.voucherDiscountAmount))} — còn thanh toán{" "}
+                  <span className="font-semibold">{formatCurrency(numMoney(previewData.payableAmount))}</span>
+                </p>
+              ) : (
+                <p className="text-slate-500 mt-1">Giảm giá theo mã do hệ thống tính khi thanh toán.</p>
+              )}
             </div>
             <button
               type="button"
               disabled={pending}
-              onClick={() => setVoucher(null)}
+              onClick={() => {
+                setSelectedVoucherId(null)
+                setVoucher(null)
+              }}
               className="text-red-500 hover:underline font-medium shrink-0"
             >
               Gỡ bỏ
@@ -234,7 +395,10 @@ export function POSCartPanel() {
           <Separator className="bg-slate-800" />
           <div className="flex justify-between items-center">
             <span className="text-base font-bold text-slate-300">Tổng cộng (ước tính)</span>
-            <span className="text-3xl font-black tracking-tighter text-white">{formatCurrency(getFinalTotal())}</span>
+            <span className="text-3xl font-black tracking-tighter text-white inline-flex items-center gap-2">
+              {voucherCode && previewQuery.isFetching ? <Loader2 className="h-6 w-6 animate-spin text-slate-400" /> : null}
+              {formatCurrency(displayTotal)}
+            </span>
           </div>
         </div>
 

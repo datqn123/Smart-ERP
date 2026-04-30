@@ -8,7 +8,7 @@
 
 ## 1. Mục tiêu Task
 
-- **Nghiệp vụ**: Liệt kê **`partner_debts`** kèm **tên đối tác** (join `customers` / `suppliers`), trả `remainingAmount` tính từ `totalAmount - paidAmount` — thay mock `Debt[]`.
+- **Nghiệp vụ**: Liệt kê bảng **`partnerdebts`** (Flyway `PartnerDebts`) kèm **tên đối tác** (join `customers` / `suppliers`), trả `remainingAmount` tính từ `totalAmount - paidAmount` — thay mock `Debt[]`.
 - **Phạm vi**: **Chỉ** `GET /debts`.
 - **Out of scope**: Tạo/sửa chi tiết → Task070–072.
 
@@ -23,7 +23,8 @@ Hỗ trợ bảng sổ nợ: lọc theo loại đối tác, trạng thái, tìm 
 ## 3. Tham chiếu
 
 [`API_PROJECT_DESIGN.md`](API_PROJECT_DESIGN.md) §4.14.  
-[`Database_Specification.md`](../UC/Database_Specification.md) §12.2 `PartnerDebts`.
+[`Database_Specification.md`](../UC/Database_Specification.md) §12.2 `PartnerDebts`.  
+**SRS (BE):** [`../../../backend/docs/srs/SRS_Task069-072_debts-api.md`](../../../backend/docs/srs/SRS_Task069-072_debts-api.md) — *Draft*; RBAC **`mp.can_view_finance === true`** (đồng bộ Task063/064).
 
 ---
 
@@ -34,7 +35,7 @@ Hỗ trợ bảng sổ nợ: lọc theo loại đối tác, trạng thái, tìm 
 | **Endpoint** | `/api/v1/debts` |
 | **Method** | `GET` |
 | **Authentication** | `Bearer` |
-| **RBAC** | `can_view_finance` hoặc quyền đối tác tương đương |
+| **RBAC** | JWT **`mp.can_view_finance === true`** (Owner / Admin / Staff sau Flyway V25). Thiếu → **403**. |
 
 ---
 
@@ -99,15 +100,15 @@ Hỗ trợ bảng sổ nợ: lọc theo loại đối tác, trạng thái, tìm 
 
 ```sql
 SELECT d.*,
-  c.name AS partner_name  -- khi partner_type = Customer
-FROM partner_debts d
+  COALESCE(c.name, s.name) AS partner_name
+FROM partnerdebts d
 LEFT JOIN customers c ON d.customer_id = c.id
 LEFT JOIN suppliers s ON d.supplier_id = s.id
-WHERE /* filters */
-ORDER BY d.updated_at DESC;
+WHERE /* filters — xem SRS §10 */
+ORDER BY d.updated_at DESC, d.id DESC;
 ```
 
-`partnerName` = `COALESCE(c.name, s.name)` tùy cột tên trong `Customers` / `Suppliers` (tham chiếu DB spec §3–§4).
+`partnerName` = `COALESCE(c.name, s.name)` (cột `name` trên `customers` / `suppliers` — Flyway V1).
 
 ---
 

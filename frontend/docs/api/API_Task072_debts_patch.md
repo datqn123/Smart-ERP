@@ -23,7 +23,8 @@
 
 ## 3. Tham chiếu
 
-[`Database_Specification.md`](../UC/Database_Specification.md) §12.2 — `chk_paid_le_total`.
+[`Database_Specification.md`](../UC/Database_Specification.md) §12.2 — `chk_paid_le_total`.  
+**SRS (BE):** [`../../../backend/docs/srs/SRS_Task069-072_debts-api.md`](../../../backend/docs/srs/SRS_Task069-072_debts-api.md) — *Draft*; **OQ-1** (khoản Cleared), **OQ-4** (cắt trần `paymentAmount`).
 
 ---
 
@@ -32,7 +33,7 @@
 | Thuộc tính | Giá trị |
 | :--------- | :------ |
 | **Authentication** | `Bearer` |
-| **RBAC** | Quyền sửa sổ nợ |
+| **RBAC** | **`mp.can_view_finance === true`** + rule **ghi** theo SRS **§4 OQ-2**. |
 
 ---
 
@@ -59,9 +60,9 @@ Trả về bản ghi đầy đủ sau cập nhật (shape Task071).
 
 ## 7. Logic & Database
 
-1. `SELECT … FOR UPDATE` từ `partner_debts`.  
-2. Validate `newPaid <= total_amount` → nếu vi phạm **400**.  
-3. `UPDATE partner_debts SET …, updated_at = now()`.  
+1. `SELECT … FOR UPDATE` từ **`partnerdebts`**.  
+2. Validate `newPaid <= total_amount` (DB `chk_paid_le_total`); nếu vi phạm logic sau khi tính → **400**.  
+3. `UPDATE partnerdebts SET …` (trigger `trg_partnerdebts_updated` cập nhật `updated_at` nếu team dựa trigger — hoặc set explicit `updated_at = now()`).  
 4. Nếu `newPaid >= total_amount` → `status = Cleared`, else `InDebt`.
 
 ---

@@ -7,7 +7,7 @@
 
 ## 1. Mục tiêu
 
-Tạo bản ghi **`partner_debts`** (công nợ phải thu hoặc phải trả theo KH/NCC).
+Tạo bản ghi trong **`partnerdebts`** (Flyway `PartnerDebts`) — công nợ phải thu hoặc phải trả theo KH/NCC.
 
 ---
 
@@ -19,7 +19,8 @@ Tạo bản ghi **`partner_debts`** (công nợ phải thu hoặc phải trả t
 
 ## 3. Tham chiếu
 
-[`Database_Specification.md`](../UC/Database_Specification.md) §12.2 — constraint `chk_partner_debts_partner`.
+[`Database_Specification.md`](../UC/Database_Specification.md) §12.2 — constraint `chk_partner_debts_partner`.  
+**SRS (BE):** [`../../../backend/docs/srs/SRS_Task069-072_debts-api.md`](../../../backend/docs/srs/SRS_Task069-072_debts-api.md) — *Draft*; quyền **ghi** POST xem **OQ-2** trong SRS (schema V1 chưa có `created_by`).
 
 ---
 
@@ -28,7 +29,7 @@ Tạo bản ghi **`partner_debts`** (công nợ phải thu hoặc phải trả t
 | Thuộc tính | Giá trị |
 | :--------- | :------ |
 | **Authentication** | `Bearer` |
-| **RBAC** | Owner / Staff được phép ghi sổ nợ |
+| **RBAC** | **`mp.can_view_finance === true`** + rule **ghi** theo SRS **§4 OQ-2** (đồng bộ Task064 — có thể thêm cột `created_by` qua Flyway). Thiếu quyền xem tài chính → **403**. |
 
 ---
 
@@ -78,7 +79,7 @@ Server sinh **`debtCode`** (unique), ví dụ `NO-2026-{seq}`.
 
 ## 7. Database
 
-`INSERT INTO partner_debts (...)` — validate FK `customer_id` / `supplier_id` tồn tại → **400** nếu không.
+`INSERT INTO partnerdebts (...)` — validate FK `customer_id` / `supplier_id` tồn tại và khớp `partner_type` → **400** nếu không.
 
 ---
 

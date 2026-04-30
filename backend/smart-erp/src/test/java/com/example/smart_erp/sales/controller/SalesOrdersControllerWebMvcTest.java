@@ -33,6 +33,7 @@ import com.example.smart_erp.common.exception.MaxUploadSizeExceededAdvice;
 import com.example.smart_erp.config.MethodSecurityTestConfiguration;
 import com.example.smart_erp.config.PermitAllWebSecurityConfiguration;
 import com.example.smart_erp.config.SecurityBeansConfiguration;
+import com.example.smart_erp.sales.response.RetailVoucherPreviewData;
 import com.example.smart_erp.sales.response.SalesOrderCancelData;
 import com.example.smart_erp.sales.response.SalesOrderDetailData;
 import com.example.smart_erp.sales.response.SalesOrderLineDetailData;
@@ -125,6 +126,22 @@ class SalesOrdersControllerWebMvcTest {
 				.with(Objects.requireNonNull(jwt().authorities(new SimpleGrantedAuthority("can_manage_orders")))
 						.jwt(j -> j.subject("1"))))
 				.andExpect(status().isCreated());
+	}
+
+	@Test
+	void retailVoucherPreview_returns200() throws Exception {
+		var preview = new RetailVoucherPreviewData(true, null, 1, "DISCOUNT10", "Giảm 10%", "Percent", BigDecimal.TEN,
+				BigDecimal.valueOf(100), BigDecimal.ZERO, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.valueOf(90));
+		when(salesOrderService.retailVoucherPreview(any(), any())).thenReturn(preview);
+
+		String json = """
+				{"voucherCode":"DISCOUNT10","lines":[{"productId":5,"unitId":12,"quantity":1,"unitPrice":100}]}
+				""";
+		mockMvc.perform(post("/api/v1/sales-orders/retail/voucher-preview").contentType(APPLICATION_JSON).content(json)
+				.with(Objects.requireNonNull(jwt().authorities(new SimpleGrantedAuthority("can_manage_orders")))
+						.jwt(j -> j.subject("1"))))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.applicable").value(true))
+				.andExpect(jsonPath("$.data.voucherCode").value("DISCOUNT10"));
 	}
 
 	@Test

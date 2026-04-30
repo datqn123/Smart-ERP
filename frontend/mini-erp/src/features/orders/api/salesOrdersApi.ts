@@ -287,6 +287,37 @@ export function postRetailCheckout(body: RetailCheckoutRequestBody) {
   })
 }
 
+/** Task092 — `POST /api/v1/sales-orders/retail/voucher-preview` — `API_Task092_vouchers_and_retail_preview.md` §3 */
+export type RetailVoucherPreviewRequestBody = {
+  voucherId?: number | null
+  voucherCode?: string | null
+  lines: RetailCheckoutLineBody[]
+  discountAmount?: number
+}
+
+export type RetailVoucherPreviewDto = {
+  applicable: boolean
+  message: string | null
+  voucherId: number | null
+  voucherCode: string | null
+  voucherName: string | null
+  discountType: string
+  discountValue: number | string
+  subtotal: number | string
+  manualDiscountAmount: number | string
+  voucherDiscountAmount: number | string
+  totalDiscountAmount: number | string
+  payableAmount: number | string
+}
+
+export function postRetailVoucherPreview(body: RetailVoucherPreviewRequestBody) {
+  return apiJson<RetailVoucherPreviewDto>("/api/v1/sales-orders/retail/voucher-preview", {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify(body),
+  })
+}
+
 export function patchSalesOrder(id: number, body: SalesOrderPatchBody) {
   return apiJson<SalesOrderDetailDto>(`/api/v1/sales-orders/${id}`, {
     method: "PATCH",

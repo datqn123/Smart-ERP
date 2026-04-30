@@ -227,13 +227,14 @@ public class SalesOrderJdbcRepository {
 
 	public Optional<OrderLockRow> lockOrderForUpdate(int id) {
 		String sql = """
-				SELECT id, status, order_channel, total_amount, discount_amount, cancelled_at, cancelled_by
+				SELECT id, status, order_channel, total_amount, discount_amount, cancelled_at, cancelled_by, voucher_id
 				FROM salesorders WHERE id = :id FOR UPDATE
 				""";
 		List<OrderLockRow> rows = namedJdbc.query(sql, Map.of("id", id), (rs, rn) -> new OrderLockRow(rs.getInt("id"),
 				rs.getString("status"), rs.getString("order_channel"), rs.getBigDecimal("total_amount"),
 				rs.getBigDecimal("discount_amount"),
-				tsToInstant(rs.getTimestamp("cancelled_at")), (Integer) rs.getObject("cancelled_by")));
+				tsToInstant(rs.getTimestamp("cancelled_at")), (Integer) rs.getObject("cancelled_by"),
+				(Integer) rs.getObject("voucher_id")));
 		return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
 	}
 
@@ -296,7 +297,7 @@ public class SalesOrderJdbcRepository {
 	}
 
 	public record OrderLockRow(int id, String status, String orderChannel, BigDecimal totalAmount, BigDecimal discountAmount,
-			Instant cancelledAt, Integer cancelledBy) {
+			Instant cancelledAt, Integer cancelledBy, Integer voucherId) {
 	}
 
 	private static Instant toInstant(Timestamp ts) {

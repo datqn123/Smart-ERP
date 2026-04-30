@@ -2,6 +2,7 @@ package com.example.smart_erp.sales.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.Year;
 import java.time.ZoneId;
 import java.util.List;
@@ -23,6 +24,7 @@ import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.inventory.receipts.lifecycle.StockReceiptAccessPolicy;
 import com.example.smart_erp.sales.SalesOrderAccessPolicy;
 import com.example.smart_erp.sales.dto.RetailCheckoutRequest;
+import com.example.smart_erp.sales.dto.RetailVoucherPreviewRequest;
 import com.example.smart_erp.sales.dto.SalesOrderCreateRequest;
 import com.example.smart_erp.sales.dto.SalesOrderLineRequest;
 import com.example.smart_erp.sales.repository.PosProductJdbcRepository;
@@ -32,6 +34,7 @@ import com.example.smart_erp.sales.repository.VoucherJdbcRepository;
 import com.example.smart_erp.sales.repository.VoucherJdbcRepository.VoucherRow;
 import com.example.smart_erp.sales.stock.RetailStockService;
 import com.example.smart_erp.sales.response.PosProductSearchData;
+import com.example.smart_erp.sales.response.RetailVoucherPreviewData;
 import com.example.smart_erp.sales.response.SalesOrderCancelData;
 import com.example.smart_erp.sales.response.SalesOrderDetailData;
 import com.example.smart_erp.sales.response.SalesOrderListPageData;
@@ -199,8 +202,10 @@ public class SalesOrderService {
 		Integer voucherId = null;
 		BigDecimal voucherDiscount = BigDecimal.ZERO;
 		if (StringUtils.hasText(body.voucherCode())) {
-			VoucherRow v = voucherJdbcRepository.findActiveByCodeIgnoreCase(body.voucherCode().trim())
+			String trimmed = body.voucherCode().trim();
+			VoucherRow v = voucherJdbcRepository.lockVoucherByCodeForUpdate(trimmed)
 					.orElseThrow(() -> new BusinessException(ApiErrorCode.BAD_REQUEST, "Mã giảm giá không hợp lệ"));
+			assertRetailVoucherApplicableForCheckout(v);
 			voucherId = v.id();
 			voucherDiscount = computeVoucherDiscount(subtotal, v);
 		}
@@ -228,7 +233,81 @@ public class SalesOrderService {
 		}
 		String orderCode = salesOrderJdbcRepository.findOrderCode(id).orElseGet(() -> buildOrderCode(id));
 		retailStockService.deductStockForRetailCheckout(id, orderCode, uid, body.lines());
+		if (voucherId != null) {
+			voucherJdbcRepository.incrementUsedCount(voucherId);
+			voucherJdbcRepository.insertRedemption(voucherId, id);
+		}
 		return getById(id);
+	}
+
+	@Transactional(readOnly = true)
+	public RetailVoucherPreviewData retailVoucherPreview(RetailVoucherPreviewRequest body, Jwt jwt) {
+		StockReceiptAccessPolicy.parseUserId(jwt);
+		boolean hasId = body.voucherId() != null && body.voucherId() > 0;
+		boolean hasCode = StringUtils.hasText(body.voucherCode());
+		if (!hasId && !hasCode) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Cần voucherId hoặc voucherCode");
+		}
+		VoucherRow v;
+		if (hasId) {
+			v = voucherJdbcRepository.findVoucherById(body.voucherId())
+					.orElseThrow(() -> new BusinessException(ApiErrorCode.BAD_REQUEST, "Không tìm thấy mã giảm giá"));
+			if (hasCode && !v.code().equalsIgnoreCase(body.voucherCode().trim())) {
+				throw new BusinessException(ApiErrorCode.BAD_REQUEST, "voucherId và voucherCode không khớp");
+			}
+		}
+		else {
+			v = voucherJdbcRepository.findVoucherByCodeIgnoreCase(body.voucherCode().trim())
+					.orElseThrow(() -> new BusinessException(ApiErrorCode.BAD_REQUEST, "Không tìm thấy mã giảm giá"));
+		}
+		if (!isActiveInWindow(v)) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Mã giảm giá không hợp lệ hoặc đã hết hạn");
+		}
+		if (!hasRemainingUses(v)) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Mã giảm giá đã hết lượt sử dụng");
+		}
+		validateLines(body.lines());
+		BigDecimal subtotal = computeSubtotal(body.lines());
+		BigDecimal manualDiscount = body.discountAmount() != null ? body.discountAmount() : BigDecimal.ZERO;
+		if (manualDiscount.signum() < 0 || manualDiscount.compareTo(subtotal) > 0) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "discountAmount không hợp lệ");
+		}
+		BigDecimal voucherDiscount = computeVoucherDiscount(subtotal, v);
+		BigDecimal totalDiscount = manualDiscount.add(voucherDiscount);
+		if (totalDiscount.compareTo(subtotal) > 0) {
+			totalDiscount = subtotal;
+			voucherDiscount = subtotal.subtract(manualDiscount).max(BigDecimal.ZERO);
+		}
+		BigDecimal payable = subtotal.subtract(totalDiscount).max(BigDecimal.ZERO);
+		return new RetailVoucherPreviewData(true, null, v.id(), v.code(), v.name(), v.discountType(), v.discountValue(),
+				subtotal, manualDiscount, voucherDiscount, totalDiscount, payable);
+	}
+
+	private static void assertRetailVoucherApplicableForCheckout(VoucherRow v) {
+		if (!isActiveInWindow(v)) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Mã giảm giá không hợp lệ hoặc đã hết hạn");
+		}
+		if (!hasRemainingUses(v)) {
+			throw new BusinessException(ApiErrorCode.CONFLICT, "Mã giảm giá đã hết lượt sử dụng");
+		}
+	}
+
+	private static boolean isActiveInWindow(VoucherRow v) {
+		LocalDate today = LocalDate.now();
+		if (!v.isActive()) {
+			return false;
+		}
+		if (v.validFrom() != null && today.isBefore(v.validFrom())) {
+			return false;
+		}
+		if (v.validTo() != null && today.isAfter(v.validTo())) {
+			return false;
+		}
+		return true;
+	}
+
+	private static boolean hasRemainingUses(VoucherRow v) {
+		return v.maxUses() == null || v.usedCount() < v.maxUses();
 	}
 
 	private static BigDecimal computeVoucherDiscount(BigDecimal subtotal, VoucherRow v) {
@@ -348,6 +427,9 @@ public class SalesOrderService {
 				throw new BusinessException(ApiErrorCode.CONFLICT,
 						"Không thể hủy đơn — đã có phiếu xuất hoặc đã giao từ kho");
 			}
+		}
+		if ("Retail".equalsIgnoreCase(row.orderChannel()) && row.voucherId() != null) {
+			voucherJdbcRepository.reverseRedemptionForOrder(id);
 		}
 		salesOrderJdbcRepository.cancelOrder(id, uid);
 		SalesOrderDetailData d = getById(id);

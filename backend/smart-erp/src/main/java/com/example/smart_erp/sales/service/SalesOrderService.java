@@ -357,7 +357,11 @@ public class SalesOrderService {
 	@Transactional(readOnly = true)
 	public PosProductSearchData searchPosProducts(String search, Integer categoryId, Integer locationId, int limit) {
 		int lim = limit <= 0 ? 40 : Math.min(limit, 100);
-		return new PosProductSearchData(posProductJdbcRepository.search(search, categoryId, locationId, lim));
+		Integer effectiveLoc = locationId;
+		if (effectiveLoc == null) {
+			effectiveLoc = retailStockService.requireDefaultRetailLocationId();
+		}
+		return new PosProductSearchData(posProductJdbcRepository.search(search, categoryId, effectiveLoc, lim));
 	}
 
 	private void validateLines(List<SalesOrderLineRequest> lines) {

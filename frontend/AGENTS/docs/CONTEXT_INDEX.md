@@ -32,6 +32,7 @@
 3. **Tắt MCP / skill không dùng** cho task hiện tại.
 4. **Plan trước khi implement** (thay đổi lớn).
 5. **Không đọc full** `Database_Specification` / `schema.sql` nếu chỉ cần vài cột — grep hoặc offset/limit.
+6. **IMAD / latent agents (thực hành Cursor)**: tránh nhiều vòng subagent khi không cần; kết luận hoặc hướng sửa trước, chi tiết sau — chi tiết và ranh giới train-model xem [`.cursor/rules/project-common.mdc`](../../../.cursor/rules/project-common.mdc) mục *Tiết kiệm token — ánh xạ thực hành*.
 
 ---
 
@@ -48,6 +49,7 @@
 | [API_BRIDGE_PROMPTS_Task090_uc9-retail-checkout-stock-deduction.md](./API_BRIDGE_PROMPTS_Task090_uc9-retail-checkout-stock-deduction.md) | Bộ prompt Task090 — trừ tồn khi POS checkout + hoàn kho khi hủy Retail (bridge qua Task060 + Task058) — SRS [`backend/docs/srs/SRS_Task090_uc9-retail-checkout-stock-deduction.md`](../../../backend/docs/srs/SRS_Task090_uc9-retail-checkout-stock-deduction.md) |
 | [WORKFLOW_RULE.md](../WORKFLOW_RULE.md) | Gate BA → PM → … |
 | [PLANNER_AGENT_INSTRUCTIONS.md](../PLANNER_AGENT_INSTRUCTIONS.md) | Intake + Q&A + brief |
+| [arXiv:2604.24881](https://arxiv.org/abs/2604.24881) (*Latent Agents* / IMAD) + [latent_agents (code)](https://github.com/johnsk95/latent_agents) | Nghiên cứu / pipeline SFT+RL để nội suy debate trong một LLM, giảm token **suy luận** ở tầm model — **chỉ khi** bạn tự host hoặc fine-tune; không thay rule đọc tối thiểu ở trên |
 
 ---
 

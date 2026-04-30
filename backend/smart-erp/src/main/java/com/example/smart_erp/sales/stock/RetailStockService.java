@@ -29,8 +29,8 @@ public class RetailStockService {
 		this.repo = repo;
 	}
 
-	@Transactional
-	public long deductStockForRetailCheckout(int orderId, String orderCode, int userId, List<SalesOrderLineRequest> lines) {
+	@Transactional(readOnly = true)
+	public int requireDefaultRetailLocationId() {
 		int locationId = repo.findDefaultRetailLocationId()
 				.orElseThrow(() -> new BusinessException(ApiErrorCode.INTERNAL_SERVER_ERROR,
 						"Chưa cấu hình kho mặc định cho POS. Vui lòng cập nhật StoreProfiles."));
@@ -38,6 +38,12 @@ public class RetailStockService {
 			throw new BusinessException(ApiErrorCode.INTERNAL_SERVER_ERROR,
 					"Chưa cấu hình kho mặc định cho POS. Vui lòng cập nhật StoreProfiles.");
 		}
+		return locationId;
+	}
+
+	@Transactional
+	public long deductStockForRetailCheckout(int orderId, String orderCode, int userId, List<SalesOrderLineRequest> lines) {
+		int locationId = requireDefaultRetailLocationId();
 
 		Map<Integer, Integer> requiredBaseByProduct = computeRequiredBaseByProduct(lines);
 

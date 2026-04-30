@@ -21,3 +21,16 @@ alwaysApply: true
 - Agent nhỏ, tool hẹp, I/O có schema; rule nghiệp vụ ở `docs/` hoặc code — không nhồi dài vào prompt.
 - Điều phối: `frontend/AGENTS/AGENT_REGISTRY.md`, `frontend/AGENTS/FLOW_GUIDE.md`, `frontend/AGENTS/WORKFLOW_RULE.md`. Backend Spring: `backend/AGENTS/WORKFLOW_RULE.md`, `backend/AGENTS/AGENT_REGISTRY.md` (alias tương thích: `BACKEND_WORKFLOW_RULE.md`, `BACKEND_AGENT_REGISTRY.md`).
 - Đối chiếu / nối **một** API BE↔FE tối thiểu token: `API_BRIDGE` — **đọc trước** `frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md`, rồi `backend/AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md`; code FE chỉ dưới `frontend/mini-erp/src`; output `frontend/docs/api/bridge/BRIDGE_*.md`.
+
+## Tiết kiệm token — ánh xạ thực hành (arXiv:2604.24881, Latent Agents / IMAD)
+
+**Bối cảnh paper**: *Internalized Multi-Agent Debate* (IMAD) = **huấn luyện sau** mô hình: SFT trên **full** debate trace có tag cấu trúc, rồi RL (ví dụ GRPO) với **reward format giảm dần** + **độ dài cắt (length clipping) annealing** để đáp án đúng xuất hiện sớm và debate “vào” latent — giảm mạnh token so với debate nhiều agent tường minh. Đó là **tầng model**, không phải một tuỳ chọn bật trong Cursor.
+
+**Ánh xạ cho agent trong repo** (không cần train model):
+
+- **Ít “debate” phụ**: không lặp subagent / re-plan khi một lượt grep + đọc tối thiểu file đủ; Task tool (explore, v.v.) **có chủ đích**, tránh song song khi trùng mục tiêu.
+- **Kết luận / diff trước**, chi tiết sau; không nhân đôi dài dòng suy luận đã có trong tool output hay file đính kèm.
+- **Cấu trúc rồi rút gọn**: handoff ngắn (`frontend/AGENTS/docs/templates/tasks/TASK_SESSION_HANDOFF.md`) hoặc ghi file tóm tắt thay vì nhồi full transcript vào context.
+- **Hai pha**: vòng 1 khám phá gọn → vòng 2 chỉ patch + kiểm chứng; coi test / typecheck như tín hiệu đúng-sai (tương đương reward trong RL), không kéo dài văn bản suy luận thay cho kiểm chứng.
+
+**Nếu tự train / distillation theo hướng paper** (ngoài luồng Cursor mặc định): [arXiv:2604.24881](https://arxiv.org/abs/2604.24881), code tham khảo [github.com/johnsk95/latent_agents](https://github.com/johnsk95/latent_agents).

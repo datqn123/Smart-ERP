@@ -1,38 +1,83 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { usePageTitle } from "@/context/PageTitleContext"
 import type { SystemLog } from "../log-types"
 import { LogTable } from "../components/LogTable"
 import { LogToolbar } from "../components/LogToolbar"
-import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { toast } from "sonner"
+import { ApiRequestError } from "@/lib/api/http"
+import { getSystemLogsList } from "../api/systemLogsApi"
 
-const mockLogs: SystemLog[] = [
-  { id: 1, timestamp: "2024-03-20 10:30:15", user: "Nguyễn Văn A", action: "Create", module: "Products", description: "Tạo mới sản phẩm: iPhone 15 Pro Max", severity: "Info", ipAddress: "192.168.1.1" },
-  { id: 2, timestamp: "2024-03-20 10:35:20", user: "Admin", action: "Delete", module: "Security", description: "Xóa quyền truy cập của NV004", severity: "Warning", ipAddress: "192.168.1.2" },
-  { id: 3, timestamp: "2024-03-20 11:00:05", user: "Lê Văn C", action: "Update", module: "Inventory", description: "Cập nhật tồn kho tại A-01-02", severity: "Info", ipAddress: "192.168.1.3" },
-  { id: 4, timestamp: "2024-03-20 11:15:45", user: "System", action: "Error", module: "Database", description: "Lỗi kết nối database (Timeout)", severity: "Error", ipAddress: "127.0.0.1" },
-]
+function formatLogTimestamp(iso: string) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleString("vi-VN")
+}
 
 export function LogsPage() {
   const { setTitle } = usePageTitle()
   
-  const [logs, setLogs] = useState<SystemLog[]>(mockLogs)
+  const [logs, setLogs] = useState<SystemLog[]>([])
   const [search, setSearch] = useState("")
   const [moduleFilter, setModuleFilter] = useState("all")
   const [selectedIds, setSelectedIds] = useState<number[]>([])
-
-  const [deleteTarget, setDeleteTarget] = useState<SystemLog | null>(null)
-  const [isDeletingBulk, setIsDeletingBulk] = useState(false)
+  const [page, setPage] = useState(1)
+  const [limit] = useState(20)
+  const [total, setTotal] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     setTitle("Nhật ký hệ thống")
   }, [setTitle])
 
-  const filtered = logs.filter(l => {
-    if (moduleFilter !== "all" && l.module !== moduleFilter) return false
-    if (search && !l.description.toLowerCase().includes(search.toLowerCase()) && !l.user.toLowerCase().includes(search.toLowerCase())) return false
-    return true
-  })
+  useEffect(() => {
+    setPage(1)
+  }, [search, moduleFilter])
+
+  const effectiveModule = useMemo(() => (moduleFilter === "all" ? undefined : moduleFilter), [moduleFilter])
+
+  useEffect(() => {
+    let cancelled = false
+    async function run() {
+      try {
+        setIsLoading(true)
+        const data = await getSystemLogsList({
+          search: search.trim() || undefined,
+          module: effectiveModule,
+          page,
+          limit,
+        })
+        if (cancelled) return
+        const mapped: SystemLog[] = data.items.map((it) => ({
+          id: it.id,
+          timestamp: formatLogTimestamp(it.timestamp),
+          user: it.user,
+          action: it.action,
+          module: it.module,
+          description: it.description,
+          severity: it.severity === "Critical" ? "Error" : it.severity,
+          ipAddress: it.ipAddress ?? "",
+        }))
+        setLogs(mapped)
+        setTotal(data.total)
+        setSelectedIds([])
+      } catch (e) {
+        if (cancelled) return
+        if (e instanceof ApiRequestError) {
+          toast.error(e.body.message ?? "Không tải được nhật ký hệ thống.")
+        } else {
+          toast.error("Không tải được nhật ký hệ thống.")
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [effectiveModule, limit, page, search])
+
+  const filtered = logs
 
   const handleSelect = (id: number) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
@@ -43,27 +88,10 @@ export function LogsPage() {
   }
 
   const handleToolbarAction = (action: string) => {
-    if (action === "delete") setIsDeletingBulk(true)
-    else if (action === "export") toast.info("Đang xuất nhật ký hệ thống...")
+    if (action === "export") toast.info("Đang xuất nhật ký hệ thống...")
   }
 
   const handleView = (item: SystemLog) => toast.info(`Xem chi tiết log #${item.id}`)
-  const handleDelete = (item: SystemLog) => setDeleteTarget(item)
-
-  const confirmDelete = () => {
-    if (deleteTarget) {
-      setLogs(prev => prev.filter(l => l.id !== deleteTarget.id))
-      toast.success(`Đã xóa bản ghi nhật ký`)
-      setDeleteTarget(null)
-    }
-  }
-
-  const confirmBulkDelete = () => {
-    setLogs(prev => prev.filter(l => !selectedIds.includes(l.id)))
-    toast.success(`Đã xóa ${selectedIds.length} bản ghi nhật ký`)
-    setSelectedIds([])
-    setIsDeletingBulk(false)
-  }
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6 h-full flex flex-col">
@@ -82,31 +110,39 @@ export function LogsPage() {
           onAction={handleToolbarAction}
         />
         
-        <LogTable 
-          data={filtered}
-          selectedIds={selectedIds}
-          onSelect={handleSelect}
-          onSelectAll={handleSelectAll}
-          onView={handleView}
-          onDelete={handleDelete}
-        />
+        <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex items-center justify-between text-sm text-slate-500 py-2">
+            <div>
+              {isLoading ? "Đang tải..." : `Tổng ${total} bản ghi`}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="px-2 py-1 rounded border border-slate-200 disabled:opacity-50"
+                disabled={page <= 1 || isLoading}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Trang trước
+              </button>
+              <span>Trang {page}</span>
+              <button
+                className="px-2 py-1 rounded border border-slate-200 disabled:opacity-50"
+                disabled={isLoading || page * limit >= total}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Trang sau
+              </button>
+            </div>
+          </div>
+
+          <LogTable 
+            data={filtered}
+            selectedIds={selectedIds}
+            onSelect={handleSelect}
+            onSelectAll={handleSelectAll}
+            onView={handleView}
+          />
+        </div>
       </div>
-
-      <ConfirmDialog 
-        open={!!deleteTarget}
-        onOpenChange={(open) => !open && setDeleteTarget(null)}
-        onConfirm={confirmDelete}
-        title="Xác nhận xóa log"
-        description="Bạn có chắc muốn xóa bản ghi nhật ký này? Hành động này có thể ảnh hưởng đến việc hậu kiểm."
-      />
-
-      <ConfirmDialog 
-        open={isDeletingBulk}
-        onOpenChange={setIsDeletingBulk}
-        onConfirm={confirmBulkDelete}
-        title="Xác nhận xóa nhiều log"
-        description={`Bạn có chắc chắn muốn xóa ${selectedIds.length} bản ghi nhật ký đã chọn?`}
-      />
     </div>
   )
 }

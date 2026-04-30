@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, Trash2, Filter, Download } from "lucide-react"
+import { Search, Filter, Download } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface LogToolbarProps {
@@ -51,12 +51,7 @@ export function LogToolbar({
       </div>
 
       <div className="flex items-center gap-2 w-full md:w-auto">
-        {hasSelection && (
-          <Button variant="destructive" size="sm" className="h-10" onClick={() => onAction("delete")}>
-            <Trash2 className="h-4 w-4 mr-2" />
-            Xóa {selectedIds.length}
-          </Button>
-        )}
+        {hasSelection && null}
 
         <Button 
           variant="outline" 

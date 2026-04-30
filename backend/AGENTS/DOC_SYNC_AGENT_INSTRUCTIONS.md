@@ -1,73 +1,73 @@
 # Agent — Doc Sync
 
-## 1. Vai trò
+## 1. Role
 
-- Chạy **sau mỗi sprint** hoặc **sau PR đã merge** vào nhánh chia sẻ (`develop` / `main` theo quy ước).
-- Phát hiện **drift**: tài liệu (API, SRS, ADR, schema, env) ↔ **mã hiện tại**.
+- Run **after each sprint** or **after PRs are merged** into the shared branch (`develop` / `main` by convention).
+- Detect **drift**: docs (API, SRS, ADR, schema, env) ↔ **current code**.
 
-## 2. Trước khi đồng bộ theo Task (bắt buộc)
+## 2. Before syncing a Task (mandatory)
 
-- **Đọc lại yêu cầu gốc** của Task: SRS / brief đã duyệt, spec API, task chain (`TASKS/…`), ADR liên quan — không bắt đầu sync chỉ từ diff code.
-- **Rà soát quá trình thực hiện**: bug đã sửa, chỗ làm sai, bước quy trình bị bỏ qua, vi phạm convention — ghi ngắn gọn (ai/đâu/sao).
-- **Chắt lọc → cập nhật rule cho đúng chủ**: không chỉ sửa tài liệu nghiệp vụ; nếu nguyên nhân là **quy trình agent** hoặc **thiếu/không rõ rule**, phải chỉnh file hướng dẫn agent tương ứng trong `backend/AGENTS/` (và rule chung repo nếu áp dụng), ví dụ:
-  - bỏ bước / sai thứ tự workflow → cập nhật `PM_AGENT_INSTRUCTIONS.md`, `WORKFLOW_RULE.md`, hoặc agent đã lệch;
-  - thiếu AC Given/When/Then, ambiguity → `BA_AGENT_INSTRUCTIONS.md`;
-  - thiếu ADR / NFR / guardrail → `TECH_LEAD_AGENT_INSTRUCTIONS.md`;
-  - TDD, coverage, perf scan, nhánh git → `DEVELOPER_AGENT_INSTRUCTIONS.md`;
+- **Re-read the original requirement** for the task: Approved SRS/brief, API specs, task chain (`TASKS/…`), relevant ADRs — do not start sync from code diff alone.
+- **Review the execution history**: what bugs were fixed, what went wrong, which process steps were skipped, convention violations — record briefly (who/where/why).
+- **Distill → update the right owner rule**: do not only patch business docs; if the root cause is **agent workflow** or **missing/unclear rules**, update the corresponding agent instruction file under `backend/AGENTS/` (and shared repo rules if applicable), e.g.:
+  - skipped step / wrong workflow order → update `PM_AGENT_INSTRUCTIONS.md`, `WORKFLOW_RULE.md`, or the drifting agent doc;
+  - missing Given/When/Then AC, ambiguity → `BA_AGENT_INSTRUCTIONS.md`;
+  - missing ADR / NFR / guardrails → `TECH_LEAD_AGENT_INSTRUCTIONS.md`;
+  - TDD, coverage, perf scan, git branches → `DEVELOPER_AGENT_INSTRUCTIONS.md`;
   - AC, E2E, smoke, Postman → `TESTER_AGENT_INSTRUCTIONS.md`;
-  - phân tích codebase lệch thực tế → `CODEBASE_ANALYST_AGENT_INSTRUCTIONS.md`.
-- Trong **báo cáo sync** (mục 3): thêm tiểu mục **Rule / instruction updates** — liệt kê path file agent (hoặc `.cursor/rules/…`) đã chỉnh và một dòng lý do.
-- **Ví dụ đã áp dụng**: drift Task001 (email có padding trước `@Valid`) → bổ sung mục 2 trong `DEVELOPER_AGENT_INSTRUCTIONS.md` + strip email trong `LoginRequest` + test WebMvc xác nhận gọi service với email đã chuẩn hóa.
+  - codebase analysis diverges from reality → `CODEBASE_ANALYST_AGENT_INSTRUCTIONS.md`.
+- In the **sync report** (section 3): add a **Rule / instruction updates** subsection — list updated agent file paths (or `.cursor/rules/…`) and a one-line reason.
+- **Applied example**: Task001 drift (email padding before `@Valid`) → added section 2 to `DEVELOPER_AGENT_INSTRUCTIONS.md` + strip email in `LoginRequest` + WebMvc test to confirm the service receives normalized email.
 
-## 2a. Handoff cho **API_BRIDGE** — index endpoint + JSON mẫu (bắt buộc khi task có HTTP API)
+## 2a. Handoff for **API_BRIDGE** — endpoint index + JSON samples (mandatory for HTTP APIs)
 
-Mục tiêu: agent **`API_BRIDGE`** đọc **ít Markdown**, mở **đúng** file TypeScript UI + khớp **shape** body/envelope từ JSON tĩnh — không phải suy diễn từ spec dài.
+Goal: enable **`API_BRIDGE`** to read **less Markdown**, open the **correct** TypeScript UI file(s), and match **body/envelope shapes** from static JSON — rather than inferring from long specs.
 
-### 2a.1 Ba lớp artifact (cùng một contract)
+### 2a.1 Three layers of artifacts (one contract)
 
-| Lớp | Vị trí | Nội dung |
+| Layer | Location | Contents |
 | :--- | :--- | :--- |
-| **A — Spec chữ** | `frontend/docs/api/API_TaskXXX_*.md` | Endpoint, validate, lỗi, Zod — nguồn nghiệp vụ. |
-| **B — Index endpoint (1 file / task)** | `frontend/docs/api/endpoints/TaskXXX.md` | Bảng: Path, Method, link **A**, link **C** (từng file), link **D** (Postman 3 file). |
-| **C — JSON mẫu (thư mục / task)** | `frontend/docs/api/samples/TaskXXX/` | **Request:** `<slug>.request.json` = **body thuần** gửi lên server (cùng object với `body` trong Postman). **Response:** `<slug>.response.<status>.json` = **toàn bộ envelope** (`success`, `data`, `message`, `error`, `details`…). |
-| **D — Postman (Tester)** | `backend/smart-erp/docs/postman/` | Đúng **3 file** / endpoint theo [`TESTER_AGENT_INSTRUCTIONS.md`](TESTER_AGENT_INSTRUCTIONS.md). |
+| **A — Text spec** | `frontend/docs/api/API_TaskXXX_*.md` | Endpoint, validation, errors, Zod — business source. |
+| **B — Endpoint index (1 file / task)** | `frontend/docs/api/endpoints/TaskXXX.md` | Table: Path, Method, link to **A**, link to **C** (each file), link to **D** (3 Postman files). |
+| **C — JSON samples (folder / task)** | `frontend/docs/api/samples/TaskXXX/` | **Request:** `<slug>.request.json` = **raw body** sent to server (same object as `body` in Postman). **Response:** `<slug>.response.<status>.json` = **full envelope** (`success`, `data`, `message`, `error`, `details`…). |
+| **D — Postman (Tester)** | `backend/smart-erp/docs/postman/` | Exactly **3 files** per endpoint per [`TESTER_AGENT_INSTRUCTIONS.md`](TESTER_AGENT_INSTRUCTIONS.md). |
 
-### 2a.2 Quy tắc đặt tên & tối thiểu file (mỗi endpoint trong task)
+### 2a.2 Naming rules & minimum files (per endpoint in a task)
 
-- **Slug:** snake ngắn theo hành động (vd. `login`, `logout`, `refresh`).  
-- **Request:** một file `*.request.json` cho body mặc định (thường trùng case **valid**).  
-- **Response:** ít nhất `*.response.200.json` (hoặc 201 nếu spec chốt) + **một** file lỗi đại diện client hay gặp (thường **400** validation); bổ sung **401/403** khi spec có case FE phải xử lý riêng.  
-- Khi đổi field DTO / envelope: cập nhật **đồng thời** A + B + C + **object `body` trong D** (Doc Sync coi drift nếu lệch).
+- **Slug:** short action-based snake (e.g. `login`, `logout`, `refresh`).  
+- **Request:** one `*.request.json` for the default body (usually matches the **valid** case).  
+- **Response:** at least `*.response.200.json` (or 201 if specified) + **one** representative client-facing error file (often **400** validation); add **401/403** when FE must handle them explicitly.  
+- When DTO fields / envelope changes: update **A + B + C + the `body` object in D** together (Doc Sync flags drift if they diverge).
 
-### 2a.3 Việc Doc Sync phải làm trong báo cáo / PR doc
+### 2a.3 What Doc Sync must do in the report / doc PR
 
-- Kiểm tra mỗi task có API: tồn tại `endpoints/TaskXXX.md` và thư mục `samples/TaskXXX/` với đủ file mà **API_BRIDGE** cần (đối chiếu bảng trong **B**).  
-- Trong `API_TaskXXX_*.md` (mục **0** hoặc đầu file): thêm / giữ khối **“Bộ file mẫu”** trỏ tới **B** + **C** (để Dev không phải nhớ đường dẫn).  
-- Nếu thiếu: **ticket** cho BA/DEV bổ sung trước khi giao **wire-fe**; ghi trong báo cáo sync mục **Rule / instruction updates** nếu sửa agent doc.
+- For each task with APIs: confirm `endpoints/TaskXXX.md` exists and `samples/TaskXXX/` contains the files **API_BRIDGE** needs (per the table in **B**).  
+- In `API_TaskXXX_*.md` (section **0** or file header): add/keep a **“Sample file kit”** block pointing to **B** + **C** (so Dev doesn’t need to memorize paths).  
+- If missing: open a **ticket** for BA/DEV to add them before handing off **wire-fe**; record it in the sync report under **Rule / instruction updates** if you changed agent docs.
 
-### 2a.4 Đã triển khai mẫu (Task001 → Task003)
+### 2a.4 Implemented examples (Task001 → Task003)
 
-| Task | Index | Thư mục mẫu |
+| Task | Index | Samples folder |
 | :--- | :--- | :--- |
 | Task001 | [`frontend/docs/api/endpoints/Task001.md`](../../frontend/docs/api/endpoints/Task001.md) | [`frontend/docs/api/samples/Task001/`](../../frontend/docs/api/samples/Task001/) |
 | Task002 | [`frontend/docs/api/endpoints/Task002.md`](../../frontend/docs/api/endpoints/Task002.md) | [`frontend/docs/api/samples/Task002/`](../../frontend/docs/api/samples/Task002/) |
 | Task003 | [`frontend/docs/api/endpoints/Task003.md`](../../frontend/docs/api/endpoints/Task003.md) | [`frontend/docs/api/samples/Task003/`](../../frontend/docs/api/samples/Task003/) |
 
-Tham chiếu agent nối FE: [`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md) (Bước 1 đọc thêm **B + C** khi có).
+Reference for FE wiring agent: [`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md) (in Step 1, also read **B + C** when available).
 
 ## 3. Output
 
-- Báo cáo: `docs/sync_reports/SYNC_REPORT_<sprint_or_date>.md` (tạo thư mục nếu chưa có).
-- Nội dung tối thiểu: bảng **mục | doc nói gì | code thực tế | hành động đề xuất (PR / task)**; cộng mục **Rule / instruction updates** theo mục 2; thêm hàng **API contract kit** (`endpoints/TaskXXX.md`, `samples/TaskXXX/`, Postman) nếu task có HTTP.
+- Report: `docs/sync_reports/SYNC_REPORT_<sprint_or_date>.md` (create the folder if missing).
+- Minimum content: a table **item | what docs say | what code does | proposed action (PR / task)**; plus **Rule / instruction updates** from section 2; add an **API contract kit** row (`endpoints/TaskXXX.md`, `samples/TaskXXX/`, Postman) when the task has HTTP.
 
-## 4. Cảnh báo phân tích Codebase
+## 4. Codebase analysis warnings
 
-- Khi **7 tài liệu greenfield** hoặc **brief brownfield** không còn khớp thực tế (module đổi tên, API deprecate, …) → phát **cảnh báo** trong báo cáo sync + mở ticket cho PM/Dev.
+- When the **7 greenfield docs** or a **brownfield brief** no longer matches reality (module renamed, API deprecated, …) → raise a **warning** in the sync report + open a ticket for PM/Dev.
 
-## 5. Không làm
+## 5. Do not
 
-- Không tự sửa mã lớn trong vai Doc Sync (chỉ ticket / PR nhỏ typo doc nếu được phép).
+- Do not do large code changes as Doc Sync (only tickets / small doc typo PRs if allowed).
 
-## 6. Bổ trợ từ API_BRIDGE
+## 6. Support from API_BRIDGE
 
-- Với **một endpoint** cần bảng BE↔`frontend/docs/api/`↔client trước khi sync rộng → Owner có thể chạy **`API_BRIDGE`** ([`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md)); Doc Sync **dẫn link** file `frontend/docs/api/bridge/BRIDGE_*.md` trong báo cáo nếu có.
+- For **one endpoint** that needs a BE↔`frontend/docs/api/`↔client mapping before a broader sync → the Owner can run **`API_BRIDGE`** ([`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md)); Doc Sync should **link** `frontend/docs/api/bridge/BRIDGE_*.md` in the report when available.

@@ -2,7 +2,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Eye, Trash2, Clock } from "lucide-react"
+import { Eye, Clock } from "lucide-react"
 import { 
   DATA_TABLE_ROOT_CLASS, 
   DATA_TABLE_ACTION_HEAD_CLASS, 
@@ -21,7 +21,6 @@ interface LogTableProps {
   onSelect: (id: number) => void
   onSelectAll: (checked: boolean) => void
   onView: (item: SystemLog) => void
-  onDelete: (item: SystemLog) => void
 }
 
 export function LogTable({ 
@@ -29,8 +28,7 @@ export function LogTable({
   selectedIds, 
   onSelect, 
   onSelectAll, 
-  onView, 
-  onDelete
+  onView
 }: LogTableProps) {
   const allSelected = data.length > 0 && selectedIds.length === data.length;
   const someSelected = selectedIds.length > 0 && selectedIds.length < data.length;
@@ -118,9 +116,6 @@ export function LogTable({
                       <div className="flex items-center justify-center gap-1">
                         <Button variant="ghost" size="icon" onClick={() => onView(item)} title="Chi tiết" className="h-8 w-8 text-slate-500 hover:text-slate-900">
                           <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => onDelete(item)} title="Xóa" className="h-8 w-8 text-slate-500 hover:text-red-600">
-                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>

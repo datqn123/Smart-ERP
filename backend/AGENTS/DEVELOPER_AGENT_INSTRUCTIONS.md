@@ -1,77 +1,77 @@
 # Agent — Developer
 
-## 1. Vai trò
+## 1. Role
 
-- Triển khai **Feature** và **sửa lỗi** trên `backend/smart-erp/**` theo task PM và spec Approved.
-- Khi sửa theo phiên **BUG_INVESTIGATOR**: đọc `backend/docs/bugs/Bug_Task<NNN>.md`, thực hiện **phương án Owner đã chốt**, giữ TDD và gate §5 như mọi PR sửa lỗi.
+- Implement **features** and **bug fixes** under `backend/smart-erp/**` based on PM tasks and Approved specs.
+- When fixing based on a **BUG_INVESTIGATOR** session: read `backend/docs/bugs/Bug_Task<NNN>.md`, follow **the Owner-approved plan**, and keep strict TDD + gate §5 like any bugfix PR.
 
 ## 2. JPA + Flyway (`ddl-auto=validate`, Postgres)
 
-- Cột DB kiểu **`JSONB`** (vd. `Roles.permissions` trong V1): nếu map sang Java `String` / `Map`, entity **phải** dùng `@JdbcTypeCode(SqlTypes.JSON)` (Hibernate 6). Nếu chỉ `@Column` + `String` không khai báo kiểu → Hibernate coi là **VARCHAR** → `Schema-validation: wrong column type … found [jsonb] … expecting [varchar]`.
-- Sau khi thêm field entity cho cột đã có trong migration: chạy app profile **postgres** (hoặc `./mvnw.cmd verify`) để bắt lỗi validate sớm.
+- For **`JSONB`** columns (e.g. `Roles.permissions` in V1): if mapped to Java `String` / `Map`, the entity **must** use `@JdbcTypeCode(SqlTypes.JSON)` (Hibernate 6). If you only use `@Column` + `String` without a type, Hibernate treats it as **VARCHAR** → `Schema-validation: wrong column type … found [jsonb] … expecting [varchar]`.
+- After adding an entity field for an existing migration column: run the app with the **postgres** profile (or `./mvnw.cmd verify`) to catch validation issues early.
 
-## 3. Chuẩn hóa chuỗi từ HTTP (Doc Sync — ví dụ Task001)
+## 3. Normalizing strings from HTTP (Doc Sync — example Task001)
 
-- Với **định danh / text nghiệp vụ** (email, mã khách hàng, ô tìm kiếm, …): áp dụng **`String.strip()`** (hoặc quy ước tương đương) **trước** `@Valid` và **trước** so khớp DB, để khớp spec “server chuẩn hóa” và tránh 400 `@Email` oan do khoảng trắng đầu/cuối. Cách làm gọn: **compact constructor** của record DTO, `@JsonDeserialize` có `trim`, hoặc một lớp normalize tập trung — chọn một pattern nhất quán trong module.
-- Với **bí mật** (mật khẩu, refresh token thô, …): **không** strip mù quáng (có thể đổi nghĩa chuỗi người dùng cố ý). Chuỗi “chỉ khoảng trắng” / rỗng → dùng `@NotBlank` hoặc rule riêng trong spec, không coi strip password là mặc định.
+- For **business identifiers / text** (email, customer codes, search boxes, …): apply **`String.strip()`** (or equivalent) **before** `@Valid` and **before** DB lookups, to align with the “server normalizes” spec and avoid false 400s from `@Email` due to leading/trailing spaces. Practical patterns: record DTO **compact constructor**, `@JsonDeserialize` with trim, or a centralized normalize layer — pick one consistent pattern in the module.
+- For **secrets** (passwords, raw refresh tokens, …): do **not** blindly strip (it may change user-intended values). For “all whitespace” / empty strings, use `@NotBlank` or a spec-defined rule; do not treat “strip password” as a default.
 
-## 4. TDD nghiêm ngặt
+## 4. Strict TDD
 
-1. **Test trước** — viết / bổ sung test thất bại theo task **Unit** (red).  
-2. **Triển khai sau** — mã tối thiểu để xanh (green).  
-3. **Refactor** — khi đã xanh, giữ test xanh.
+1. **Test first** — write/extend failing tests per the **Unit** task (red).  
+2. **Implement second** — minimal code to go green.  
+3. **Refactor** — once green, keep tests green.
 
-## 5. Cổng trước Ready for review
+## 5. Gate before “Ready for review”
 
-- `./mvnw.cmd verify` (hoặc lệnh CI tương đương) **xanh**.
-- **JaCoCo ≥ 80%** lines (hoặc ngưỡng team đã bật) — không gộp PR nếu gate fail.
+- `./mvnw.cmd verify` (or CI-equivalent) must be **green**.
+- **JaCoCo ≥ 80%** lines (or the enabled team threshold) — do not merge if the gate fails.
 
-### 5.1 Handoff **API_BRIDGE** (khi task có REST cho mini-erp)
+### 5.1 **API_BRIDGE** handoff (when the task exposes REST for mini-erp)
 
-Nếu task có file **`frontend/docs/api/API_TaskXXX_*.md`** (endpoint gọi từ `mini-erp`) và SRS/API đã **Approved**:
+If the task has **`frontend/docs/api/API_TaskXXX_*.md`** (endpoint consumed by `mini-erp`) and the SRS/API is **Approved**:
 
-1. Trong **mô tả PR** (hoặc comment cuối ticket), dán khối prompt **HANDOFF_API_BRIDGE** từ [`WORKFLOW_RULE.md`](WORKFLOW_RULE.md) **§3.1** (phiên `Mode=verify` — tối thiểu).  
-2. Đánh dấu DoD: **API_BRIDGE verify** đã chạy / `BRIDGE_*.md` đã có link (Owner có thể chạy phiên agent sau merge).
+1. In the **PR description** (or final ticket comment), paste the **HANDOFF_API_BRIDGE** prompt block from [`WORKFLOW_RULE.md`](WORKFLOW_RULE.md) **§3.1** (a `Mode=verify` session — minimum).  
+2. Mark DoD: **API_BRIDGE verify** executed / `BRIDGE_*.md` link available (Owner can run the agent session after merge).
 
-Không gộp bước này vào `mvn verify` — đây là phiên Cursor/agent theo [`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md).
+Do not “fold” this step into `mvn verify` — it is a Cursor/agent session per [`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md).
 
-**SRS một file, nhiều endpoint** (vd. `SRS_Task014-020_stock-receipts-lifecycle.md` → API Task014…020): trong PR liệt kê **danh sách Path** cần verify và nhắc Owner chạy **API_BRIDGE** lần lượt (một Path một phiên — xem `WORKFLOW_RULE.md` **§0.3** và `API_BRIDGE_AGENT_INSTRUCTIONS.md` **§1.2**). Developer **không** coi việc đã đọc SRS khi code là đủ thay cho API_BRIDGE.
+**One SRS file, multiple endpoints** (e.g. `SRS_Task014-020_stock-receipts-lifecycle.md` → API Task014…020): in the PR list the **paths to verify** and remind the Owner to run **API_BRIDGE** sequentially (one path per session — see `WORKFLOW_RULE.md` **§0.3** and `API_BRIDGE_AGENT_INSTRUCTIONS.md` **§1.2**). Developers must **not** treat “I read the SRS while coding” as a substitute for API_BRIDGE.
 
-### 5.2 Phiếu nhập kho — `SRS_Task014-020_stock-receipts-lifecycle.md` (RBAC)
+### 5.2 Stock receipts — `SRS_Task014-020_stock-receipts-lifecycle.md` (RBAC)
 
-- **Đọc** (`GET` list Task013, `GET /stock-receipts/{id}` Task015): user có `can_manage_inventory` (controller) xem **mọi** phiếu — **không** lọc theo `staff_id` trong service đọc chi tiết.
-- **Sửa / gửi duyệt** (`PATCH` Task016, `POST …/submit` Task018): chỉ người tạo — so khớp `stockreceipts.staff_id` với `Integer.parseInt(jwt.getSubject())` (policy `assertReceiptCreator`).
-- **Xóa** (`DELETE` Task017 khi `Draft` hoặc `Pending`), **phê duyệt / từ chối** (Task019/020): chỉ JWT claim `role` = Owner (trim, không phân biệt hoa thường) — `StockReceiptAccessPolicy.assertOwnerOnly`; Task019/020 vẫn kiểm `can_approve` trước đó trong service như SRS §6.
+- **Read** (`GET` list Task013, `GET /stock-receipts/{id}` Task015): users with `can_manage_inventory` (controller) can see **all** receipts — do **not** filter by `staff_id` in the detail read service.
+- **Edit / submit for approval** (`PATCH` Task016, `POST …/submit` Task018): creator only — compare `stockreceipts.staff_id` with `Integer.parseInt(jwt.getSubject())` (policy `assertReceiptCreator`).
+- **Delete** (`DELETE` Task017 when `Draft` or `Pending`), **approve / reject** (Task019/020): JWT claim `role` = Owner only (trim, case-insensitive) — `StockReceiptAccessPolicy.assertOwnerOnly`; Task019/020 still checks `can_approve` earlier in the service per SRS §6.
 
-## 6. Quét hiệu năng sau khi test xanh (bắt buộc checklist ngắn)
+## 6. Performance scan after tests are green (mandatory short checklist)
 
-- **grep** / review: vòng lặp có **gọi DB bên trong** (N+1).  
-- Cột **WHERE / JOIN** mới: đã có **index** (hoặc ADR “chấp nhận không index” + lý do).  
-- Truy vấn **danh sách**: có **LIMIT** / phân trang (hoặc ADR).  
-- Sửa rẻ (một vài dòng, rõ ràng) → **làm ngay** trong PR.  
-- Cần **tái cấu trúc nhiều file** → ghi **tech debt** trong PR (mô tả + ticket follow-up), không nhét ngầm vào feature PR lớn không liên quan.
+- **grep** / review: loops that **call DB inside** (N+1).  
+- New **WHERE / JOIN** columns: ensure an **index** exists (or ADR “no index accepted” + reason).  
+- **List queries**: enforce **LIMIT** / pagination (or ADR).  
+- Cheap fixes (few clear lines) → **do it now** in the PR.  
+- If it needs **multi-file refactoring** → record **tech debt** in the PR (description + follow-up ticket); do not smuggle it into an unrelated large feature PR.
 
-### 6.1 Ưu tiên có đo được (mã dài hơn nếu nhanh hơn — đồng bộ SQL Agent)
+### 6.1 Prefer measurable wins (longer code is OK if faster — align with SQL Agent)
 
-- **Ưu tiên đường đi có chứng cứ:** trước khi giữ một biến thể “tối ưu”, nên có ít nhất một tín hiệu đo được (vd. `EXPLAIN` / thời gian truy vấn trên volume tương đương prod nhỏ, profiler JVM trên hot path, hoặc benchmark / test tải nhỏ có mục tiêu rõ) — bám tinh thần [`SQL_AGENT_INSTRUCTIONS.md`](SQL_AGENT_INSTRUCTIONS.md) (toàn vẹn trước tối ưu; tránh N+1; index có lý do).
-- **Chấp nhận mã dài hơn hoặc kém “gọn văn học”** nếu biến thể đó **đo được nhanh hơn** hoặc **tránh rõ ràng** chi phí nóng (vòng lặp + I/O, allocation trong request path, v.v.) so với bản rút gọn — không ưu tiên ngắn dòng thuần tuý khi đã có căn cứ.
-- **Trong mô tả PR:** thêm **một dòng** (vd. *“Perf: batch query thay N+1 — EXPLAIN trước/sau”* hoặc *“Chấp nhận duplicate logic nhỏ để giữ một round-trip DB”*) để reviewer/Tech Lead đối chiếu.
-- **Không** dùng mục này để bỏ qua đọc được, test, hoặc ràng buộc transaction / correctness.
+- **Prefer evidence-backed paths:** before keeping an “optimized” variant, have at least one measurable signal (e.g. `EXPLAIN` / query timings on a prod-ish small volume, JVM profiler on a hot path, or a small targeted load test) — aligned with [`SQL_AGENT_INSTRUCTIONS.md`](SQL_AGENT_INSTRUCTIONS.md) (integrity first; avoid N+1; indexes with reasons).
+- **Accept longer / less “literary” code** if it is **measurably faster** or **clearly avoids** hot costs (loops + I/O, allocations on the request path, etc.) compared to the shortened version — do not optimize for fewer lines when you have evidence.
+- **In the PR description:** add **one line** (e.g. *“Perf: batch query instead of N+1 — EXPLAIN before/after”* or *“Accept small duplicate logic to keep one DB round-trip”*) so reviewers/Tech Lead can validate the intent.
+- Do **not** use this section to skip readability, tests, or transaction/correctness constraints.
 
-## 7. Git & nhánh
+## 7. Git & branches
 
-- **Không** commit/push trực tiếp lên `main` hoặc `develop`.  
-- **Luôn** nhánh `feature/<slug>` tạo từ **`develop` mới nhất**.  
-- PR vào `develop` (hoặc quy trình team).
+- Do **not** commit/push directly to `main` or `develop`.  
+- Always create `feature/<slug>` from the **latest `develop`**.  
+- Open PRs into `develop` (or per team process).
 
-## 8. Không làm
+## 8. Do not
 
-- Không bỏ test để “xanh giả”.
-- Không commit secret (DB, JWT, key).
+- Do not skip tests to “fake green”.
+- Do not commit secrets (DB, JWT, keys).
 
-## 9. Context7 (MCP — tài liệu thư viện, giảm token / giảm API bịa)
+## 9. Context7 (MCP — library docs to reduce tokens / reduce hallucinated APIs)
 
-- **Khi nào:** cần xác nhận **API hoặc cấu hình** của framework / thư viện (Spring Boot, Spring Security OAuth2 Resource Server, Hibernate 6, Flyway, JUnit 5, Mockito, JDBC…) theo **phiên bản** BOM dự án — sau khi đã đọc **task / SRS / ADR / mã repo** tối thiểu; **không** dùng Context7 để “đoán” nghiệp vụ hay schema DB (Flyway + SRS là chuẩn).
-- **Cách gọi (prompt):** thêm `use context7` và **một** câu hỏi hẹp (một API / một property / một annotation). Nếu đã biết ID thư viện trên Context7: `use library /<id>` để bỏ bước match — giảm vòng MCP.
-- **Phiên bản:** ghi rõ trong prompt (vd. Spring Boot 3.x) để doc trả về khớp BOM `smart-erp`.
-- **Cài đặt:** theo [Context7](https://github.com/upstash/context7) / `npx ctx7 setup` — ngoài phạm vi file AGENTS này.
+- **When:** you need to confirm **API or configuration** of a framework/library (Spring Boot, Spring Security OAuth2 Resource Server, Hibernate 6, Flyway, JUnit 5, Mockito, JDBC…) for the project BOM **version** — after reading the minimal **task / SRS / ADR / repo code**; do **not** use Context7 to “guess” business rules or DB schema (Flyway + SRS are the truth).
+- **How (prompt):** add `use context7` and **one** narrow question (one API / one property / one annotation). If you already know the Context7 library ID: `use library /<id>` to skip matching — fewer MCP round-trips.
+- **Version:** state it in the prompt (e.g. Spring Boot 3.x) so returned docs match the `smart-erp` BOM.
+- **Setup:** see [Context7](https://github.com/upstash/context7) / `npx ctx7 setup` — outside the scope of this AGENTS file.

@@ -1,32 +1,32 @@
-# WORKFLOW_RULE — Chuỗi Agent (Spring Boot / `smart-erp`)
+# WORKFLOW_RULE — Agent chain (Spring Boot / `smart-erp`)
 
-> **Phiên bản**: 2.5  
-> **Nguồn chân lý**: file này + [`AGENT_REGISTRY.md`](AGENT_REGISTRY.md).
-
----
-
-## 0.0 Luồng ad-hoc: lỗi / defect (không thay chuỗi chính)
-
-Khi cần **RCA + phương án** trước khi sửa mã: **`BUG_INVESTIGATOR`** theo [`BUG_INVESTIGATOR_AGENT_INSTRUCTIONS.md`](BUG_INVESTIGATOR_AGENT_INSTRUCTIONS.md) → xuất `backend/docs/bugs/Bug_Task<NNN>.md` → Owner chốt phương án → **`DEVELOPER`** theo [`DEVELOPER_AGENT_INSTRUCTIONS.md`](DEVELOPER_AGENT_INSTRUCTIONS.md). Không chen `BUG_INVESTIGATOR` vào thứ tự bắt buộc `PM → … → Doc Sync` — đây là phiên song song / ngoài sprint khi có incident.
+> **Version**: 2.5  
+> **Source of truth**: this file + [`AGENT_REGISTRY.md`](AGENT_REGISTRY.md).
 
 ---
 
-## 0. Điểm vào thực thi (BA vs PM)
+## 0.0 Ad-hoc flow: bugs / defects (does not replace the main chain)
 
-| Điểm vào | Khi nào | Chuỗi thực thi |
+When you need **RCA + a proposed fix plan** before changing code: run **`BUG_INVESTIGATOR`** per [`BUG_INVESTIGATOR_AGENT_INSTRUCTIONS.md`](BUG_INVESTIGATOR_AGENT_INSTRUCTIONS.md) → produce `backend/docs/bugs/Bug_Task<NNN>.md` → Owner chooses a plan → then run **`DEVELOPER`** per [`DEVELOPER_AGENT_INSTRUCTIONS.md`](DEVELOPER_AGENT_INSTRUCTIONS.md). Do not insert `BUG_INVESTIGATOR` into the mandatory `PM → … → Doc Sync` chain — this is a parallel / out-of-sprint session for incidents.
+
+---
+
+## 0. Execution entry points (BA vs PM)
+
+| Entry point | When | Execution chain |
 | :--- | :--- | :--- |
-| **Chuẩn (greenfield spec)** | SRS / API còn **Draft** hoặc cần BA chỉnh trước khi code | `BA → PM → Tech Lead → …` (mục 0.1) |
-| **SRS đã Approved** | PO đã **Approved** SRS (và API liên quan nếu có); không cần vòng BA thêm cho gate đó | **`PM` khởi tạo** — coi **G-BA đã đạt** cho task đó; PM tạo chuỗi task trong `docs/taskXXX/01-pm/` rồi tiếp tục `PM → Tech Lead → …` (mục 0.1). BA chỉ quay lại nếu Owner mở lại spec (đổi Draft / CR). |
+| **Standard (greenfield spec)** | SRS / API is still **Draft**, or BA changes are needed before coding | `BA → PM → Tech Lead → …` (section 0.1) |
+| **SRS is Approved** | PO has **Approved** the SRS (and related API docs if any); no extra BA loop is needed for that gate | **`PM` starts** — treat **G-BA as passed** for that task; PM creates the task chain under `docs/taskXXX/01-pm/` then continues `PM → Tech Lead → …` (section 0.1). BA returns only if the Owner re-opens the spec (back to Draft / change request). |
 
-**Thứ tự bắt buộc sau điểm vào** (không nhảy bước trừ khi Owner ghi rõ ngoại lệ có ADR):
+**Mandatory order after the entry point** (do not skip steps unless the Owner explicitly documents an exception with an ADR):
 
 ```text
 PM → Tech Lead → Developer → Tester → Codebase Analyst → Doc Sync
 ```
 
-_(Khi bắt đầu từ chuẩn greenfield, thêm tiền tố **`BA →`** phía trước `PM`.)_
+_(When starting from the standard greenfield flow, prefix **`BA →`** before `PM`.)_
 
-### 0.1 Sơ đồ đầy đủ (có BA)
+### 0.1 Full diagram (with BA)
 
 ```text
 BA → PM → Tech Lead → Developer → Tester → Codebase Analyst → Doc Sync
@@ -42,7 +42,7 @@ flowchart LR
   CBA --> DS[Doc Sync]
 ```
 
-### 0.2 Sơ đồ khi SRS đã Approved (PM là bước đầu thực thi)
+### 0.2 Diagram when SRS is Approved (PM is the execution start)
 
 ```mermaid
 flowchart LR
@@ -53,19 +53,19 @@ flowchart LR
   CBA --> DS[Doc Sync]
 ```
 
-### 0.3 Chuỗi khi task BE có **REST cho mini-erp** (SRS / API đã Approved)
+### 0.3 Chain when a backend task has **REST for mini-erp** (SRS / API is Approved)
 
-Sau khi Developer **merge** mã BE và **`mvn verify` xanh** (G-DEV), nếu task có hợp đồng `frontend/docs/api/API_TaskXXX_*.md` (endpoint gọi từ `mini-erp`) thì **bắt buộc có bước API_BRIDGE** trước khi coi phần “nối dây FE” hoàn tất — **không** chen vào thứ tự Tester → …; API_BRIDGE chạy **song song hoặc ngay sau G-DEV**, trước `wire-fe` nên chạy `Mode=verify` một phiên.
+After the Developer **merges** backend code and **`mvn verify` is green** (G-DEV), if the task has a contract file `frontend/docs/api/API_TaskXXX_*.md` (endpoint consumed by `mini-erp`), then **the API_BRIDGE step is mandatory** before considering the “FE wiring” done — do **not** force it into the Tester → … order; API_BRIDGE runs **in parallel or right after G-DEV**. Before any `wire-fe`, run at least one `Mode=verify` session.
 
-**Vì sao triển khai BE từ SRS vẫn phải tách API_BRIDGE?** Vai **Developer** chỉ đối chiếu SRS + `API_Task*.md` khi code; **API_BRIDGE** (theo [`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md)) là phiên **riêng**: đọc `FE_API_CONNECTION_GUIDE.md`, grep Path BE/FE, xuất/cập nhật `frontend/docs/api/bridge/BRIDGE_*.md` — **không** thay thế bằng “chỉ đọc SRS” hay chỉ `mvn verify`. Bỏ qua bước này = thiếu **G-BRIDGE** / DoD handoff §3.1.
+**Why is API_BRIDGE still required if BE was implemented from the SRS?** The **Developer** role only cross-checks SRS + `API_Task*.md` while coding; **API_BRIDGE** (per [`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md)) is a **separate** session: read `FE_API_CONNECTION_GUIDE.md`, grep the path in BE/FE, and create/update `frontend/docs/api/bridge/BRIDGE_*.md` — this is **not** replaced by “just reading the SRS” or only running `mvn verify`. Skipping it means missing **G-BRIDGE** / DoD handoff in §3.1.
 
-**SRS gom nhiều endpoint (một file SRS → nhiều `API_TaskYYY_*.md`)** — ví dụ `backend/docs/srs/SRS_Task014-020_stock-receipts-lifecycle.md` ánh xạ Task014…Task020:
+**SRS grouping multiple endpoints (one SRS file → multiple `API_TaskYYY_*.md`)** — e.g. `backend/docs/srs/SRS_Task014-020_stock-receipts-lifecycle.md` maps to Task014…Task020:
 
-| Việc | Ai / Khi |
+| Work item | Who / When |
 | :--- | :--- |
-| Code BE theo SRS + API doc | **Developer** (G-DEV) |
-| Đối chiếu từng Path ↔ BE ↔ (FE nếu có) + `BRIDGE_TaskYYY_*.md` | **API_BRIDGE** `Mode=verify` — **sau G-DEV**, **mỗi Path một phiên** (khuyến nghị) hoặc theo lô Path do **PM** liệt kê trong ticket (một bảng BRIDGE vẫn phải đủ cột theo mục 5 file API_BRIDGE). |
-| Nối `mini-erp` | **API_BRIDGE** `Mode=wire-fe` khi Owner/PM yêu cầu |
+| Implement BE per SRS + API docs | **Developer** (G-DEV) |
+| Validate each path ↔ BE ↔ (FE if any) + `BRIDGE_TaskYYY_*.md` | **API_BRIDGE** `Mode=verify` — **after G-DEV**, **one session per path** (recommended) or a batch of paths listed by **PM** in the ticket (the BRIDGE table must still include all required columns per section 5 in `API_BRIDGE`). |
+| Wire `mini-erp` | **API_BRIDGE** `Mode=wire-fe` when requested by Owner/PM |
 
 ```mermaid
 flowchart LR
@@ -77,121 +77,121 @@ flowchart LR
   CBA --> DS[Doc Sync]
 ```
 
-- **Nếu task không** có REST cho UI (batch nội bộ, migration-only, …) → **bỏ** nhánh `API_BRIDGE`.  
-- **Chi tiết prompt & checklist** → **§3.1** (copy-paste điều phối — đây là “tự động hoá” theo nghĩa **chuẩn hoá handoff**, không cần công cụ riêng).  
-- **SRS Task014–020 (stock-receipts):** sau khi controller đủ Path Task014–020, Owner dán lần lượt các khối **§3.1** (hoặc mục **7.1** trong `API_BRIDGE_AGENT_INSTRUCTIONS.md`) với `Task=Task014`…`Task020` và đúng `Path=` — không gộp một prompt “làm hết SRS” thay cho API_BRIDGE.
-- **SRS Task021–028 (inventory-audit-sessions):** PO đã trả lời OQ (Draft vẫn triển khai theo chỉ đạo Owner). Flyway **V12** (status mở rộng, `deleted_at`, `owner_notes`, `inventory_audit_session_events`). BE: Task021–028 + GAP **DELETE** soft (029), **POST …/approve** (030), **POST …/reject** (031); sau **G-DEV** (`mvn verify` xanh) → API_BRIDGE từng Path có `API_Task021`…
+- **If the task does not** expose REST for the UI (internal batch job, migration-only, …) → **skip** the `API_BRIDGE` branch.  
+- **Prompt & checklist details** → **§3.1** (copy/paste orchestration — “automation” here means **standardized handoff**, no special tooling needed).  
+- **SRS Task014–020 (stock-receipts):** once the controller covers paths Task014–020, the Owner pastes the **§3.1** blocks (or **7.1** in `API_BRIDGE_AGENT_INSTRUCTIONS.md`) sequentially with `Task=Task014`…`Task020` and the correct `Path=` — do not replace API_BRIDGE with a single “do the whole SRS” prompt.
+- **SRS Task021–028 (inventory-audit-sessions):** PO answered OQs (Draft may still be implemented per Owner direction). Flyway **V12** (extended status, `deleted_at`, `owner_notes`, `inventory_audit_session_events`). BE: Task021–028 + GAP **soft DELETE** (029), **POST …/approve** (030), **POST …/reject** (031); after **G-DEV** (`mvn verify` green) → API_BRIDGE per path that has `API_Task021`…
 
 ---
 
-## 1. Nguyên tắc chung
+## 1. General principles
 
-| # | Quy tắc |
+| # | Rule |
 | :---: | :--- |
-| 1 | Mỗi agent chỉ làm **đúng vai** và **output** đã định nghĩa trong file hướng dẫn tương ứng. |
-| 2 | **Không phát minh yêu cầu** không có trong brief / SRS / task đã duyệt. |
-| 3 | Mọi thay đổi hợp đồng đa tầng (API, schema, ADR) phải **đồng bộ** trước merge — Doc Sync báo drift. |
-| 4 | Nhánh git: **PM** cam kết task lên `develop` trước khi Dev bắt đầu; Dev **không** commit trực tiếp `main` / `develop` — luôn nhánh feature từ `develop`. |
+| 1 | Each agent must do **only its role** and produce the **defined outputs** in its instruction file. |
+| 2 | **Do not invent requirements** that are not in the brief / SRS / approved task. |
+| 3 | Any cross-layer contract change (API, schema, ADR) must be **synced** before merge — Doc Sync reports drift. |
+| 4 | Git branches: **PM** must land the task chain on `develop` before Dev starts; Dev must **not** commit directly to `main` / `develop` — always work on a feature branch from `develop`. |
 
-### 1.1 Context7 (MCP — tài liệu thư viện ngoài repo)
+### 1.1 Context7 (MCP — external library docs)
 
-- Bổ sung **doc framework / thư viện** khi artifact dự án (SRS, Flyway, ADR, code) **không đủ** để tránh API cũ hoặc bịa — **sau** khi đã định vị bằng grep/read tối thiểu trong repo.
-- **Không** thay chân lý nghiệp vụ hay schema; **không** lạm dụng cho mọi prompt. Chi tiết theo vai: `DEVELOPER_AGENT_INSTRUCTIONS.md` §9, `TECH_LEAD_AGENT_INSTRUCTIONS.md` §6, `TESTER_AGENT_INSTRUCTIONS.md` §3, `SQL_AGENT_INSTRUCTIONS.md` §4, `API_BRIDGE_AGENT_INSTRUCTIONS.md` (mục 2 — sau Bước 0).
+- Pull **framework/library docs** when project artifacts (SRS, Flyway, ADR, code) are **insufficient** to avoid outdated APIs or hallucination — **after** you have already located relevant code via minimal grep/read in the repo.
+- Do **not** replace business truth or the schema; do **not** overuse it in every prompt. Role-specific details: `DEVELOPER_AGENT_INSTRUCTIONS.md` §9, `TECH_LEAD_AGENT_INSTRUCTIONS.md` §6, `TESTER_AGENT_INSTRUCTIONS.md` §3, `SQL_AGENT_INSTRUCTIONS.md` §4, `API_BRIDGE_AGENT_INSTRUCTIONS.md` (section 2 — after Step 0).
 
 ---
 
-## 2. Gate tối thiểu (tóm tắt)
+## 2. Minimum gates (summary)
 
-| Gate | Sau agent | Điều kiện chuyển bước |
+| Gate | After agent | Condition to move forward |
 | :--- | :--- | :--- |
-| G-BA | BA | SRS **Draft** theo [`BA_AGENT_INSTRUCTIONS.md`](BA_AGENT_INSTRUCTIONS.md): bóc tách nghiệp vụ, **Open Questions (PO)** có ID, **scope tệp**, **luồng actor** (mermaid khi cần), **JSON request/response mẫu đầy đủ**, Given/When/Then. PO đổi trạng thái → **Approved** + sign-off template. **Đụng DB**: mục **Dữ liệu & SQL tham chiếu** đồng soạn **Agent SQL** (`SQL_AGENT_INSTRUCTIONS.md`). **SRS đã Approved trước khi mở task:** coi G-BA **đạt**; **PM** bắt đầu theo §0. |
-| G-PM | PM | Chuỗi task (Unit + Feature + E2E) + ID + phụ thuộc đã **merge vào `develop`** (theo `PM_AGENT_INSTRUCTIONS.md`). |
-| G-TL | Tech Lead | ADR (có mục NFR bắt buộc 5 mục) + rào chắn mã / review yêu cầu. |
-| G-DEV | Developer | TDD; `mvn verify` xanh; JaCoCo **≥ 80%** (cổng coverage) trước Ready for review. **Có REST cho mini-erp** → checklist **handoff API_BRIDGE** trong `DEVELOPER_AGENT_INSTRUCTIONS.md` §5.1. |
-| G-BRIDGE | API_BRIDGE | **Chỉ khi** task có `frontend/docs/api/API_TaskXXX_*.md` + Path `/api/v1/...` cho UI. Sau G-DEV: tối thiểu `Mode=verify` + file `frontend/docs/api/bridge/BRIDGE_*.md`; `wire-fe` theo quyết định PM/Owner. Tuân [`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md) + mục **§3.1** (handoff prompt). |
-| G-TST | Tester | AC đạt; **manual unit test** + smoke (theo `TESTER_AGENT_INSTRUCTIONS.md`); Postman / `MANUAL_UNIT_TEST_*.md`. Auto test chỉ khi ADR/Owner yêu cầu. |
-| G-CBA | Codebase Analyst | Bản brownfield 10 bước (greenfield → 7 tài liệu) bàn giao cho Doc Sync. |
-| G-DS | Doc Sync | Báo cáo drift sau sprint/PR merge; cảnh báo khi tài liệu phân tích lệch code. |
+| G-BA | BA | SRS **Draft** per [`BA_AGENT_INSTRUCTIONS.md`](BA_AGENT_INSTRUCTIONS.md): business breakdown, **Open Questions (PO)** with IDs, **file scope**, **actor flows** (mermaid when needed), **full sample JSON request/response**, Given/When/Then. PO changes status → **Approved** + template sign-off. **Touches DB**: the **Data & reference SQL** section is co-authored with **SQL Agent** (`SQL_AGENT_INSTRUCTIONS.md`). **If SRS was already Approved before opening the task:** treat G-BA as **passed**; **PM** starts per §0. |
+| G-PM | PM | Task chain (Unit + Feature + E2E) + IDs + dependencies is **merged into `develop`** (per `PM_AGENT_INSTRUCTIONS.md`). |
+| G-TL | Tech Lead | ADR (includes mandatory 5-item NFR section) + coding guardrails / requirement review. |
+| G-DEV | Developer | Strict TDD; `mvn verify` green; JaCoCo **≥ 80%** (coverage gate) before Ready for review. **REST for mini-erp** → follow **API_BRIDGE handoff** checklist in `DEVELOPER_AGENT_INSTRUCTIONS.md` §5.1. |
+| G-BRIDGE | API_BRIDGE | **Only when** the task has `frontend/docs/api/API_TaskXXX_*.md` + UI path under `/api/v1/...`. After G-DEV: at minimum `Mode=verify` + `frontend/docs/api/bridge/BRIDGE_*.md`; `wire-fe` per PM/Owner decision. Follow [`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md) + **§3.1** (handoff prompt). |
+| G-TST | Tester | AC satisfied; **manual unit test** + smoke (per `TESTER_AGENT_INSTRUCTIONS.md`); Postman / `MANUAL_UNIT_TEST_*.md`. Automation only if ADR/Owner requires it. |
+| G-CBA | Codebase Analyst | 10-step brownfield brief (greenfield → 7 documents) handed off to Doc Sync. |
+| G-DS | Doc Sync | Drift report after sprint/PR merges; warns when analysis docs diverge from code. |
 
 ---
 
-## 3. Gọi nhanh trong Cursor
+## 3. Quick calls in Cursor
 
 ```text
-WORKFLOW_RULE: BA → … — đọc @backend/AGENTS/WORKFLOW_RULE.md @backend/AGENTS/AGENT_REGISTRY.md
+WORKFLOW_RULE: BA → … — read @backend/AGENTS/WORKFLOW_RULE.md @backend/AGENTS/AGENT_REGISTRY.md
 ```
 
 ```text
-WORKFLOW_RULE: SRS đã Approved — bắt đầu PM → … — đọc @backend/AGENTS/WORKFLOW_RULE.md §0
+WORKFLOW_RULE: SRS is Approved — start PM → … — read @backend/AGENTS/WORKFLOW_RULE.md §0
 ```
 
 ```text
-Vai trò: BA. Đọc @backend/AGENTS/BA_AGENT_INSTRUCTIONS.md …
+Role: BA. Read @backend/AGENTS/BA_AGENT_INSTRUCTIONS.md …
 ```
 
 ```text
-Vai trò: PM. Đọc @backend/AGENTS/PM_AGENT_INSTRUCTIONS.md … (SRS Approved — §0.2)
+Role: PM. Read @backend/AGENTS/PM_AGENT_INSTRUCTIONS.md … (SRS Approved — §0.2)
 ```
 
-_(Thay `BA` bằng `PM` | `TECH_LEAD` | `DEVELOPER` | `TESTER` | `CODEBASE_ANALYST` | `DOC_SYNC`.)_
+_(Replace `BA` with `PM` | `TECH_LEAD` | `DEVELOPER` | `TESTER` | `CODEBASE_ANALYST` | `DOC_SYNC`.)_
 
-**Agent SQL** (`SQL`): dùng **cùng giai đoạn BA** khi SRS cần truy vấn / migration ý tưởng — không nằm sau Tester trong chuỗi tuyến tính; xem `SQL_AGENT_INSTRUCTIONS.md`.
+**SQL Agent** (`SQL`): use it **during the BA phase** when the SRS needs queries / migration ideas — it is not after Tester in the linear chain; see `SQL_AGENT_INSTRUCTIONS.md`.
 
 ```text
-Vai trò: API_BRIDGE. Đọc @backend/AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md — Task=<TaskXXX> Path=<...> Mode=verify
+Role: API_BRIDGE. Read @backend/AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md — Task=<TaskXXX> Path=<...> Mode=verify
 ```
 
 ```text
-WORKFLOW_RULE: Handoff API_BRIDGE sau G-DEV (BE có REST mini-erp) — đọc @backend/AGENTS/WORKFLOW_RULE.md §0.3 §3.1
+WORKFLOW_RULE: Handoff to API_BRIDGE after G-DEV (BE has REST for mini-erp) — read @backend/AGENTS/WORKFLOW_RULE.md §0.3 §3.1
 ```
 
-**API_BRIDGE** ([`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md)): **bắt buộc có điều kiện** sau G-DEV khi task có REST cho mini-erp (**§0.3**, gate **G-BRIDGE**); các trường hợp khác vẫn có thể triệu hồi **ad-hoc**. **Bắt buộc** đọc trước [`frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md`](../../frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md), sau đó chỉnh `frontend/mini-erp/src/**` theo `Mode=wire-fe` hoặc xuất `frontend/docs/api/bridge/BRIDGE_*.md`.
+**API_BRIDGE** ([`API_BRIDGE_AGENT_INSTRUCTIONS.md`](API_BRIDGE_AGENT_INSTRUCTIONS.md)): conditionally **mandatory** after G-DEV when the task has REST for mini-erp (**§0.3**, gate **G-BRIDGE**); other situations can still trigger it **ad-hoc**. You **must** read [`frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md`](../../frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md) first, then change `frontend/mini-erp/src/**` under `Mode=wire-fe` or output `frontend/docs/api/bridge/BRIDGE_*.md`.
 
-### 3.1 Handoff chuẩn BE → **API_BRIDGE** (copy vào chat / PR / ticket)
+### 3.1 Standard handoff BE → **API_BRIDGE** (copy into chat / PR / ticket)
 
-**Điều kiện:** SRS (và `API_TaskXXX_*` liên quan) **Approved**; BE đã có controller + path đúng spec; ít nhất một file `frontend/docs/api/API_TaskXXX_*.md` mô tả `Path`.
+**Prerequisites:** the SRS (and relevant `API_TaskXXX_*`) is **Approved**; BE has controller + path matching spec; at least one `frontend/docs/api/API_TaskXXX_*.md` file describes the `Path`.
 
-**Thứ tự khuyến nghị:** phiên 1 **`verify`** → phiên 2 **`wire-fe`** (nếu Owner yêu cầu nối UI trong cùng sprint).
+**Recommended order:** session 1 **`verify`** → session 2 **`wire-fe`** (if the Owner requests UI wiring in the same sprint).
 
-**Khối lệnh — phiên verify (sau `mvn verify` xanh):**
+**Command block — verify session (after `mvn verify` is green):**
 
 ```text
-HANDOFF_API_BRIDGE | Post=G-DEV | Task=<TaskXXX> | Path=<METHOD> <path đầy đủ ví dụ GET /api/v1/...>
+HANDOFF_API_BRIDGE | Post=G-DEV | Task=<TaskXXX> | Path=<METHOD> <full path e.g. GET /api/v1/...>
 
-Vai trò: API_BRIDGE. Tuân @backend/AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md.
+Role: API_BRIDGE. Follow @backend/AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md.
 
 API_BRIDGE | Task=<TaskXXX> | Path=<METHOD> <path> | Mode=verify
 
-Đọc: @frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md → @frontend/docs/api/API_TaskXXX_<slug>.md (chỉ mục endpoint Path) → grep Path trong @backend/smart-erp/src/main/java → grep Path trong @frontend/mini-erp/src.
+Read: @frontend/AGENTS/docs/FE_API_CONNECTION_GUIDE.md → @frontend/docs/api/API_TaskXXX_<slug>.md (endpoint index for Path) → grep Path in @backend/smart-erp/src/main/java → grep Path in @frontend/mini-erp/src.
 
-Output: tạo hoặc cập nhật @frontend/docs/api/bridge/BRIDGE_TaskXXX_<slug>.md đúng mục 5 API_BRIDGE.
+Output: create or update @frontend/docs/api/bridge/BRIDGE_TaskXXX_<slug>.md per API_BRIDGE section 5.
 ```
 
-**Khối lệnh — phiên wire-fe (sau verify hoặc cùng sprint):**
+**Command block — wire-fe session (after verify or within the same sprint):**
 
 ```text
 HANDOFF_API_BRIDGE | Post=G-DEV | Task=<TaskXXX> | Path=<METHOD> <path> | Wire=fe
 
-Vai trò: API_BRIDGE. Tuân @backend/AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md.
+Role: API_BRIDGE. Follow @backend/AGENTS/API_BRIDGE_AGENT_INSTRUCTIONS.md.
 
 API_BRIDGE | Task=<TaskXXX> | Path=<METHOD> <path> | Mode=wire-fe
 
-Context UI: <route hoặc màn — tra @frontend/mini-erp/src/features/FEATURES_UI_INDEX.md>.
+UI context: <route or screen — see @frontend/mini-erp/src/features/FEATURES_UI_INDEX.md>.
 
-Output: @frontend/docs/api/bridge/BRIDGE_TaskXXX_<slug>.md + code dưới frontend/mini-erp/src/**.
+Output: @frontend/docs/api/bridge/BRIDGE_TaskXXX_<slug>.md + code under frontend/mini-erp/src/**.
 ```
 
-**“Tự động hoá” thực tế trong Cursor (chọn một hoặc kết hợp):**
+**Practical “automation” in Cursor (pick one or combine):**
 
-| Cách | Việc làm |
+| Option | What to do |
 | :--- | :--- |
-| **A. Mẫu PR** | PM/Dev dán khối **§3.1 verify** vào mô tả PR BE khi task có API doc → reviewer/Owner mở chat mới, paste, chạy agent. |
-| **B. Rule Cursor** | Rule dự án: khi branch `feature/*-taskXXX` và có thay đổi dưới `backend/smart-erp/.../controller` → nhắc checklist §5.1 Developer + dòng `HANDOFF_API_BRIDGE`. |
-| **C. Ticket / DoD** | Definition of Done task BE: ô “API_BRIDGE verify (Y/N)” + link `BRIDGE_*.md`. |
-| **D. Hai agent liên tiếp** | Chat 1: Developer đóng G-DEV → Owner paste verify → Chat 2 (tuỳ chọn): wire-fe — tách token, đúng “một phiên = một Path”. |
+| **A. PR template** | PM/Dev pastes **§3.1 verify** into the backend PR description when the task has API docs → reviewer/Owner opens a new chat, pastes it, runs the agent. |
+| **B. Cursor rule** | Project rule: when branch `feature/*-taskXXX` and there are changes under `backend/smart-erp/.../controller` → remind Developer checklist §5.1 + the `HANDOFF_API_BRIDGE` line. |
+| **C. Ticket / DoD** | Backend task DoD: checkbox “API_BRIDGE verify (Y/N)” + link to `BRIDGE_*.md`. |
+| **D. Two consecutive agent sessions** | Chat 1: Developer closes G-DEV → Owner pastes verify → Chat 2 (optional): wire-fe — lower token usage, aligns with “one session = one path”. |
 
 ---
 
-## 4. Liên kết frontend
+## 4. Frontend linkage
 
-Luồng UI / product tổng thể repo: `frontend/AGENTS/WORKFLOW_RULE.md`. Nhánh **Spring Boot** dùng **file này** làm chuẩn.
+For overall UI / product flow in the repo: `frontend/AGENTS/WORKFLOW_RULE.md`. The **Spring Boot** stream uses **this file** as the source of truth.

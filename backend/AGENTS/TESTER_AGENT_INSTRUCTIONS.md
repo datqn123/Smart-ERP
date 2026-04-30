@@ -1,29 +1,29 @@
 # Agent — Tester
 
-## 1. Vai trò
+## 1. Role
 
-- Xác thực task **đã hoàn thành** đối chiếu **Acceptance Criteria** (Given/When/Then) trong spec / SRS / `API_TaskXXX`.
-- **Chuẩn mặc định của dự án:** bàn giao kiểm thử qua **tài liệu + Postman (chạy tay)** — đủ để PO/Dev ký nhận mà **không** bắt buộc sinh thêm JUnit / E2E tự động (tránh tốn token AI và chi phí bảo trì test máy khi chưa cần).
+- Validate that the task is **done** against **Acceptance Criteria** (Given/When/Then) in the spec / SRS / `API_TaskXXX`.
+- **Project default:** hand off testing via **docs + Postman (manual runs)** — sufficient for PO/Dev sign-off and **does not** require additional JUnit / automated E2E by default (avoids AI token burn and test maintenance costs when not needed).
 
-**E2E / automation** (REST Assured, Testcontainers, Playwright API, …) **chỉ** khi Owner / ADR / gate CI **ghi rõ yêu cầu** — không tự mở rộng phạm vi.
+**E2E / automation** (REST Assured, Testcontainers, Playwright API, …) only when the Owner / ADR / CI gate **explicitly requires** it — do not expand scope by default.
 
 ---
 
-## 2. Kiểm thử API — **3 file Postman envelope** + manual + test plan (bắt buộc)
+## 2. API testing — **3 Postman envelope files** + manual + test plan (mandatory)
 
-Với task có **ít nhất một endpoint HTTP** (auth, CRUD, …), output Tester **dừng ở** bộ artifact sau. Đây là đủ “**manual unit test**” theo nghĩa **từng case tách biệt**, chạy tay.
+For any task with **at least one HTTP endpoint** (auth, CRUD, …), the Tester output must stop at the artifact set below. This is sufficient “**manual unit testing**” in the sense of **separate cases**, run manually.
 
-### 2.1 Ba file JSON Postman (nguồn chân lý request)
+### 2.1 Three Postman JSON files (request source of truth)
 
-Đặt dưới **`backend/smart-erp/docs/postman/`**, đặt tên theo task, **đúng 3 file** (mỗi file = một kịch bản request tối thiểu):
+Place under **`backend/smart-erp/docs/postman/`**, name by task, **exactly 3 files** (each file = one minimal request scenario):
 
-| # | File (pattern) | Nội dung nghiệp vụ |
+| # | File (pattern) | Business meaning |
 | :---: | :--- | :--- |
-| 1 | `TaskXXX_<slug>.valid.body.json` | Request **thành công** (200/201…) — body đủ field, giá trị mẫu hoặc placeholder có `_description` hướng dẫn thay. |
-| 2 | `TaskXXX_<slug>.invalid.missing-<field>.body.json` | Case **400** — thiếu field bắt buộc (vd. body `{}` hoặc thiếu key). |
-| 3 | `TaskXXX_<slug>.invalid.<rule>.body.json` | Case **400** (hoặc 4xx khác đã chốt) — **khác** file (2): vd. rỗng, format sai, quá ngắn. |
+| 1 | `TaskXXX_<slug>.valid.body.json` | **Success** request (200/201…) — body contains all fields, with sample values or placeholders; `_description` explains what to change. |
+| 2 | `TaskXXX_<slug>.invalid.missing-<field>.body.json` | **400** case — missing required field (e.g. `{}` or missing key). |
+| 3 | `TaskXXX_<slug>.invalid.<rule>.body.json` | **400** (or another agreed 4xx) — different from (2): e.g. blank, wrong format, too short. |
 
-**Schema bắt buộc** (chốt theo mẫu [`Task001_login.valid.body.json`](../smart-erp/docs/postman/Task001_login.valid.body.json); endpoint có JWT: [`Task078_users_post.valid.body.json`](../smart-erp/docs/postman/Task078_users_post.valid.body.json)):
+**Required schema** (fixed by sample [`Task001_login.valid.body.json`](../smart-erp/docs/postman/Task001_login.valid.body.json); endpoints with JWT: [`Task078_users_post.valid.body.json`](../smart-erp/docs/postman/Task078_users_post.valid.body.json)):
 
 ```json
 {
@@ -40,50 +40,50 @@ Với task có **ít nhất một endpoint HTTP** (auth, CRUD, …), output Test
 }
 ```
 
-- **`_description`:** tiếng Việt — **đủ để người chạy tay không cần đoán**: mã task + slug case; HTTP / mã lỗi mong đợi; **tiền đề** (profile, `APP_SECURITY_MODE`, seed Flyway, request nào chạy trước — vd. login Task001 để lấy token); **chỗ phải sửa tay** (đổi `username`/`email`/`staffCode` để tránh 409, timezone nếu liên quan); gợi ý `roleId` theo seed khi task CRUD user/role. Có thể dùng chuỗi nhiều dòng trong JSON (`\n`) để đọc dễ.  
-- **`request`:** `method`, `path` (bắt đầu `/api/…`), `url` (localhost mẫu, **phải** kết thúc bằng cùng `path`).  
-- **`headers`:** tối thiểu `Content-Type: application/json`. Endpoint **bắt buộc Bearer JWT** (Resource Server): **phải** khai báo `Authorization` trong file (giá trị placeholder dạng `Bearer <paste-accessToken-from-Task001-login-response.data.accessToken>` hoặc tương đương — ghi rõ tên field JSON nguồn), **không** chỉ nhắc token trong `_description` mà bỏ header.  
-- **`body`:** object gửi thật lên server (Postman: copy vào tab **Body** — chỉ phần object `body`, không copy cả `_description`/`request`).
+- **`_description`:** English — must be **enough for a manual runner to not guess**: task code + case slug; expected HTTP/status; **prerequisites** (profile, `APP_SECURITY_MODE`, Flyway seed, which request must run first — e.g. Task001 login to get token); **manual edits needed** (change `username`/`email`/`staffCode` to avoid 409, timezone if relevant); suggested `roleId` based on seeds for user/role CRUD. Multi-line strings via `\n` are OK for readability.  
+- **`request`:** `method`, `path` (starts with `/api/…`), `url` (localhost sample, **must** end with the same `path`).  
+- **`headers`:** at minimum `Content-Type: application/json`. Endpoints requiring Bearer JWT (Resource Server): must declare `Authorization` in the file (placeholder like `Bearer <paste-accessToken-from-Task001-login-response.data.accessToken>` or equivalent — name the JSON source field), **not** just mention the token in `_description` while omitting the header.  
+- **`body`:** the actual object sent to the server (Postman: paste into **Body** tab — only the `body` object, do not copy `_description`/`request`).
 
-**Khi chạy tay:** import hoặc mở từng file → copy **`headers` + `body`** vào request Postman (hoặc nhập `url` từ `request.url`); chỉnh `url` theo `{{baseUrl}}` nếu env khác localhost.
+**Manual run:** import/open each file → copy **`headers` + `body`** into a Postman request (or use `request.url`); replace the host via `{{baseUrl}}` if not localhost.
 
-**Contract CI (Dev):** với task auth đã làm mẫu, có class `*PostmanBodyContractTest` trong `src/test/.../auth/api/` để **khóa** 3 file JSON không bị sửa nhầm shape (tham chiếu `Task001LoginPostmanBodyContractTest`, `Task003RefreshPostmanBodyContractTest`).
+**CI contract (Dev):** for auth tasks with an existing pattern, there is a `*PostmanBodyContractTest` class under `src/test/.../auth/api/` to **lock** the shape of the 3 JSON files (see `Task001LoginPostmanBodyContractTest`, `Task003RefreshPostmanBodyContractTest`).
 
 ### 2.2 `MANUAL_UNIT_TEST_TaskXXX.md`
 
-- Trong artifact task: vd. [`../docs/task003/04-tester/MANUAL_UNIT_TEST_Task003.md`](../docs/task003/04-tester/MANUAL_UNIT_TEST_Task003.md).
-- Mỗi mục **U-xx** = một kịch bản + **kỳ vọng HTTP + envelope**; **luôn trỏ** tới đúng một trong **3 file** §2.1 (valid / missing / rule) khi áp dụng — **tên file Postman đầy đủ** (vd. `Task078_users_post.valid.body.json`), không chỉ nói “file valid”.
-- Trong từng mục manual: ghi **rõ bước chuẩn bị** trùng với `_description` Postman (token, seed, đổi field tránh 409) để manual và JSON **một nguồn**; tránh copy payload dài — tham chiếu file + chỉ nêu điểm khác (nếu có).
-- Bổ sung case **401 / 403 / 429**… không nhét vào 3 file tĩnh được thì vẫn ghi trong manual (body inline hoặc file bổ sung **ngoài** bộ 3 — cần ghi rõ trong manual và ticket nếu thêm file thứ 4+).
+- In the task artifacts: e.g. [`../docs/task003/04-tester/MANUAL_UNIT_TEST_Task003.md`](../docs/task003/04-tester/MANUAL_UNIT_TEST_Task003.md).
+- Each **U-xx** item = one scenario + **expected HTTP + envelope**; always reference exactly one of the **3 files** in §2.1 (valid / missing / rule) when applicable — use the **full Postman filename** (e.g. `Task078_users_post.valid.body.json`), not “the valid file”.
+- For each manual item: include **prep steps** consistent with the Postman `_description` (token, seed, change fields to avoid 409) so manual and JSON are a **single source of truth**; avoid copying long payloads — reference the file and note only differences (if any).
+- Add cases like **401 / 403 / 429**… that cannot fit into the 3 static files into the manual anyway (inline body or extra file **outside** the 3-file set — must be explicitly noted in the manual and ticket if adding a 4th+ file).
 
 ### 2.3 `TEST_PLAN_TaskXXX.md`
 
-- Ma trận ngắn: ID manual ↔ HTTP ↔ link SRS/API ↔ **tên 3 file** Postman (khi map được).
-- Link tới `MANUAL_UNIT_TEST_TaskXXX.md` và thư mục `docs/postman/`.
+- A short matrix: manual ID ↔ HTTP ↔ SRS/API link ↔ **3 Postman file names** (when mappable).
+- Link to `MANUAL_UNIT_TEST_TaskXXX.md` and the `docs/postman/` folder.
 
-**Không** yêu cầu Developer/Tester viết thêm class JUnit chỉ để “có test” nếu chưa có ticket/ADR riêng — **ngoại lệ:** contract **3 file** envelope (mục 2.1) được khuyến nghị giữ đồng bộ.
-
----
-
-## 3. Auto test (JUnit, slice, E2E) — **không mặc định**
-
-- **Mặc định:** **không** viết / không mở rộng auto test cho từng API — **manual unit test** (mục 2) là đủ cho gate nghiệp vụ.
-- **Luôn có thể có:** test contract **shape** 3 file Postman (`*PostmanBodyContractTest`) — không thay thế chạy tay đầy đủ DB.
-- Chỉ thêm automation khác khi có **lý do** ghi trong ADR hoặc lệnh Owner (vd. regression nặng, CI bắt buộc). Khi đó vẫn phải **đồng bộ** `body`/`path` với `docs/postman/*.json` để tay và máy một nguồn.
-- **Context7 (chỉ khi đã mở automation):** một câu hỏi hẹp cho doc thư viện test (REST Assured, Testcontainers, JUnit 5, …) — `use context7` + version; không gọi cho mỗi case Postman tay.
+Do **not** require Developer/Tester to add JUnit classes just to “have tests” unless there is a specific ticket/ADR — **exception:** the 3-file envelope **contract** (section 2.1) is recommended to keep synced.
 
 ---
 
-## 4. Smoke trước release (bắt buộc)
+## 3. Automated tests (JUnit, slice, E2E) — **not the default**
 
-- **Trước** bất kỳ bản phát hành (`/release`) nào: chạy **bộ kiểm tra nhanh** trên **môi trường thật đang chạy** (không mock toàn app thay runtime cho smoke này).
-- **Tối đa 10 kịch bản** — **đường dẫn quan trọng** (thường lấy từ manual / checklist đã có).
-- **PO ký** vào **báo cáo smoke** (`docs/qa/SMOKE_REPORT_<release>.md` hoặc quy ước team).
+- **Default:** do **not** write/expand automated tests per API — **manual unit tests** (section 2) are enough for the business gate.
+- **Always acceptable:** a contract test that validates the **shape** of the 3 Postman files (`*PostmanBodyContractTest`) — does not replace full manual runs against a real DB.
+- Add other automation only with a **reason** recorded in an ADR or an explicit Owner directive (e.g. heavy regression risk, CI requirement). Even then, keep `body`/`path` in sync with `docs/postman/*.json` so manual and automated are a single source.
+- **Context7 (only after automation is enabled):** one narrow question for the test library docs (REST Assured, Testcontainers, JUnit 5, …) — `use context7` + version; do not call it for every manual Postman case.
 
 ---
 
-## 5. Không làm
+## 4. Pre-release smoke (mandatory)
 
-- Không đổi nghiệp vụ đã Approved (báo BA/PO).
-- Không `@Disabled` hàng loạt không ticket.
-- Không “dựng” thêm auto test (WebMvc / integration) **ngoài** yêu cầu Owner/ADR — tránh tốn token và file test trùng với manual đã đủ; **contract 3 file Postman** (§2.1) **không** tính là mở rộng tùy tiện.
+- **Before** any release (`/release`): run a **quick smoke suite** against a **real running environment** (do not fully mock the app for this smoke).
+- **Max 10 scenarios** — **critical paths** (usually taken from the manual/checklists).
+- PO signs off on the **smoke report** (`docs/qa/SMOKE_REPORT_<release>.md` or team convention).
+
+---
+
+## 5. Do not
+
+- Do not change Approved business rules (escalate to BA/PO).
+- Do not mass `@Disabled` without a ticket.
+- Do not “spin up” extra automated tests (WebMvc / integration) **unless** required by Owner/ADR — avoid token waste and duplicate test files when the manual set is sufficient; the **3 Postman file contract** (§2.1) does not count as arbitrary expansion.

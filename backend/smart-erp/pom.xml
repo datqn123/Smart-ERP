@@ -31,8 +31,8 @@
 		<cloudinary.version>1.39.0</cloudinary.version>
 		<!-- Flyway CLI từ Maven: ghi đè bằng -Dflyway.url=... khi khác môi trường -->
 		<flyway.url>jdbc:postgresql://localhost:5432/smart_erp</flyway.url>
-		<flyway.user>myuser</flyway.user>
-		<flyway.password>mypassword</flyway.password>
+		<flyway.user>smart_erp</flyway.user>
+		<flyway.password>smart_erp</flyway.password>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -81,6 +81,10 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
 		</dependency>
 		<!-- cloudinary-core: direct compile dep so IDE/JLS resolves com.cloudinary.Cloudinary; http44 is transport -->
 		<dependency>

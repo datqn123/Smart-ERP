@@ -27,6 +27,13 @@ public class SystemLogJdbcRepository {
 				"INFO", "AUTH", "LOGOUT", userId, "Người dùng đã đăng xuất");
 	}
 
+	/** Task004 §1 — không ghi plaintext mật khẩu. */
+	public void insertAuthPasswordResetRequest(int userId) {
+		jdbcTemplate.update(
+				"INSERT INTO systemlogs (log_level, module, action, user_id, message) VALUES (?, ?, ?, ?, ?)",
+				"INFO", "AUTH", "PASSWORD_RESET_REQUEST", userId, "Gửi yêu cầu đặt lại mật khẩu tới Owner");
+	}
+
 	/** Task007 — audit PATCH tồn (context JSON theo SRS / Task011). */
 	public void insertInventoryPatch(int userId, String contextJson) {
 		jdbcTemplate.update(

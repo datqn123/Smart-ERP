@@ -62,9 +62,9 @@ public class AlertSettingsJdbcRepository {
 				SELECT
 				  id, alert_type, threshold_value, channel, frequency, is_enabled, recipients, updated_at
 				FROM alertsettings
-				WHERE (:ownerId IS NULL OR owner_id = :ownerId)
-				  AND (:alertType IS NULL OR alert_type = :alertType)
-				  AND (:isEnabled IS NULL OR is_enabled = :isEnabled)
+				WHERE owner_id = COALESCE(:ownerId, owner_id)
+				  AND alert_type = COALESCE(:alertType, alert_type)
+				  AND is_enabled = COALESCE(:isEnabled, is_enabled)
 				ORDER BY id ASC
 				""";
 		var src = new MapSqlParameterSource()

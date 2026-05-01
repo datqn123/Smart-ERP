@@ -27,6 +27,14 @@ export function postLogin(body: { email: string; password: string }) {
   })
 }
 
+/** Task004 §1 — public */
+export function postPasswordResetRequest(body: { username: string; message?: string }) {
+  return apiJson<Record<string, unknown>>("/api/v1/auth/password-reset-requests", {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
+}
+
 /** Task003 — public, no Bearer */
 export function postRefresh(body: { refreshToken: string }) {
   return apiJson<RefreshResponseData>("/api/v1/auth/refresh", {

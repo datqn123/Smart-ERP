@@ -16,5 +16,11 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: smart-erp-redis
+    ports:
+      - "6379:6379"
+
 volumes:
   smart_erp_pgdata:

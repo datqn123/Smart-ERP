@@ -27,6 +27,8 @@ public class AuthService {
 
 	private static final String UNAUTHORIZED_LOGIN = "Email hoặc mật khẩu không chính xác hoặc tài khoản bị khóa";
 
+	private static final String ACCOUNT_LOCKED_LOGIN = "Tài khoản đã bị vô hiệu hoá, vui lòng liên hệ Owner";
+
 	private static final String FORBIDDEN_LOGOUT_REFRESH = "Refresh token không khớp với phiên đăng nhập hiện tại";
 
 	private static final String UNAUTHORIZED_REFRESH = "Refresh token không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.";
@@ -58,6 +60,12 @@ public class AuthService {
 	@Transactional
 	public LoginResult login(String email, String password) {
 		String emailNorm = email.strip();
+
+		userRepository.findByEmailIgnoreCase(emailNorm).ifPresent(u -> {
+			if ("Locked".equalsIgnoreCase(u.getStatus())) {
+				throw new BusinessException(ApiErrorCode.FORBIDDEN, ACCOUNT_LOCKED_LOGIN);
+			}
+		});
 
 		if (userRepository.countActiveByEmailIgnoreCase(emailNorm) == 0) {
 			throw new BusinessException(ApiErrorCode.UNAUTHORIZED, UNAUTHORIZED_LOGIN);

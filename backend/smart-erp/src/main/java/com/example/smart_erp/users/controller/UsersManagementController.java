@@ -29,7 +29,6 @@ import com.example.smart_erp.users.service.UsersManagementService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.Positive;
 
 @RestController
 @RequestMapping("/api/v1/users")

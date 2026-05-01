@@ -1,7 +1,8 @@
 package com.example.smart_erp.auth.session;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.Duration;
 
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import com.example.smart_erp.auth.support.JwtTokenService;
@@ -9,30 +10,33 @@ import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.exception.BusinessException;
 
 /**
- * Phiên đăng nhập tại thời điểm (Task001): tạm dùng {@link ConcurrentHashMap}; sau này Redis chỉ lưu access token.
+ * Phiên đăng nhập tại thời điểm (Task001): lưu trong Redis để dùng chung giữa nhiều instance.
  * Chính sách: <strong>chặn</strong> đăng nhập thứ hai (403), không ghi đè phiên.
  * <p>
- * Task100: nếu entry map trỏ tới access JWT <strong>đã hết hạn</strong> hoặc không còn verify được →
+ * Task100: nếu entry Redis trỏ tới access JWT <strong>đã hết hạn</strong> hoặc không còn verify được →
  * <strong>gỡ entry</strong> (stale), không 403 oán.
  */
 @Component
+@SuppressWarnings("null")
 public class LoginSessionRegistry {
 
-	private final ConcurrentHashMap<Integer, String> userIdToAccessToken = new ConcurrentHashMap<>();
+	private static final String KEY_PREFIX = "auth:session:";
 
 	private final JwtTokenService jwtTokenService;
+	private final StringRedisTemplate redis;
 
-	public LoginSessionRegistry(JwtTokenService jwtTokenService) {
+	public LoginSessionRegistry(JwtTokenService jwtTokenService, StringRedisTemplate redis) {
 		this.jwtTokenService = jwtTokenService;
+		this.redis = redis;
 	}
 
 	public void assertNoConcurrentSession(Integer userId) {
-		String existing = userIdToAccessToken.get(userId);
+		String existing = redis.opsForValue().get(key(userId));
 		if (existing == null) {
 			return;
 		}
 		if (!jwtTokenService.isAccessTokenActiveForSessionMap(existing)) {
-			userIdToAccessToken.remove(userId, existing);
+			redis.delete(key(userId));
 			return;
 		}
 		throw new BusinessException(ApiErrorCode.FORBIDDEN,
@@ -40,11 +44,16 @@ public class LoginSessionRegistry {
 	}
 
 	public void register(Integer userId, String accessToken) {
-		userIdToAccessToken.put(userId, accessToken);
+		long ttlSeconds = Math.max(60L, jwtTokenService.getAccessTtlSeconds());
+		redis.opsForValue().set(key(userId), accessToken, Duration.ofSeconds(ttlSeconds));
 	}
 
 	/** Dùng cho test / logout (Task002). */
 	public void clear(Integer userId) {
-		userIdToAccessToken.remove(userId);
+		redis.delete(key(userId));
+	}
+
+	private static String key(Integer userId) {
+		return KEY_PREFIX + userId;
 	}
 }

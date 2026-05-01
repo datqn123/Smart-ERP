@@ -71,6 +71,11 @@ public class JwtTokenService {
 		return tryParseActiveAccessClaims(compactJwt).isPresent();
 	}
 
+	/** TTL access token (giây) theo cấu hình, dùng cho Redis login registry. */
+	public long getAccessTtlSeconds() {
+		return accessTtlMinutes * 60L;
+	}
+
 	/**
 	 * Task002 logout — parse subject; lỗi → {@link BusinessException}{@code UNAUTHORIZED}.
 	 */

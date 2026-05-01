@@ -1,35 +1,55 @@
 import { useState, useEffect, useRef } from "react"
 import { useLocation, Link } from "react-router-dom"
-import { Bell, Home, Menu, X, CheckCheck } from "lucide-react"
+import { Bell, Home, Menu, X, CheckCheck, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { useUIStore } from "@/store/useUIStore"
+import { useAuthStore } from "@/features/auth/store/useAuthStore"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  getNotifications,
+  patchNotificationRead,
+  postNotificationsMarkAllRead,
+} from "@/features/notifications/api/notificationsApi"
+import { formatRelativePastVi } from "@/features/notifications/lib/formatRelativePastVi"
 
-interface Notification {
-  id: string
-  title: string
-  time: string
-  read: boolean
+function initialsFromName(name: string): string {
+  const p = name.trim().split(/\s+/).filter(Boolean)
+  if (p.length === 0) return "?"
+  if (p.length === 1) return p[0].slice(0, 2).toUpperCase()
+  return (p[0][0] + p[p.length - 1][0]).toUpperCase()
 }
-
-const MOCK_USER = {
-  name: "Admin User",
-  avatar: undefined, // URL would go here
-  email: "admin@minierp.com"
-}
-
-const MOCK_NOTIFICATIONS: Notification[] = [
-  { id: "1", title: "Low stock alert: Soda Cans", time: "2 mins ago", read: false },
-  { id: "2", title: "New order #12345", time: "1 hour ago", read: false },
-  { id: "3", title: "System update complete", time: "1 day ago", read: true },
-]
 
 export function Header() {
   const location = useLocation()
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const notificationRef = useRef<HTMLDivElement>(null)
   const { sidebarOpen, setSidebarOpen } = useUIStore()
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const user = useAuthStore((s) => s.user)
+  const queryClient = useQueryClient()
+
+  const notificationsQuery = useQuery({
+    queryKey: ["notifications", "list"],
+    queryFn: () => getNotifications({ page: 1, limit: 50 }),
+    enabled: isAuthenticated,
+    refetchInterval: isAuthenticated ? 12_000 : false,
+  })
+
+  const markOneRead = useMutation({
+    mutationFn: (id: number) => patchNotificationRead(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] })
+    },
+  })
+
+  const markAllRead = useMutation({
+    mutationFn: () => postNotificationsMarkAllRead(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] })
+    },
+  })
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -45,22 +65,33 @@ export function Header() {
     }
   }, [isNotificationsOpen])
 
+  useEffect(() => {
+    if (isNotificationsOpen && isAuthenticated) {
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] })
+    }
+  }, [isNotificationsOpen, isAuthenticated, queryClient])
+
   // Simple breadcrumb logic based on path
   const pathSegments = location.pathname.split("/").filter(Boolean)
-  const currentPage = pathSegments.length > 0 
-    ? pathSegments[pathSegments.length - 1].charAt(0).toUpperCase() + pathSegments[pathSegments.length - 1].slice(1)
-    : "Dashboard"
+  const currentPage =
+    pathSegments.length > 0
+      ? pathSegments[pathSegments.length - 1].charAt(0).toUpperCase() +
+        pathSegments[pathSegments.length - 1].slice(1)
+      : "Dashboard"
 
-  const unreadCount = MOCK_NOTIFICATIONS.filter(n => !n.read).length
+  const notifData = notificationsQuery.data
+  const items = notifData?.items ?? []
+  const unreadTotal = notifData?.unreadTotal ?? 0
+  const notifErr = notificationsQuery.error instanceof Error ? notificationsQuery.error.message : null
 
   return (
     <header className="h-14 bg-white border-b border-slate-200 flex items-center px-4 md:px-6 shadow-sm sticky top-0 z-50">
       <div className="flex items-center justify-between w-full">
-        
         {/* LEFT SIDE: Mobile Menu & Breadcrumb */}
         <div className="flex items-center space-x-2 text-sm text-slate-600">
           {/* Mobile Menu Toggle */}
           <button
+            type="button"
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="md:hidden p-2 -ml-2 mr-1 hover:bg-slate-100 rounded-md transition-colors duration-200"
           >
@@ -81,63 +112,103 @@ export function Header() {
 
         {/* RIGHT SIDE: Actions */}
         <div className="flex items-center space-x-4">
-          
           {/* Notifications */}
           <div className="relative" ref={notificationRef}>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="relative hover:bg-slate-100 rounded-full"
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="relative hover:bg-slate-100 rounded-full h-11 w-11 min-h-11 min-w-11"
               onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+              aria-label="Thông báo"
             >
               <Bell className="h-[18px] w-[18px] text-slate-600" />
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full border-2 border-white" />
+              {isAuthenticated && unreadTotal > 0 && (
+                <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold bg-red-500 text-white rounded-full border-2 border-white">
+                  {unreadTotal > 99 ? "99+" : unreadTotal}
+                </span>
               )}
             </Button>
 
-            {/* Simple Dropdown UI for Mock Data */}
             {isNotificationsOpen && (
               <div className="absolute right-0 mt-2 w-[400px] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-[100]">
                 <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm text-slate-900">Thông báo</span>
-                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">{unreadCount} mới</span>
+                    {unreadTotal > 0 ? (
+                      <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        {unreadTotal} chưa đọc
+                      </span>
+                    ) : null}
                   </div>
-                  <button className="text-[11px] font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1 transition-colors">
-                    <CheckCheck className="h-3.5 w-3.5" />
+                  <button
+                    type="button"
+                    disabled={!isAuthenticated || unreadTotal === 0 || markAllRead.isPending}
+                    onClick={() => markAllRead.mutate()}
+                    className="text-[11px] font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                  >
+                    {markAllRead.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <CheckCheck className="h-3.5 w-3.5" />
+                    )}
                     Đánh dấu đã đọc
                   </button>
                 </div>
-                <div className="max-h-[400px] overflow-y-auto custom-scrollbar scroll-smooth">
-                  {[...MOCK_NOTIFICATIONS, 
-                    { id: "4", title: "Monthly report ready", time: "2 days ago", read: true },
-                    { id: "5", title: "New supplier approved", time: "3 days ago", read: true },
-                    { id: "6", title: "Inventory adjustment performed", time: "4 days ago", read: true },
-                    { id: "7", title: "Price update: Electronics", time: "5 days ago", read: true },
-                    { id: "8", title: "Customer feedback received", time: "1 week ago", read: true },
-                  ].map((notification) => (
-                    <div 
-                      key={notification.id}
-                      className={cn(
-                        "p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors relative",
-                        !notification.read && "bg-blue-50/30"
-                      )}
-                    >
-                      {!notification.read && (
-                        <div className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-8 bg-blue-500 rounded-full" />
-                      )}
-                      <div className="flex justify-between items-start mb-1.5">
-                        <span className="font-bold text-sm text-slate-900 leading-snug">{notification.title}</span>
-                        <span className="text-xs text-slate-400 whitespace-nowrap ml-2">{notification.time}</span>
-                      </div>
-                      <p className="text-xs text-slate-500 leading-relaxed font-medium">Bạn có một cập nhật mới liên quan đến nội dung này trong hệ thống.</p>
-                    </div>
-                  ))}
-                  <div className="p-4 text-center">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Đang tải thêm...</span>
+                {!isAuthenticated ? (
+                  <div className="p-6 text-center text-sm text-muted-foreground">Đăng nhập để xem thông báo.</div>
+                ) : notificationsQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-16 text-muted-foreground">
+                    <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
-                </div>
+                ) : (
+                  <div className="max-h-[400px] overflow-y-auto custom-scrollbar scroll-smooth">
+                    {notifErr ? (
+                      <div className="p-4 text-sm text-alert">{notifErr}</div>
+                    ) : items.length === 0 ? (
+                      <div className="p-8 text-center text-sm text-muted-foreground">
+                        Không có thông báo nào.
+                      </div>
+                    ) : (
+                      items.map((n) => (
+                        <div
+                          key={n.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            if (!n.read) markOneRead.mutate(n.id)
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              if (!n.read) markOneRead.mutate(n.id)
+                            }
+                          }}
+                          className={cn(
+                            "p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors relative text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50 min-h-[44px]",
+                            !n.read && "bg-blue-50/30",
+                          )}
+                        >
+                          {!n.read && (
+                            <div className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-8 bg-blue-500 rounded-full" />
+                          )}
+                          <div className="flex justify-between items-start mb-1.5 gap-2 pl-3">
+                            <span className="font-bold text-sm text-slate-900 leading-snug">{n.title}</span>
+                            <span className="text-xs text-slate-400 whitespace-nowrap shrink-0">
+                              {formatRelativePastVi(n.createdAt)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 leading-relaxed font-medium pl-3">{n.message}</p>
+                        </div>
+                      ))
+                    )}
+                    {(notificationsQuery.isFetching && !notificationsQuery.isLoading) || markOneRead.isPending ? (
+                      <div className="py-3 flex justify-center text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -148,13 +219,15 @@ export function Header() {
           {/* User Profile */}
           <div className="flex items-center space-x-2 hidden md:flex cursor-pointer hover:opacity-80 transition-opacity">
             <div className="text-right">
-              <div className="text-sm font-medium text-slate-900 leading-none">{MOCK_USER.name}</div>
-              <div className="text-xs text-slate-500 leading-none mt-1">{MOCK_USER.email}</div>
+              <div className="text-sm font-medium text-slate-900 leading-none">
+                {user?.fullName ?? "Người dùng"}
+              </div>
+              <div className="text-xs text-slate-500 leading-none mt-1">{user?.email ?? ""}</div>
             </div>
             <Avatar className="h-9 w-9 border border-slate-200">
-              <AvatarImage src={MOCK_USER.avatar} alt={MOCK_USER.name} />
+              <AvatarImage src={undefined} alt={user?.fullName ?? "User"} />
               <AvatarFallback className="bg-slate-100 text-slate-600 text-xs">
-                {MOCK_USER.name.split(" ").map(n => n[0]).join("").slice(0,2)}
+                {initialsFromName(user?.fullName ?? user?.email ?? "?")}
               </AvatarFallback>
             </Avatar>
           </div>

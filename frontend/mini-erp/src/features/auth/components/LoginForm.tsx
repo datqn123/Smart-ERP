@@ -24,7 +24,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Loader2, Eye, EyeOff } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { ApiRequestError } from "@/lib/api/http"
-import { postLogin } from "@/features/auth/api/authApi"
+import { postLogin, postPasswordResetRequest } from "@/features/auth/api/authApi"
 import { useAuthStore, type UserRole } from "@/features/auth/store/useAuthStore"
 
 const loginSchema = z.object({
@@ -46,6 +46,8 @@ const ownerResetRequestSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>
 type OwnerResetRequestValues = z.infer<typeof ownerResetRequestSchema>
 
+const ACCOUNT_LOCKED_MESSAGE = "Tài khoản đã bị vô hiệu hoá, vui lòng liên hệ Owner"
+
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -53,6 +55,7 @@ export function LoginForm() {
   const [ownerResetOpen, setOwnerResetOpen] = useState(false)
   const [ownerResetSubmitting, setOwnerResetSubmitting] = useState(false)
   const [ownerResetSuccess, setOwnerResetSuccess] = useState(false)
+  const [ownerResetError, setOwnerResetError] = useState<string | null>(null)
   const navigate = useNavigate()
 
   const {
@@ -73,6 +76,7 @@ export function LoginForm() {
     setOwnerResetOpen(open)
     if (!open) {
       setOwnerResetSuccess(false)
+      setOwnerResetError(null)
       ownerResetForm.reset()
     }
   }
@@ -97,6 +101,10 @@ export function LoginForm() {
       )
       navigate("/dashboard")
     } catch (err) {
+      if (err instanceof ApiRequestError && err.status === 403) {
+        setSubmitError(ACCOUNT_LOCKED_MESSAGE)
+        return
+      }
       if (err instanceof ApiRequestError && err.status === 400 && err.body.details) {
         const d = err.body.details
         if (d.email) {
@@ -122,11 +130,35 @@ export function LoginForm() {
 
   async function onOwnerResetSubmit(data: OwnerResetRequestValues) {
     setOwnerResetSubmitting(true)
-    // POST /api/v1/auth/password-reset-requests — nối backend khi sẵn sàng (API_Task004 §1)
-    console.log("Password reset request (Owner flow):", data)
-    await new Promise((resolve) => setTimeout(resolve, 900))
-    setOwnerResetSubmitting(false)
-    setOwnerResetSuccess(true)
+    setOwnerResetError(null)
+    try {
+      await postPasswordResetRequest({
+        username: data.username.trim(),
+        message: data.message?.trim() ? data.message.trim() : undefined,
+      })
+      setOwnerResetSuccess(true)
+    } catch (err) {
+      if (err instanceof ApiRequestError && err.status === 400 && err.body.details) {
+        const d = err.body.details
+        if (d.username) {
+          ownerResetForm.setError("username", { message: d.username })
+        }
+        if (d.message) {
+          ownerResetForm.setError("message", { message: d.message })
+        }
+        if (!d.username && !d.message) {
+          setOwnerResetError(err.body.message)
+        }
+        return
+      }
+      if (err instanceof ApiRequestError) {
+        setOwnerResetError(err.body.message ?? err.message)
+        return
+      }
+      setOwnerResetError(err instanceof Error ? err.message : "Không gửi được yêu cầu. Vui lòng thử lại.")
+    } finally {
+      setOwnerResetSubmitting(false)
+    }
   }
 
   return (
@@ -243,6 +275,7 @@ export function LoginForm() {
               onSubmit={ownerResetForm.handleSubmit(onOwnerResetSubmit)}
               className="space-y-4"
             >
+              {ownerResetError ? <p className="text-sm text-alert">{ownerResetError}</p> : null}
               <div className="space-y-2">
                 <Label htmlFor="reset-username">Tên đăng nhập</Label>
                 <Input

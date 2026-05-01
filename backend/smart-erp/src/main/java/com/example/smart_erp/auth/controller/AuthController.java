@@ -1,6 +1,7 @@
 package com.example.smart_erp.auth.controller;
 
 import java.util.Collections;
+import java.util.Map;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -13,12 +14,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.smart_erp.auth.dto.LoginRequest;
 import com.example.smart_erp.auth.dto.LogoutRequest;
+import com.example.smart_erp.auth.dto.PasswordResetRequestDto;
 import com.example.smart_erp.auth.dto.RefreshRequest;
 import com.example.smart_erp.auth.response.LoginResponseData;
 import com.example.smart_erp.auth.response.RefreshResponseData;
 import com.example.smart_erp.auth.service.AuthService;
 import com.example.smart_erp.auth.service.LoginResult;
 import com.example.smart_erp.auth.service.RefreshResult;
+import com.example.smart_erp.auth.service.StaffPasswordResetRequestService;
 import com.example.smart_erp.auth.session.LoginSessionRegistry;
 import com.example.smart_erp.auth.support.JwtTokenService;
 import com.example.smart_erp.common.api.ApiErrorCode;
@@ -39,13 +42,16 @@ public class AuthController {
 
 	private final AuthService authService;
 
+	private final StaffPasswordResetRequestService staffPasswordResetRequestService;
+
 	private final JwtTokenService jwtTokenService;
 
 	private final LoginSessionRegistry loginSessionRegistry;
 
-	public AuthController(AuthService authService, JwtTokenService jwtTokenService,
-			LoginSessionRegistry loginSessionRegistry) {
+	public AuthController(AuthService authService, StaffPasswordResetRequestService staffPasswordResetRequestService,
+			JwtTokenService jwtTokenService, LoginSessionRegistry loginSessionRegistry) {
 		this.authService = authService;
+		this.staffPasswordResetRequestService = staffPasswordResetRequestService;
 		this.jwtTokenService = jwtTokenService;
 		this.loginSessionRegistry = loginSessionRegistry;
 	}
@@ -63,6 +69,15 @@ public class AuthController {
 		LoginResult result = authService.login(request.email(), request.password());
 		LoginResponseData data = new LoginResponseData(result.accessToken(), result.refreshToken(), result.user());
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đăng nhập thành công"));
+	}
+
+	/** Task004 §1 — public */
+	@PostMapping("/password-reset-requests")
+	public ResponseEntity<ApiSuccessResponse<Map<String, Object>>> passwordResetRequests(
+			@Valid @RequestBody PasswordResetRequestDto request) {
+		staffPasswordResetRequestService.submitPublicRequest(request.username(), request.message());
+		return ResponseEntity
+				.ok(ApiSuccessResponse.of(Collections.emptyMap(), StaffPasswordResetRequestService.RESPONSE_MESSAGE));
 	}
 
 	@PostMapping("/logout")

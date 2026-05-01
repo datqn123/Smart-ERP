@@ -30,6 +30,7 @@ import com.example.smart_erp.auth.dto.RefreshRequest;
 import com.example.smart_erp.auth.service.AuthService;
 import com.example.smart_erp.auth.service.LoginResult;
 import com.example.smart_erp.auth.service.RefreshResult;
+import com.example.smart_erp.auth.service.StaffPasswordResetRequestService;
 import com.example.smart_erp.auth.session.LoginSessionRegistry;
 import com.example.smart_erp.auth.support.JwtTokenService;
 import com.example.smart_erp.common.api.ApiErrorCode;
@@ -62,6 +63,9 @@ class AuthControllerWebMvcTest {
 
 	@MockitoBean
 	private LoginSessionRegistry loginSessionRegistry;
+
+	@MockitoBean
+	private StaffPasswordResetRequestService staffPasswordResetRequestService;
 
 	@Test
 	void refresh_success_returns200RegistersSessionAndEchoesRefresh() throws Exception {

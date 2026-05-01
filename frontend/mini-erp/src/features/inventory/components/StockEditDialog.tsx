@@ -81,21 +81,27 @@ export function StockEditDialog({ isOpen, onClose, onConfirm, items }: StockEdit
             </TableHeader>
             <TableBody>
               {editedItems.map(item => (
-                <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0">
+                <TableRow
+                  key={item.id}
+                  className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0"
+                >
                   {/* Mã SP */}
-                  <TableCell className="px-4 py-3">
+                  <TableCell className="px-4 py-3 align-middle">
                     <div className={cn(TABLE_CELL_MONO_CLASS, "bg-slate-50 px-2 py-0.5 rounded border border-slate-100 w-fit")}>{item.skuCode}</div>
                   </TableCell>
                   
                   {/* Tên sản phẩm */}
-                  <TableCell className="px-4 py-3">
+                  <TableCell className="px-4 py-3 align-middle">
                     <div className={cn(TABLE_CELL_PRIMARY_CLASS, "truncate")} title={item.productName}>{item.productName}</div>
                   </TableCell>
 
-                  {/* Vị trí: kệ hiển thị + mã nội bộ */}
-                  <TableCell className="px-4 py-3 text-center">
-                    <div className="flex flex-col items-center gap-1">
-                      <span className={cn(TABLE_CELL_SECONDARY_CLASS, "text-[10px] font-mono")}>
+                  {/* Vị trí: mã kệ + input cùng một hàng */}
+                  <TableCell className="px-4 py-3 align-middle text-center">
+                    <div className="flex flex-row flex-wrap items-center justify-center gap-2 min-w-0">
+                      <span
+                        className={cn(TABLE_CELL_SECONDARY_CLASS, "text-[10px] font-mono whitespace-nowrap truncate max-w-[min(100%,7rem)]")}
+                        title={`${item.warehouseCode}-${item.shelfCode}`}
+                      >
                         {item.warehouseCode}-{item.shelfCode}
                       </span>
                       <Input
@@ -107,13 +113,13 @@ export function StockEditDialog({ isOpen, onClose, onConfirm, items }: StockEdit
                         }
                         title="Mã vị trí kho trong hệ thống"
                         aria-label="Mã vị trí kho"
-                        className={cn(FORM_INPUT_CLASS, "h-8 w-20 font-bold text-center text-xs")}
+                        className={cn(FORM_INPUT_CLASS, "h-8 w-20 shrink-0 font-bold text-center text-xs")}
                       />
                     </div>
                   </TableCell>
 
                   {/* Định mức */}
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell className="px-4 py-3 align-middle text-center">
                     <Input 
                       type="number"
                       min="0"
@@ -123,10 +129,13 @@ export function StockEditDialog({ isOpen, onClose, onConfirm, items }: StockEdit
                     />
                   </TableCell>
 
-                  {/* Đơn vị: tên + mã đơn vị */}
-                  <TableCell className="px-4 py-3 text-center">
-                    <div className="flex flex-col items-center gap-1">
-                      <span className={cn(TABLE_CELL_SECONDARY_CLASS, "text-[10px] max-w-[100px] truncate")} title={item.unitName}>
+                  {/* Đơn vị: tên + mã đơn vị cùng một hàng */}
+                  <TableCell className="px-4 py-3 align-middle text-center">
+                    <div className="flex flex-row flex-wrap items-center justify-center gap-2 min-w-0">
+                      <span
+                        className={cn(TABLE_CELL_SECONDARY_CLASS, "text-[10px] max-w-[min(100%,5.5rem)] truncate shrink")}
+                        title={item.unitName}
+                      >
                         {item.unitName}
                       </span>
                       <Input
@@ -140,20 +149,20 @@ export function StockEditDialog({ isOpen, onClose, onConfirm, items }: StockEdit
                         }}
                         title="Mã đơn vị tính trong hệ thống"
                         aria-label="Mã đơn vị tính"
-                        className={cn(FORM_INPUT_CLASS, "h-8 w-20 mx-auto font-bold text-center text-xs")}
+                        className={cn(FORM_INPUT_CLASS, "h-8 w-20 shrink-0 font-bold text-center text-xs")}
                       />
                     </div>
                   </TableCell>
 
                   {/* Giá vốn — read-only */}
-                  <TableCell className="px-4 py-3 text-center">
-                    <span className={cn(TABLE_CELL_PRIMARY_CLASS, "text-xs font-semibold")}>
+                  <TableCell className="px-4 py-3 align-middle text-center">
+                    <span className={cn(TABLE_CELL_PRIMARY_CLASS, "text-xs font-semibold inline-flex items-center justify-center min-h-8")}>
                       {formatCurrency(item.costPrice)}
                     </span>
                   </TableCell>
 
                   {/* Số lô */}
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell className="px-4 py-3 align-middle text-center">
                     <Input 
                       value={item.batchNumber || ""} 
                       onChange={(e) => handleChange(item.id, 'batchNumber', e.target.value)}
@@ -163,7 +172,7 @@ export function StockEditDialog({ isOpen, onClose, onConfirm, items }: StockEdit
                   </TableCell>
 
                   {/* Hạn SD */}
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell className="px-4 py-3 align-middle text-center">
                     <Input 
                       type="date"
                       value={item.expiryDate ? item.expiryDate.split('T')[0] : ""} 

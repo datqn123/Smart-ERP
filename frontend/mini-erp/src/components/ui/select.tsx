@@ -54,8 +54,13 @@ function SelectContent({
   position = "popper",
   align = "start",
   sideOffset = 4,
+  viewportClassName,
+  onViewportScroll,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Content>) {
+}: React.ComponentProps<typeof SelectPrimitive.Content> & {
+  viewportClassName?: string
+  onViewportScroll?: React.ComponentProps<typeof SelectPrimitive.Viewport>["onScroll"]
+}) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -75,8 +80,10 @@ function SelectContent({
           className={cn(
             "p-1",
             position === "popper" &&
-              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
+              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1",
+            viewportClassName,
           )}
+          onScroll={onViewportScroll}
         >
           {children}
         </SelectPrimitive.Viewport>

@@ -82,14 +82,15 @@ public class RetailStockJdbcRepository {
 				new MapSqlParameterSource("d", addBaseQty).addValue("id", inventoryId));
 	}
 
-	public long insertStockDispatchTempCode(String tempCode, int orderId, int userId, LocalDate dispatchDate,
+	public long insertStockDispatchTempCode(String tempCode, Integer orderId, int userId, LocalDate dispatchDate,
 			String status, String notes) {
 		KeyHolder kh = new GeneratedKeyHolder();
 		String sql = """
 				INSERT INTO stockdispatches (dispatch_code, order_id, user_id, dispatch_date, status, notes)
 				VALUES (:code, :oid, :uid, :d, :st, :notes)
 				""";
-		MapSqlParameterSource p = new MapSqlParameterSource("code", tempCode).addValue("oid", orderId)
+		MapSqlParameterSource p = new MapSqlParameterSource("code", tempCode)
+				.addValue("oid", orderId, Types.INTEGER)
 				.addValue("uid", userId).addValue("d", Date.valueOf(dispatchDate)).addValue("st", status)
 				.addValue("notes", notes, Types.VARCHAR);
 		namedJdbc.update(sql, p, kh, new String[] { "id" });

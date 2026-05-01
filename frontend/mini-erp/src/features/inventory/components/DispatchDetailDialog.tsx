@@ -53,7 +53,10 @@ export function DispatchDetailDialog({ dispatch, isOpen, onClose, canApprove = f
                 </div>
                 <div className="text-right">
                     <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Số lượng hàng</p>
-                    <p className="text-2xl font-black text-slate-900">{dispatch.items.length} <span className="text-[10px] text-slate-400">SKU</span></p>
+                    <p className="text-2xl font-black text-slate-900">
+                      {dispatch.lineCount ?? dispatch.items.length}{" "}
+                      <span className="text-[10px] text-slate-400">SKU</span>
+                    </p>
                 </div>
             </div>
           </div>

@@ -126,6 +126,8 @@ export interface StockDispatch {
   createdAt: string;
   updatedAt: string;
   items: DispatchItem[];
+  /** Khi API list chỉ trả số dòng xuất (không embed `items`). */
+  lineCount?: number;
 }
 
 // --- Inventory Audit (Task007) ---

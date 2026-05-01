@@ -67,7 +67,7 @@ const dispatchSchema = z.object({
   })).min(1, "Phải có ít nhất 1 dòng hàng")
 })
 
-type DispatchFormData = z.infer<typeof dispatchSchema>
+export type DispatchFormData = z.infer<typeof dispatchSchema>
 
 interface DispatchFormProps {
   open: boolean

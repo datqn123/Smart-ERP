@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useNavigate } from "react-router-dom"
 import { usePageTitle } from "@/context/PageTitleContext"
 import { Package, AlertTriangle, CalendarClock, TrendingUp } from "lucide-react"
 import { formatCurrency } from "../utils"
@@ -19,6 +20,8 @@ import {
   type GetInventoryListParams,
 } from "../api/inventoryApi"
 import { ApiRequestError } from "@/lib/api/http"
+import { postStockReceipt, type StockReceiptCreateBody } from "../api/stockReceiptsApi"
+import { postStockDispatch, type StockDispatchCreateBody } from "../api/dispatchApi"
 
 import { StockToolbar } from "../components/StockToolbar"
 import { StockTable } from "../components/StockTable"
@@ -68,6 +71,7 @@ function KPICard({ title, value, icon, color }: {
 
 export function StockPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const { setTitle } = usePageTitle()
   const [filters, setFilters] = useState<InventoryFilters>({ search: "", status: "all" })
   const [debouncedSearch, setDebouncedSearch] = useState("")
@@ -237,10 +241,53 @@ export function StockPage() {
     }
   }
 
-  const handleActionConfirm = (_adjustments: Record<number, number>) => {
-    notImplementedBulk("Nhập / xuất điều chỉnh số lượng")
-    setIsActionDialogOpen(false)
-  }
+  const handleImportSubmit = useCallback(
+    async (body: StockReceiptCreateBody) => {
+      try {
+        const created = await postStockReceipt(body)
+        toast.success(`Đã tạo phiếu nhập ${created.receiptCode ?? ""}`.trim())
+        await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "list"] })
+        await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "list"] })
+        await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "summary"] })
+        setSelectedIds([])
+        navigate(`/inventory/inbound?highlight=${created.id}`)
+      }
+      catch (e) {
+        if (e instanceof ApiRequestError) {
+          toast.error(e.body?.message ?? "Không tạo được phiếu nhập")
+        }
+        else {
+          toast.error("Không tạo được phiếu nhập")
+        }
+        throw e
+      }
+    },
+    [navigate, queryClient],
+  )
+
+  const handleExportSubmit = useCallback(
+    async (body: StockDispatchCreateBody) => {
+      try {
+        const created = await postStockDispatch(body)
+        toast.success(`Đã tạo phiếu xuất ${created.dispatchCode}`)
+        await queryClient.invalidateQueries({ queryKey: ["stock-dispatches", "v1", "list"] })
+        await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "list"] })
+        await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "summary"] })
+        setSelectedIds([])
+        navigate(`/inventory/dispatch?highlight=${created.id}`)
+      }
+      catch (e) {
+        if (e instanceof ApiRequestError) {
+          toast.error(e.body?.message ?? "Không tạo được phiếu xuất")
+        }
+        else {
+          toast.error("Không tạo được phiếu xuất")
+        }
+        throw e
+      }
+    },
+    [navigate, queryClient],
+  )
 
   const handleEditConfirm = async (updatedItems: InventoryItem[]) => {
     const pairs = updatedItems
@@ -436,7 +483,8 @@ export function StockPage() {
       <StockActionDialog
         isOpen={isActionDialogOpen}
         onClose={() => setIsActionDialogOpen(false)}
-        onConfirm={handleActionConfirm}
+        onImportSubmit={handleImportSubmit}
+        onExportSubmit={handleExportSubmit}
         items={actionItems}
         type={actionType}
       />

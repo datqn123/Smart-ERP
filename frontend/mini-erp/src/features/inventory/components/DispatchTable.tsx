@@ -74,7 +74,7 @@ export function DispatchTable({ dispatches, onAction, onEdit, onDelete }: Dispat
             <TableCell className={cn(DISPATCH_TABLE_COL.itemCount, "text-center")}>
               <div className="flex items-center justify-center gap-1 text-xs text-slate-500">
                 <Package className="h-3 w-3 shrink-0" />
-                {dispatch.items.length}
+                {dispatch.lineCount ?? dispatch.items.length}
               </div>
             </TableCell>
             <TableCell className={cn(DISPATCH_TABLE_COL.status, "text-center")}>
@@ -91,24 +91,28 @@ export function DispatchTable({ dispatches, onAction, onEdit, onDelete }: Dispat
                 >
                   <Eye className="h-4 w-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-slate-500 hover:text-slate-900 transition-colors"
-                  onClick={() => onEdit?.(dispatch)}
-                  title="Sửa phiếu"
-                >
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-slate-500 hover:text-red-600 transition-colors"
-                  onClick={() => onDelete?.(dispatch.id)}
-                  title="Xóa phiếu"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {onEdit && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-slate-500 hover:text-slate-900 transition-colors"
+                    onClick={() => onEdit(dispatch)}
+                    title="Sửa phiếu"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                )}
+                {onDelete && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-slate-500 hover:text-red-600 transition-colors"
+                    onClick={() => onDelete(dispatch.id)}
+                    title="Xóa phiếu"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </TableCell>
           </TableRow>

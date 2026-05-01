@@ -59,9 +59,10 @@ export const DISPATCH_TABLE_COL = {
 export const STOCK_TABLE_COL = {
   select: "w-[48px]",
   skuCode: "w-[112px]",
-  productName: "min-w-[200px]",
+  /** Cố định ~200px thay vì min-w lớn — phần dư bảng fixed chuyển sang cột cuối */
+  productName: "w-[200px] min-w-0",
   location: "w-[120px]",
-  quantity: "w-[108px]",
+  quantity: "w-[120px]",
   expiryDate: "w-[120px]",
   status: "w-[120px]",
 } as const

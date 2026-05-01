@@ -117,22 +117,23 @@ export function StockBatchDetailsDialog({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-full sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto p-0 gap-0 border-slate-200 shadow-2xl">
         <DialogHeader className="p-6 pb-0">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="text-left">
-              <DialogTitle className="text-2xl font-semibold tracking-tight text-slate-900">
-                {title}
-              </DialogTitle>
+          <div className="text-left">
+            <DialogTitle className="text-2xl font-semibold tracking-tight text-slate-900">
+              {title}
+            </DialogTitle>
+            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <DialogDescription asChild>
-                <div className="flex items-center gap-2 mt-1.5 text-left">
-                  <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 text-xs">SKU: {sku}</span>
-                  <Separator orientation="vertical" className="h-3 mx-1" />
-                  <span className="text-slate-500 text-sm">{unit}</span>
-                </div>
+                <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 text-xs leading-none">
+                  SKU: {sku}
+                </span>
               </DialogDescription>
+              <Badge
+                variant={statusVariant}
+                className={`h-7 shrink-0 px-3 text-xs uppercase tracking-widest leading-none ${statusBadgeClass}`}
+              >
+                {statusLabel}
+              </Badge>
             </div>
-            <Badge variant={statusVariant} className={`w-fit h-7 px-3 text-xs uppercase tracking-widest ${statusBadgeClass}`}>
-              {statusLabel}
-            </Badge>
           </div>
         </DialogHeader>
 

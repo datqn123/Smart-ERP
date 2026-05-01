@@ -39,8 +39,7 @@ public class LoginSessionRegistry {
 			redis.delete(key(userId));
 			return;
 		}
-		throw new BusinessException(ApiErrorCode.FORBIDDEN,
-				"Tài khoản đang được đăng nhập ở một thiết bị khác. Vui lòng đăng xuất ở thiết bị đó hoặc liên hệ Admin.");
+		throw new BusinessException(ApiErrorCode.FORBIDDEN, "Tài khoản đã đăng nhập");
 	}
 
 	public void register(Integer userId, String accessToken) {

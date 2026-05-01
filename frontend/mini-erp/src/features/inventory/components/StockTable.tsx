@@ -48,7 +48,7 @@ export function StockTable({
     <Table data-testid="stock-table" className={DATA_TABLE_ROOT_CLASS}>
       <TableHeader className="sticky top-0 z-20 bg-slate-50 shadow-sm border-b">
         <TableRow className="hover:bg-transparent border-b border-slate-200">
-          <TableHead className={cn(STOCK_TABLE_COL.select, "px-4 text-center")}>
+          <TableHead className={cn(STOCK_TABLE_COL.select, TABLE_HEAD_CLASS, "px-4 text-left")}>
             <Checkbox
               checked={allSelected ? true : someSelected ? "indeterminate" : false}
               onCheckedChange={(checked) => onSelectAll(checked as boolean)}
@@ -56,29 +56,29 @@ export function StockTable({
               className="border-slate-300 data-[state=checked]:bg-white data-[state=checked]:text-blue-600 data-[state=checked]:border-blue-600"
             />
           </TableHead>
-          <TableHead className={cn(STOCK_TABLE_COL.skuCode, TABLE_HEAD_CLASS, "px-4")}>
+          <TableHead className={cn(STOCK_TABLE_COL.skuCode, TABLE_HEAD_CLASS, "px-4 text-left")}>
             Mã SP
           </TableHead>
           <TableHead
-            className={cn(STOCK_TABLE_COL.productName, TABLE_HEAD_CLASS, "px-4")}
+            className={cn(STOCK_TABLE_COL.productName, TABLE_HEAD_CLASS, "px-4 text-left")}
           >
             Tên sản phẩm
           </TableHead>
-          <TableHead className={cn(STOCK_TABLE_COL.location, TABLE_HEAD_CLASS, "px-4")}>
+          <TableHead className={cn(STOCK_TABLE_COL.location, TABLE_HEAD_CLASS, "px-4 text-left")}>
             Vị trí
           </TableHead>
           <TableHead
-            className={cn(STOCK_TABLE_COL.quantity, TABLE_HEAD_CLASS, "px-4 text-right")}
+            className={cn(STOCK_TABLE_COL.quantity, TABLE_HEAD_CLASS, "px-4 text-left")}
           >
             Tồn kho
           </TableHead>
-          <TableHead className={cn(STOCK_TABLE_COL.expiryDate, TABLE_HEAD_CLASS, "px-4")}>
+          <TableHead className={cn(STOCK_TABLE_COL.expiryDate, TABLE_HEAD_CLASS, "px-4 text-left")}>
             Hạn SD
           </TableHead>
-          <TableHead className={cn(STOCK_TABLE_COL.status, TABLE_HEAD_CLASS, "px-4")}>
+          <TableHead className={cn(STOCK_TABLE_COL.status, TABLE_HEAD_CLASS, "px-4 text-left")}>
             Trạng thái
           </TableHead>
-          <TableHead className={cn(DATA_TABLE_ACTION_SINGLE_HEAD_CLASS, TABLE_HEAD_CLASS)}>
+          <TableHead className={cn(DATA_TABLE_ACTION_SINGLE_HEAD_CLASS, TABLE_HEAD_CLASS, "text-left")}>
             NV
           </TableHead>
         </TableRow>
@@ -100,7 +100,7 @@ export function StockTable({
                 className={cn("group h-14 cursor-pointer", isSelected ? "bg-slate-50" : "hover:bg-slate-50/50")}
                 onClick={() => onSelect(item.id)}
               >
-                <TableCell className={cn(STOCK_TABLE_COL.select, "px-4 text-center")} onClick={(e) => e.stopPropagation()}>
+                <TableCell className={cn(STOCK_TABLE_COL.select, "px-4 text-left")} onClick={(e) => e.stopPropagation()}>
                   <Checkbox
                     checked={isSelected}
                     onCheckedChange={() => onSelect(item.id)}
@@ -109,35 +109,41 @@ export function StockTable({
                   />
                 </TableCell>
                 <TableCell
-                  className={cn(STOCK_TABLE_COL.skuCode, TABLE_CELL_MONO_CLASS, "px-4")}
+                  className={cn(STOCK_TABLE_COL.skuCode, TABLE_CELL_MONO_CLASS, "px-4 text-left")}
                 >
                   {item.skuCode}
                 </TableCell>
-                <TableCell className={cn(STOCK_TABLE_COL.productName, TABLE_CELL_PRIMARY_CLASS, "px-4 truncate")}>
+                <TableCell className={cn(STOCK_TABLE_COL.productName, TABLE_CELL_PRIMARY_CLASS, "px-4 text-left truncate min-w-0")}>
                   {item.productName}
                 </TableCell>
-                <TableCell className={cn(STOCK_TABLE_COL.location, TABLE_CELL_SECONDARY_CLASS, "px-4")}>
+                <TableCell className={cn(STOCK_TABLE_COL.location, TABLE_CELL_SECONDARY_CLASS, "px-4 text-left")}>
                   <Badge variant="outline" className="text-xs font-normal border-slate-200 h-6">
                     {item.warehouseCode}-{item.shelfCode}
                   </Badge>
                 </TableCell>
-                <TableCell className={cn(STOCK_TABLE_COL.quantity, TABLE_CELL_NUMBER_CLASS, "px-4 text-right")}>
-                  <div className="flex items-center justify-end gap-1">
-                    <Package className="h-3 w-3 shrink-0 text-slate-400" />
-                    {item.quantity}{" "}
-                    <span className="text-xs font-normal text-slate-500">{item.unitName}</span>
+                <TableCell className={cn(STOCK_TABLE_COL.quantity, TABLE_CELL_NUMBER_CLASS, "px-4 text-left min-w-0")}>
+                  <div className="flex w-full min-w-0 justify-start">
+                    <div className="inline-grid max-w-full grid-cols-[0.875rem_minmax(1.25rem,1fr)_2.75rem] items-center gap-x-1.5 text-sm">
+                      <span className="flex w-3.5 shrink-0 justify-start" aria-hidden>
+                        <Package className="h-3 w-3 text-slate-400" />
+                      </span>
+                      <span className="tabular-nums text-left font-medium text-slate-900">{item.quantity}</span>
+                      <span className="truncate text-left text-xs font-normal text-slate-500" title={item.unitName}>
+                        {item.unitName}
+                      </span>
+                    </div>
                   </div>
                 </TableCell>
-                <TableCell className={cn(STOCK_TABLE_COL.expiryDate, TABLE_CELL_SECONDARY_CLASS, "px-4")}>
+                <TableCell className={cn(STOCK_TABLE_COL.expiryDate, TABLE_CELL_SECONDARY_CLASS, "px-4 text-left")}>
                   {item.expiryDate ? new Date(item.expiryDate).toLocaleDateString("vi-VN") : "—"}
                 </TableCell>
-                <TableCell className={cn(STOCK_TABLE_COL.status, "px-4")}>
+                <TableCell className={cn(STOCK_TABLE_COL.status, "px-4 text-left")}>
                   <Badge variant="secondary" className={`${status.bg} text-xs font-normal border-none`}>
                     {status.label}
                   </Badge>
                 </TableCell>
-                <TableCell className={cn(DATA_TABLE_ACTION_SINGLE_CELL_CLASS, "px-2")}>
-                  <div className="flex items-center justify-center">
+                <TableCell className={cn(DATA_TABLE_ACTION_SINGLE_CELL_CLASS, "px-2 text-left")}>
+                  <div className="flex items-center justify-start">
                     <Button
                       variant="ghost"
                       size="icon"

@@ -67,6 +67,7 @@ Authorization: Bearer <your_access_token>
 | `stockLevel` | string | Không | `all` | `all`, `in_stock`, `low_stock`, `out_of_stock` |
 | `locationId` | number (int > 0) | Không | — | Lọc `Inventory.location_id` |
 | `categoryId` | number (int > 0) | Không | — | Lọc `Products.category_id` |
+| `productId` | number (int > 0) | Không | — | Lọc `Inventory.product_id` (ví dụ lấy các dòng tồn / lô của một SKU cho form phiếu nhập) |
 | `page` | number (int ≥ 1) | Không | `1` | Số trang |
 | `limit` | number (int 1–100) | Không | `20` | Số bản ghi mỗi trang |
 | `sort` | string | Không | (theo policy backend) | Whitelist, ví dụ `updatedAt:desc` |

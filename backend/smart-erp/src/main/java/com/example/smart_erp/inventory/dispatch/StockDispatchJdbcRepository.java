@@ -2,6 +2,7 @@ package com.example.smart_erp.inventory.dispatch;
 
 import java.sql.Date;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,7 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
+import com.example.smart_erp.inventory.dispatch.response.StockDispatchDetailLineData;
 import com.example.smart_erp.inventory.dispatch.response.StockDispatchListItemData;
 
 @SuppressWarnings("null")
@@ -90,6 +92,46 @@ public class StockDispatchJdbcRepository {
 		return key.longValue();
 	}
 
+	public void insertDispatchLine(long dispatchId, long inventoryId, int quantity) {
+		MapSqlParameterSource src = new MapSqlParameterSource("did", dispatchId).addValue("inv", inventoryId)
+				.addValue("q", quantity);
+		namedJdbc.update("""
+				INSERT INTO stockdispatch_lines (dispatch_id, inventory_id, quantity)
+				VALUES (:did, :inv, :q)
+				""", src);
+	}
+
+	public int deleteLinesByDispatch(long dispatchId) {
+		return namedJdbc.update("DELETE FROM stockdispatch_lines WHERE dispatch_id = :did",
+				Map.of("did", dispatchId));
+	}
+
+	public boolean dispatchHasPendingLines(long dispatchId) {
+		Integer n = namedJdbc.queryForObject(
+				"SELECT COUNT(*)::int FROM stockdispatch_lines WHERE dispatch_id = :did", Map.of("did", dispatchId),
+				Integer.class);
+		return n != null && n > 0;
+	}
+
+	public int countOutboundLogs(long dispatchId) {
+		Integer n = namedJdbc.queryForObject(
+				"""
+						SELECT COUNT(*)::int FROM inventorylogs WHERE dispatch_id = :did AND action_type = 'OUTBOUND'
+						""",
+				Map.of("did", dispatchId), Integer.class);
+		return n == null ? 0 : n;
+	}
+
+	public List<ManualLineRow> loadPendingLinesOrdered(long dispatchId) {
+		return namedJdbc.query(
+				"SELECT inventory_id, quantity FROM stockdispatch_lines WHERE dispatch_id = :did ORDER BY inventory_id",
+				Map.of("did", dispatchId),
+				(rs, rn) -> new ManualLineRow(rs.getLong("inventory_id"), rs.getInt("quantity")));
+	}
+
+	public record ManualLineRow(long inventoryId, int quantity) {
+	}
+
 	public void updateDispatchCode(long dispatchId, String dispatchCode) {
 		namedJdbc.update("UPDATE stockdispatches SET dispatch_code = :c, updated_at = CURRENT_TIMESTAMP WHERE id = :id",
 				Map.of("c", dispatchCode, "id", dispatchId));
@@ -120,11 +162,14 @@ public class StockDispatchJdbcRepository {
 		if (dateTo != null && !dateTo.isBlank()) {
 			where.append(first ? " WHERE " : " AND ").append("sd.dispatch_date <= CAST(:dt AS date)");
 			src.addValue("dt", dateTo);
+			first = false;
 		}
 	}
 
+	private static final String ACTIVE_DISPATCH_FILTER = " WHERE sd.deleted_at IS NULL ";
+
 	public long countDispatches(String search, String status, String dateFrom, String dateTo) {
-		StringBuilder where = new StringBuilder();
+		StringBuilder where = new StringBuilder(ACTIVE_DISPATCH_FILTER);
 		MapSqlParameterSource src = new MapSqlParameterSource();
 		appendFilters(where, src, search, status, dateFrom, dateTo);
 		String sql = "SELECT COUNT(*)::bigint FROM stockdispatches sd LEFT JOIN salesorders so ON so.id = sd.order_id "
@@ -135,36 +180,222 @@ public class StockDispatchJdbcRepository {
 
 	public List<StockDispatchListItemData> listDispatches(String search, String status, String dateFrom, String dateTo,
 			int limit, int offset) {
-		StringBuilder where = new StringBuilder();
+		StringBuilder where = new StringBuilder(ACTIVE_DISPATCH_FILTER);
 		MapSqlParameterSource src = new MapSqlParameterSource("lim", limit).addValue("off", offset);
 		appendFilters(where, src, search, status, dateFrom, dateTo);
 		String sql = """
-				SELECT sd.id, sd.dispatch_code,
+				SELECT sd.id,
+				       sd.dispatch_code,
 				       COALESCE(so.order_code, '—') AS order_code,
 				       COALESCE(c.name, COALESCE(sd.reference_label, '—')) AS customer_name,
 				       sd.dispatch_date,
+				       sd.user_id AS creator_user_id,
+				       (sd.order_id IS NULL) AS manual_dispatch,
 				       COALESCE(u.full_name, u.email, '—') AS user_name,
-				       (SELECT COUNT(*)::int FROM inventorylogs il
-				        WHERE il.dispatch_id = sd.id AND il.action_type = 'OUTBOUND') AS item_count,
-				       sd.status
+				       CASE WHEN EXISTS (SELECT 1 FROM stockdispatch_lines sdl WHERE sdl.dispatch_id = sd.id)
+				            THEN (SELECT COUNT(*)::int FROM stockdispatch_lines x WHERE x.dispatch_id = sd.id)
+				            ELSE COALESCE((SELECT COUNT(*)::int FROM inventorylogs il WHERE il.dispatch_id = sd.id
+				                          AND il.action_type = 'OUTBOUND'), 0)
+				       END AS item_count,
+				       sd.status,
+				       EXISTS (
+				         SELECT 1 FROM stockdispatch_lines sdl2
+				         INNER JOIN inventory i ON i.id = sdl2.inventory_id
+				         WHERE sdl2.dispatch_id = sd.id AND sdl2.quantity > i.quantity
+				       ) AS has_shortage_warning
 				FROM stockdispatches sd
 				INNER JOIN users u ON u.id = sd.user_id
 				LEFT JOIN salesorders so ON so.id = sd.order_id
 				LEFT JOIN customers c ON c.id = so.customer_id
 				"""
-				+ where
-				+ """
-				ORDER BY sd.id DESC
-				LIMIT :lim OFFSET :off
-				""";
-		return namedJdbc.query(sql, src, (rs, rn) -> new StockDispatchListItemData(
-				rs.getLong("id"),
+				+ where + """
+							ORDER BY sd.id DESC
+							LIMIT :lim OFFSET :off
+							""";
+		return namedJdbc.query(sql, src, (rs, rn) -> new StockDispatchListItemData(rs.getLong("id"),
 				rs.getString("dispatch_code"),
 				rs.getString("order_code"),
 				rs.getString("customer_name"),
 				rs.getObject("dispatch_date", LocalDate.class),
 				rs.getString("user_name"),
 				rs.getInt("item_count"),
-				rs.getString("status")));
+				rs.getString("status"),
+				rs.getInt("creator_user_id"),
+				rs.getBoolean("manual_dispatch"),
+				rs.getBoolean("has_shortage_warning"),
+				false,
+				false));
+	}
+
+	public record LockedManualDispatchRow(long id, Integer orderId, int creatorUserId, String status,
+			LocalDate dispatchDate, String notes, String referenceLabel, Instant deletedAt) {
+	}
+
+	public Optional<LockedManualDispatchRow> lockManualDispatch(long dispatchId) {
+		String sql = """
+				SELECT sd.id,
+				       sd.order_id,
+				       sd.user_id,
+				       sd.status,
+				       sd.dispatch_date,
+				       sd.notes,
+				       sd.reference_label,
+				       sd.deleted_at AS deleted_ts
+				FROM stockdispatches sd
+				WHERE sd.id = :id
+				FOR UPDATE OF sd
+				""";
+		return namedJdbc.query(sql, Map.of("id", dispatchId), rs -> {
+			if (!rs.next()) {
+				return Optional.empty();
+			}
+			Integer oid = (Integer) rs.getObject("order_id");
+			java.sql.Timestamp del = rs.getTimestamp("deleted_ts");
+			Instant delInst = del == null ? null : del.toInstant();
+			return Optional.of(new LockedManualDispatchRow(
+					rs.getLong("id"),
+					oid,
+					rs.getInt("user_id"),
+					rs.getString("status"),
+					rs.getObject("dispatch_date", LocalDate.class),
+					rs.getString("notes"),
+					rs.getString("reference_label"),
+					delInst));
+		});
+	}
+
+	public void updateDispatchStatus(long dispatchId, String nextStatus) {
+		namedJdbc.update("""
+				UPDATE stockdispatches SET status = :st, updated_at = CURRENT_TIMESTAMP WHERE id = :id
+				""", Map.of("st", nextStatus, "id", dispatchId));
+	}
+
+	public void updateDispatchDate(long dispatchId, LocalDate dispatchDate) {
+		namedJdbc.update("UPDATE stockdispatches SET dispatch_date = :d, updated_at = CURRENT_TIMESTAMP WHERE id = :id",
+				Map.of("d", Date.valueOf(dispatchDate), "id", dispatchId));
+	}
+
+	public void updateDispatchNotes(long dispatchId, String notes) {
+		namedJdbc.update("UPDATE stockdispatches SET notes = :n, updated_at = CURRENT_TIMESTAMP WHERE id = :id",
+				new MapSqlParameterSource("id", dispatchId).addValue("n", notes, Types.VARCHAR));
+	}
+
+	public void updateDispatchReference(long dispatchId, String referenceLabel) {
+		namedJdbc.update("""
+				UPDATE stockdispatches SET reference_label = :r, updated_at = CURRENT_TIMESTAMP WHERE id = :id
+				""", new MapSqlParameterSource("id", dispatchId).addValue("r", referenceLabel, Types.VARCHAR));
+	}
+
+	/** PATCH từng trường khi không null trong service; set rỗng thành blank. */
+
+
+	public void markSoftDeleted(long dispatchId, int deletedByUserId, String reason) {
+		namedJdbc.update("""
+				UPDATE stockdispatches
+				SET deleted_at = CURRENT_TIMESTAMP,
+				    deleted_by_user_id = :duid,
+				    delete_reason = :r,
+				    updated_at = CURRENT_TIMESTAMP
+				WHERE id = :id
+				""", Map.of("id", dispatchId, "duid", deletedByUserId, "r", reason));
+	}
+
+	public record DispatchDetailHeaderRow(long id, String dispatchCode, String orderCode, String customerName,
+			LocalDate dispatchDate, int userId, String userName, String status, String notes, String referenceLabel,
+			Integer orderId, Instant deletedAt, String deleteReason, Integer deletedByUserId,
+			String deletedByDisplayName) {
+	}
+
+	public Optional<DispatchDetailHeaderRow> loadDispatchDetailHeader(long dispatchId) {
+		String sql = """
+				SELECT sd.id,
+				       sd.dispatch_code,
+				       COALESCE(so.order_code, '—') AS order_code,
+				       COALESCE(c.name, COALESCE(sd.reference_label, '—')) AS customer_name,
+				       sd.dispatch_date,
+				       sd.user_id,
+				       COALESCE(u.full_name, u.email, '—') AS user_name_sd,
+				       sd.status,
+				       sd.notes,
+				       sd.reference_label,
+				       sd.order_id,
+				       sd.deleted_at AS del_ts,
+				       sd.delete_reason,
+				       sd.deleted_by_user_id,
+				       COALESCE(du.full_name, du.email, '') AS deleted_by_name
+				FROM stockdispatches sd
+				INNER JOIN users u ON u.id = sd.user_id
+				LEFT JOIN salesorders so ON so.id = sd.order_id
+				LEFT JOIN customers c ON c.id = so.customer_id
+				LEFT JOIN users du ON du.id = sd.deleted_by_user_id
+				WHERE sd.id = :id
+				""";
+		return namedJdbc.query(sql, Map.of("id", dispatchId), rs -> {
+			if (!rs.next()) {
+				return Optional.empty();
+			}
+			java.sql.Timestamp del = rs.getTimestamp("del_ts");
+			Integer deletedByUid = (Integer) rs.getObject("deleted_by_user_id");
+			Integer oid = (Integer) rs.getObject("order_id");
+			String delReason = rs.getString("delete_reason");
+			return Optional.of(new DispatchDetailHeaderRow(
+					rs.getLong("id"),
+					rs.getString("dispatch_code"),
+					rs.getString("order_code"),
+					rs.getString("customer_name"),
+					rs.getObject("dispatch_date", LocalDate.class),
+					rs.getInt("user_id"),
+					rs.getString("user_name_sd"),
+					rs.getString("status"),
+					rs.getString("notes"),
+					rs.getString("reference_label"),
+					oid,
+					del == null ? null : del.toInstant(),
+					delReason,
+					deletedByUid,
+					rs.getString("deleted_by_name")));
+		});
+	}
+
+	public boolean detailHasShortage(long dispatchId) {
+		String sql = """
+				SELECT EXISTS (
+				  SELECT 1 FROM stockdispatch_lines sdl
+				  INNER JOIN inventory i ON i.id = sdl.inventory_id
+				  WHERE sdl.dispatch_id = :id AND sdl.quantity > i.quantity
+				)
+				""";
+		Boolean b = namedJdbc.queryForObject(sql, Map.of("id", dispatchId), Boolean.class);
+		return Boolean.TRUE.equals(b);
+	}
+
+	public List<StockDispatchDetailLineData> loadManualDetailLines(long dispatchId) {
+		String sql = """
+				SELECT sdl.id AS line_id,
+				       sdl.inventory_id,
+				       sdl.quantity,
+				       i.quantity AS available_qty,
+				       p.name AS product_name,
+				       p.sku_code,
+				       wl.warehouse_code,
+				       wl.shelf_code
+				FROM stockdispatch_lines sdl
+				INNER JOIN inventory i ON i.id = sdl.inventory_id
+				INNER JOIN products p ON p.id = i.product_id
+				LEFT JOIN warehouselocations wl ON wl.id = i.location_id
+				WHERE sdl.dispatch_id = :id
+				ORDER BY sdl.id
+				""";
+		return namedJdbc.query(sql, Map.of("id", dispatchId),
+				(rs, rn) -> new StockDispatchDetailLineData(
+						rs.getLong("line_id"),
+						rs.getLong("inventory_id"),
+						rs.getInt("quantity"),
+						rs.getInt("available_qty"),
+						rs.getInt("quantity") > rs.getInt("available_qty"),
+						rs.getString("product_name"),
+						rs.getString("sku_code"),
+						rs.getString("warehouse_code") == null ? "—" : rs.getString("warehouse_code"),
+						rs.getString("shelf_code") == null ? "—" : rs.getString("shelf_code")));
 	}
 }

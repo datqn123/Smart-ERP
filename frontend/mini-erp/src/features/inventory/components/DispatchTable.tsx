@@ -1,4 +1,4 @@
-import { Eye, Package, Edit2, Trash2 } from "lucide-react"
+import { AlertCircle, Eye, Package, Edit2, Trash2 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "./StatusBadge"
@@ -54,10 +54,10 @@ export function DispatchTable({ dispatches, onAction, onEdit, onDelete }: Dispat
             >
               {dispatch.dispatchCode}
             </TableCell>
-            <TableCell className={cn(DISPATCH_TABLE_COL.orderCode, TABLE_CELL_MONO_CLASS)}>
+            <TableCell className={cn(DISPATCH_TABLE_COL.orderCode, TABLE_CELL_MONO_CLASS, "truncate")}>
               {dispatch.orderCode}
             </TableCell>
-            <TableCell className={cn(DISPATCH_TABLE_COL.customerName, TABLE_CELL_PRIMARY_CLASS, "truncate")}>
+            <TableCell className={cn(DISPATCH_TABLE_COL.customerName, TABLE_CELL_PRIMARY_CLASS, "truncate min-w-0")}>
               {dispatch.customerName}
             </TableCell>
             <TableCell className={cn(DISPATCH_TABLE_COL.dispatchDate, TABLE_CELL_SECONDARY_CLASS)}>
@@ -78,7 +78,14 @@ export function DispatchTable({ dispatches, onAction, onEdit, onDelete }: Dispat
               </div>
             </TableCell>
             <TableCell className={cn(DISPATCH_TABLE_COL.status, "text-center")}>
-              <StatusBadge status={dispatch.status} type="dispatch" />
+              <div className="inline-flex items-center justify-center gap-1">
+                {dispatch.shortageWarning && (
+                  <span title="Thiếu hàng so với tồn">
+                    <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" aria-hidden />
+                  </span>
+                )}
+                <StatusBadge status={dispatch.status} type="dispatch" />
+              </div>
             </TableCell>
             <TableCell className={DATA_TABLE_ACTION_CELL_CLASS} onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-center gap-1">
@@ -91,7 +98,7 @@ export function DispatchTable({ dispatches, onAction, onEdit, onDelete }: Dispat
                 >
                   <Eye className="h-4 w-4" />
                 </Button>
-                {onEdit && (
+                {onEdit && dispatch.canEdit && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -102,7 +109,7 @@ export function DispatchTable({ dispatches, onAction, onEdit, onDelete }: Dispat
                     <Edit2 className="h-4 w-4" />
                   </Button>
                 )}
-                {onDelete && (
+                {onDelete && dispatch.canDelete && (
                   <Button
                     variant="ghost"
                     size="icon"

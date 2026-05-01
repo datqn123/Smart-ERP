@@ -41,7 +41,7 @@ export function StockTable({
     if (item.quantity === 0) return { label: "Hết hàng", bg: "bg-red-100 text-red-800" }
     if (item.isLowStock) return { label: "Sắp hết", bg: "bg-red-50 text-red-700 hover:bg-red-100" }
     if (item.isExpiringSoon) return { label: "Cận date", bg: "bg-amber-50 text-amber-700 hover:bg-amber-100" }
-    return { label: "Chính thức", bg: "bg-green-50 text-green-700 hover:bg-green-100" }
+    return { label: "Bình thường", bg: "bg-green-50 text-green-700 hover:bg-green-100" }
   }
 
   return (
@@ -78,7 +78,7 @@ export function StockTable({
           <TableHead className={cn(STOCK_TABLE_COL.status, TABLE_HEAD_CLASS, "px-4 text-left")}>
             Trạng thái
           </TableHead>
-          <TableHead className={cn(DATA_TABLE_ACTION_SINGLE_HEAD_CLASS, TABLE_HEAD_CLASS, "text-left")}>
+          <TableHead className={cn(DATA_TABLE_ACTION_SINGLE_HEAD_CLASS, TABLE_HEAD_CLASS, "text-center")}>
             NV
           </TableHead>
         </TableRow>
@@ -142,8 +142,8 @@ export function StockTable({
                     {status.label}
                   </Badge>
                 </TableCell>
-                <TableCell className={cn(DATA_TABLE_ACTION_SINGLE_CELL_CLASS, "px-2 text-left")}>
-                  <div className="flex items-center justify-start">
+                <TableCell className={cn(DATA_TABLE_ACTION_SINGLE_CELL_CLASS, "px-2 text-center")}>
+                  <div className="flex items-center justify-center">
                     <Button
                       variant="ghost"
                       size="icon"

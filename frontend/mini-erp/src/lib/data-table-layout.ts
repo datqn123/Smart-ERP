@@ -47,7 +47,7 @@ export const RECEIPT_TABLE_COL = {
 /** Phiếu xuất kho */
 export const DISPATCH_TABLE_COL = {
   dispatchCode: "w-[116px]",
-  orderCode: "w-[116px]",
+  orderCode: "w-[116px] min-w-0",
   customerName: "min-w-[200px]",
   dispatchDate: "w-[100px]",
   userName: "w-[152px]",

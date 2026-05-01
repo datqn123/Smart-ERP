@@ -1,9 +1,11 @@
 package com.example.smart_erp.inventory.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -64,6 +66,24 @@ class StockReceiptsControllerWebMvcTest {
 				.andExpect(jsonPath("$.data.items[0].receiptCode").value("PN-1"))
 				.andExpect(jsonPath("$.data.total").value(1));
 		verify(stockReceiptListService).list(any(StockReceiptListQuery.class));
+	}
+
+	@Test
+	void list_withMine_passesStaffIdFromJwtSubject() throws Exception {
+		var item = new StockReceiptListItemData(1L, "PN-1", 2L, "NCC", 1, "NV", java.time.LocalDate.parse("2026-04-20"),
+				"Draft", null, java.math.BigDecimal.ONE, 1, null, null, null, null, null, null, null, null,
+				java.time.Instant.parse("2026-04-20T08:00:00Z"), java.time.Instant.parse("2026-04-20T09:00:00Z"));
+		var data = new StockReceiptListPageData(List.of(item), 1, 20, 1L);
+		when(stockReceiptListService.list(any(StockReceiptListQuery.class))).thenReturn(data);
+
+		mockMvc.perform(get("/api/v1/stock-receipts").param("mine", "true")
+				.with(Objects.requireNonNull(jwt().authorities(new SimpleGrantedAuthority("can_manage_inventory"))
+						.jwt(j -> j.subject("7")))))
+				.andExpect(status().isOk());
+
+		var captor = ArgumentCaptor.forClass(StockReceiptListQuery.class);
+		verify(stockReceiptListService).list(captor.capture());
+		assertThat(captor.getValue().mineStaffId()).isEqualTo(7);
 	}
 
 	@Test

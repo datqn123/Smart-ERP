@@ -17,6 +17,7 @@ public record StockReceiptListQuery(
 		LocalDate dateFrom,
 		LocalDate dateTo,
 		Integer supplierId,
+		Integer mineStaffId,
 		int page,
 		int limit,
 		StockReceiptListSortOrder sort) {
@@ -26,7 +27,7 @@ public record StockReceiptListQuery(
 	public static final int MAX_LIMIT = 100;
 
 	public static StockReceiptListQuery of(String search, String status, String dateFrom, String dateTo, String supplierId,
-			String page, String limit, String sort) {
+			String page, String limit, String sort, Integer mineStaffId) {
 		try {
 			StockReceiptStatusFilter st = StockReceiptStatusFilter.fromParam(status);
 			LocalDate df = parseOptionalLocalDate(dateFrom, "dateFrom");
@@ -40,7 +41,7 @@ public record StockReceiptListQuery(
 			int l = parseLimit(limit);
 			StockReceiptListSortOrder ord = StockReceiptListSortOrder.parseOrDefault(sort);
 			String s = search != null && !search.isBlank() ? search.trim() : null;
-			return new StockReceiptListQuery(s, st, df, dt, sup, p, l, ord);
+			return new StockReceiptListQuery(s, st, df, dt, sup, mineStaffId, p, l, ord);
 		}
 		catch (BusinessException e) {
 			throw e;

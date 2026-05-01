@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.api.ApiSuccessResponse;
 import com.example.smart_erp.common.exception.BusinessException;
@@ -62,11 +64,14 @@ public class StockReceiptsController {
 			@RequestParam(name = "dateFrom", required = false) String dateFrom,
 			@RequestParam(name = "dateTo", required = false) String dateTo,
 			@RequestParam(name = "supplierId", required = false) String supplierId,
+			@RequestParam(name = "mine", required = false) String mine,
 			@RequestParam(name = "page", required = false) String page,
 			@RequestParam(name = "limit", required = false) String limit,
 			@RequestParam(name = "sort", required = false) String sort) {
-		requireJwt(authentication);
-		StockReceiptListQuery q = StockReceiptListQuery.of(search, status, dateFrom, dateTo, supplierId, page, limit, sort);
+		Jwt jwt = requireJwt(authentication);
+		Integer mineStaffId = resolveMineStaffId(mine, jwt);
+		StockReceiptListQuery q = StockReceiptListQuery.of(search, status, dateFrom, dateTo, supplierId, page, limit, sort,
+				mineStaffId);
 		StockReceiptListPageData data = stockReceiptListService.list(q);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
 	}
@@ -149,5 +154,37 @@ public class StockReceiptsController {
 			throw new BusinessException(ApiErrorCode.UNAUTHORIZED, UNAUTHORIZED_NO_JWT_PRINCIPAL);
 		}
 		return jwt;
+	}
+
+	/** {@code mine=true} → lọc {@code staff_id} = JWT subject (không tin staffId từ client). */
+	private static Integer resolveMineStaffId(String mineRaw, Jwt jwt) {
+		if (!parseTruthLike(mineRaw)) {
+			return null;
+		}
+		String sub = jwt.getSubject();
+		if (sub == null || sub.isBlank()) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Tham số yêu cầu không hợp lệ",
+					Map.of("mine", "Không xác định được người dùng từ JWT"));
+		}
+		try {
+			int v = Integer.parseInt(sub.trim());
+			if (v <= 0) {
+				throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Tham số yêu cầu không hợp lệ",
+						Map.of("mine", "JWT subject phải là id nhân viên dương"));
+			}
+			return v;
+		}
+		catch (NumberFormatException e) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Tham số yêu cầu không hợp lệ",
+					Map.of("mine", "JWT subject phải là số nguyên (staff id)"));
+		}
+	}
+
+	private static boolean parseTruthLike(String raw) {
+		if (raw == null || raw.isBlank()) {
+			return false;
+		}
+		String s = raw.trim().toLowerCase();
+		return "true".equals(s) || "1".equals(s) || "yes".equals(s);
 	}
 }

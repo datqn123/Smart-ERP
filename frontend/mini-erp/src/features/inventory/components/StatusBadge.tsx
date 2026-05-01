@@ -13,7 +13,10 @@ const receiptConfig: Record<string, { label: string; bg: string; text: string }>
 };
 
 const dispatchConfig: Record<string, { label: string; bg: string; text: string }> = {
-  Pending: { label: "Chờ xuất", bg: "bg-amber-50", text: "text-amber-700" },
+  WaitingDispatch: { label: "Chờ xuất", bg: "bg-amber-50", text: "text-amber-700" },
+  Delivering: { label: "Đang giao", bg: "bg-sky-50", text: "text-sky-800" },
+  Delivered: { label: "Đã giao", bg: "bg-green-50", text: "text-green-800" },
+  Pending: { label: "Chờ xuất (đơn)", bg: "bg-amber-50", text: "text-amber-700" },
   Full: { label: "Đủ hàng", bg: "bg-green-50", text: "text-green-700" },
   Partial: { label: "Một phần", bg: "bg-blue-50", text: "text-blue-700" },
   Cancelled: { label: "Đã hủy", bg: "bg-slate-100", text: "text-slate-600" },

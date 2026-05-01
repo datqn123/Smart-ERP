@@ -73,7 +73,8 @@ public class StockReceiptListJdbcRepository {
 	public List<StockReceiptListItemData> loadPage(StockReceiptListQuery q) {
 		Filter f = buildFilter(q);
 		int offset = (q.page() - 1) * q.limit();
-		String sql = SELECT_LIST + BASE_FROM + f.where + " ORDER BY sr.id ASC LIMIT " + q.limit() + " OFFSET " + offset;
+		String sql = SELECT_LIST + BASE_FROM + f.where + " ORDER BY " + q.sort().orderByFragment() + " LIMIT " + q.limit()
+				+ " OFFSET " + offset;
 		return namedJdbc.query(sql, f.source, ROW);
 	}
 
@@ -131,6 +132,10 @@ public class StockReceiptListJdbcRepository {
 		if (q.supplierId() != null) {
 			sb.append(" AND sr.supplier_id = :_supplier_id");
 			src.addValue("_supplier_id", q.supplierId());
+		}
+		if (q.mineStaffId() != null) {
+			sb.append(" AND sr.staff_id = :_mine_staff_id");
+			src.addValue("_mine_staff_id", q.mineStaffId());
 		}
 		return new Filter(sb.toString(), src);
 	}

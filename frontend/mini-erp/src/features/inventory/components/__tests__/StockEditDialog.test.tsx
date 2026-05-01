@@ -6,19 +6,24 @@ import type { InventoryItem } from "../../types"
 const mockItems: InventoryItem[] = [
   {
     id: 1,
+    productId: 101,
     skuCode: "SKU001",
     productName: "Sản phẩm 1",
+    locationId: 5,
     warehouseCode: "WH1",
     shelfCode: "S1",
     minQuantity: 10,
+    unitId: 2,
     unitName: "Gói",
     costPrice: 50000,
     batchNumber: "B001",
     expiryDate: "2026-12-31T00:00:00Z",
     quantity: 100,
     totalValue: 5000000,
-    isLowStock: false
-  }
+    updatedAt: "2026-01-01T00:00:00Z",
+    isLowStock: false,
+    isExpiringSoon: false,
+  },
 ]
 
 describe("StockEditDialog", () => {
@@ -37,10 +42,10 @@ describe("StockEditDialog", () => {
 
     expect(screen.getByText("Mã SP")).toBeDefined()
     expect(screen.getByText("Tên sản phẩm")).toBeDefined()
-    expect(screen.getByText("Vị trí (Kho - Kệ)")).toBeDefined()
+    expect(screen.getByText("Vị trí kho")).toBeDefined()
     expect(screen.getByText("Định mức")).toBeDefined()
-    expect(screen.getByText("Đơn vị")).toBeDefined()
-    expect(screen.getByText("Giá vốn (VNĐ)")).toBeDefined()
+    expect(screen.getByText("Đơn vị tính")).toBeDefined()
+    expect(screen.getByText("Giá vốn")).toBeDefined()
     expect(screen.getByText("Số lô")).toBeDefined()
     expect(screen.getByText("Hạn SD")).toBeDefined()
   })
@@ -55,43 +60,32 @@ describe("StockEditDialog", () => {
       />
     )
 
-    // Helper function to change value and check
-    const changeInput = (placeholder: string, value: string) => {
-      const input = screen.getByPlaceholderText(placeholder)
-      fireEvent.change(input, { target: { value } })
-    }
+    const locationInput = screen.getByLabelText("Mã vị trí kho")
+    fireEvent.change(locationInput, { target: { value: "9" } })
 
-    changeInput("Kho", "WH2")
-    changeInput("Kệ", "S2")
-    changeInput("Số lô", "B999")
-    
-    // Number/Date inputs (find by display value or type)
     const minQtyInput = screen.getByDisplayValue("10")
     fireEvent.change(minQtyInput, { target: { value: "20" } })
 
-    const costInput = screen.getByDisplayValue("50000")
-    fireEvent.change(costInput, { target: { value: "60000" } })
+    const unitIdInput = screen.getByLabelText("Mã đơn vị tính")
+    fireEvent.change(unitIdInput, { target: { value: "7" } })
 
-    const unitInput = screen.getByDisplayValue("Gói")
-    fireEvent.change(unitInput, { target: { value: "Hộp" } })
+    const batchInput = screen.getByPlaceholderText("Số lô")
+    fireEvent.change(batchInput, { target: { value: "B999" } })
 
     const dateInput = screen.getByDisplayValue("2026-12-31")
     fireEvent.change(dateInput, { target: { value: "2027-01-01" } })
 
-    // Nhấn nút Lưu
     const saveButton = screen.getByText("Lưu thay đổi")
     fireEvent.click(saveButton)
 
     expect(mockOnConfirm).toHaveBeenCalledWith([
       expect.objectContaining({
-        warehouseCode: "WH2",
-        shelfCode: "S2",
+        locationId: 9,
         minQuantity: 20,
-        unitName: "Hộp",
-        costPrice: 60000,
+        unitId: 7,
         batchNumber: "B999",
-        expiryDate: "2027-01-01"
-      })
+        expiryDate: "2027-01-01",
+      }),
     ])
   })
 

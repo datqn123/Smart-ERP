@@ -5,8 +5,12 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
+import java.util.Map;
+
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,7 +22,10 @@ import com.example.smart_erp.common.api.ApiSuccessResponse;
 import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.inventory.dispatch.ManualStockDispatchService;
 import com.example.smart_erp.inventory.dispatch.StockDispatchCreateRequest;
+import com.example.smart_erp.inventory.dispatch.StockDispatchPatchRequest;
+import com.example.smart_erp.inventory.dispatch.StockDispatchSoftDeleteRequest;
 import com.example.smart_erp.inventory.dispatch.response.StockDispatchCreatedData;
+import com.example.smart_erp.inventory.dispatch.response.StockDispatchDetailData;
 import com.example.smart_erp.inventory.dispatch.response.StockDispatchListPageData;
 
 import jakarta.validation.Valid;
@@ -45,8 +52,18 @@ public class StockDispatchesController {
 			@RequestParam(name = "dateTo", required = false) String dateTo,
 			@RequestParam(name = "page", required = false, defaultValue = "1") int page,
 			@RequestParam(name = "limit", required = false, defaultValue = "20") int limit) {
-		requireJwt(authentication);
-		StockDispatchListPageData data = manualStockDispatchService.list(search, status, dateFrom, dateTo, page, limit);
+		Jwt jwt = requireJwt(authentication);
+		StockDispatchListPageData data = manualStockDispatchService.list(search, status, dateFrom, dateTo, page, limit,
+				jwt);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
+	}
+
+	@GetMapping("/stock-dispatches/{id:\\d+}")
+	@PreAuthorize("hasAuthority('can_manage_inventory')")
+	public ResponseEntity<ApiSuccessResponse<StockDispatchDetailData>> getById(Authentication authentication,
+			@PathVariable long id) {
+		Jwt jwt = requireJwt(authentication);
+		var data = manualStockDispatchService.getDetail(id, jwt);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
 	}
 
@@ -58,6 +75,25 @@ public class StockDispatchesController {
 		Jwt jwt = requireJwt(authentication);
 		StockDispatchCreatedData data = manualStockDispatchService.createManual(body, jwt);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã tạo phiếu xuất kho"));
+	}
+
+	@PatchMapping("/stock-dispatches/{id:\\d+}")
+	@PreAuthorize("hasAuthority('can_manage_inventory')")
+	public ResponseEntity<ApiSuccessResponse<StockDispatchDetailData>> patchDispatch(Authentication authentication,
+			@PathVariable long id, @Valid @RequestBody StockDispatchPatchRequest body) {
+		Jwt jwt = requireJwt(authentication);
+		var data = manualStockDispatchService.patchManual(id, body, jwt);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã cập nhật phiếu xuất kho"));
+	}
+
+	/** Xóa mềm — body gồm lý do (ghi cho người tạo khi tra cứu). */
+	@PostMapping("/stock-dispatches/{id:\\d+}/soft-delete")
+	@PreAuthorize("hasAuthority('can_manage_inventory')")
+	public ResponseEntity<ApiSuccessResponse<Object>> softDelete(Authentication authentication, @PathVariable long id,
+			@Valid @RequestBody StockDispatchSoftDeleteRequest body) {
+		Jwt jwt = requireJwt(authentication);
+		manualStockDispatchService.softDeleteManual(id, body, jwt);
+		return ResponseEntity.ok(ApiSuccessResponse.of(Map.of(), "Đã xóa mềm phiếu xuất kho"));
 	}
 
 	private static Jwt requireJwt(Authentication authentication) {

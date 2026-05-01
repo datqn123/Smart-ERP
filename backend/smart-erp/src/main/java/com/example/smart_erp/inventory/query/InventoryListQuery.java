@@ -15,6 +15,7 @@ public record InventoryListQuery(
 		InventoryStockLevel stockLevel,
 		Integer locationId,
 		Integer categoryId,
+		Integer productId,
 		int page,
 		int limit,
 		InventoryListSortOrder sort) {
@@ -27,11 +28,11 @@ public record InventoryListQuery(
 	 * Task009 — chỉ cần filter giống Task005; {@code page}, {@code limit}, {@code sort} mặc định nội bộ (aggregate không dùng LIMIT).
 	 */
 	public static InventoryListQuery forSummaryFilters(String search, String stockLevel, String locationId, String categoryId) {
-		return of(search, stockLevel, locationId, categoryId, null, null, null);
+		return of(search, stockLevel, locationId, categoryId, null, null, null, null);
 	}
 
-	public static InventoryListQuery of(String search, String stockLevel, String locationId, String categoryId, String page,
-			String limit, String sort) {
+	public static InventoryListQuery of(String search, String stockLevel, String locationId, String categoryId, String productId,
+			String page, String limit, String sort) {
 		try {
 			InventoryStockLevel sl = InventoryStockLevel.fromParam(stockLevel);
 			InventoryListSortOrder ord = InventoryListSortOrder.parseOrDefault(sort);
@@ -39,8 +40,9 @@ public record InventoryListQuery(
 			int l = parseLimit(limit);
 			Integer loc = parseOptionalPositiveId(locationId, "locationId");
 			Integer cat = parseOptionalPositiveId(categoryId, "categoryId");
+			Integer pid = parseOptionalPositiveId(productId, "productId");
 			String s = search != null && !search.isBlank() ? search.trim() : null;
-			return new InventoryListQuery(s, sl, loc, cat, p, l, ord);
+			return new InventoryListQuery(s, sl, loc, cat, pid, p, l, ord);
 		}
 		catch (IllegalArgumentException e) {
 			throw toBadRequest(e);
@@ -67,7 +69,7 @@ public record InventoryListQuery(
 
 	private static boolean isKnownFieldKey(String k) {
 		return "stockLevel".equals(k) || "page".equals(k) || "limit".equals(k) || "locationId".equals(k)
-				|| "categoryId".equals(k) || "sort".equals(k) || "search".equals(k);
+				|| "categoryId".equals(k) || "productId".equals(k) || "sort".equals(k) || "search".equals(k);
 	}
 
 	private static Integer parseOptionalPositiveId(String raw, String name) {

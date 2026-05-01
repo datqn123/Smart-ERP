@@ -90,7 +90,15 @@ export interface StockReceipt {
 
 // --- Stock Dispatch (Task006) ---
 
-export type DispatchStatus = "Pending" | "Full" | "Partial" | "Cancelled";
+/** Phiếu thủ công (Tồn kho): WaitingDispatch → Delivering → Delivered. Phiếu đơn: Pending / Full / Partial / Cancelled */
+export type DispatchStatus =
+  | "WaitingDispatch"
+  | "Delivering"
+  | "Delivered"
+  | "Pending"
+  | "Full"
+  | "Partial"
+  | "Cancelled";
 
 export interface DispatchItem {
   id: number;
@@ -128,6 +136,11 @@ export interface StockDispatch {
   items: DispatchItem[];
   /** Khi API list chỉ trả số dòng xuất (không embed `items`). */
   lineCount?: number;
+  /** Từ API list — BE authoritative */
+  canEdit?: boolean;
+  canDelete?: boolean;
+  manualDispatch?: boolean;
+  shortageWarning?: boolean;
 }
 
 // --- Inventory Audit (Task007) ---

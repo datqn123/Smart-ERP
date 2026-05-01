@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react"
-import { useForm, useFieldArray } from "react-hook-form"
+import { useForm, useFieldArray, FormProvider } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
+import { useQueryClient } from "@tanstack/react-query"
 import { Plus, X, Save, Send, ShoppingCart, Info, Trash2, CheckCircle2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatCurrency, formatDate } from "../utils"
 import type { StockReceipt } from "../types"
-import { calculateReceiptTotal, isExpiryValid } from "../inboundLogic"
+import { calculateReceiptTotal } from "../inboundLogic"
 import {
   RECEIPT_FORM_PRODUCTS,
   type ReceiptFormProductOption,
@@ -41,31 +41,15 @@ import {
   TABLE_CELL_MONO_CLASS,
   TABLE_CELL_NUMBER_CLASS,
 } from "@/lib/data-table-layout"
+import { getProductById } from "@/features/product-management/api/productsApi"
+import { receiptSchema, type ReceiptFormData } from "../receiptFormSchema"
+import { catalogCostForReceiptUnit } from "../receiptFormProductCost"
+import { ReceiptLineBatchExpiryFields } from "./ReceiptLineBatchExpiryFields"
 
 /** Ghi đè `disabled:opacity-50` từ Input/Select: phiếu chờ duyệt vẫn full opacity, chỉ không tương tác. */
 const FORM_FIELD_DISABLED_OPAQUE = "disabled:opacity-100"
 
-const receiptSchema = z.object({
-  supplierId: z.number().min(1, "Vui lòng chọn nhà cung cấp"),
-  receiptDate: z.string().min(1, "Vui lòng chọn ngày nhập"),
-  invoiceNumber: z.string().optional(),
-  notes: z.string().optional(),
-  details: z.array(z.object({
-    productId: z.number().min(1, "Chọn sản phẩm"),
-    unitId: z.number().min(1, "Thiếu đơn vị (chọn lại sản phẩm)"),
-    quantity: z.number().min(1, "Min = 1"),
-    costPrice: z.number().min(0, "Min = 0"),
-    batchNumber: z.string().optional(),
-    expiryDate: z.string().optional(),
-  })).min(1, "Phải có ít nhất 1 sản phẩm")
-}).refine((data) => {
-  return data.details.every(d => isExpiryValid(data.receiptDate, d.expiryDate));
-}, {
-  message: "Hạn sử dụng không được nhỏ hơn ngày nhập",
-  path: ["details"]
-})
-
-export type ReceiptFormData = z.infer<typeof receiptSchema>
+export type { ReceiptFormData }
 
 interface ReceiptFormProps {
   open: boolean
@@ -148,6 +132,7 @@ export function ReceiptForm({
   canApprove = false,
   onAfterApproveOrReject,
 }: ReceiptFormProps) {
+  const queryClient = useQueryClient()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inboundLocationId, setInboundLocationId] = useState(1)
   const [approveBusy, setApproveBusy] = useState(false)
@@ -254,6 +239,7 @@ export function ReceiptForm({
   }
 
   return (
+    <FormProvider {...form}>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] sm:max-w-[90vw] lg:max-w-7xl max-h-[92vh] flex flex-col p-0 overflow-hidden border-slate-200 shadow-3xl">
         <DialogHeader className="p-6 pb-4 bg-slate-50/50 border-b border-slate-100 flex-none text-left">
@@ -458,6 +444,8 @@ export function ReceiptForm({
                               onValueChange={(val) => {
                                 const pid = parseInt(val, 10)
                                 form.setValue(`details.${index}.productId`, pid)
+                                form.setValue(`details.${index}.batchNumber`, "")
+                                form.setValue(`details.${index}.expiryDate`, "")
                                 const opt = productSelectOptions.find((p) => p.productId === pid)
                                 if (opt != null) {
                                   form.setValue(`details.${index}.unitId`, opt.unitId)
@@ -467,6 +455,31 @@ export function ReceiptForm({
                                     form.setValue(`details.${index}.unitId`, uid)
                                   }
                                 }
+                                void (async () => {
+                                  try {
+                                    const productDetail = await queryClient.fetchQuery({
+                                      queryKey: ["product-detail", pid],
+                                      queryFn: () => getProductById(pid),
+                                      staleTime: 60_000,
+                                    })
+                                    let unitId = opt?.unitId ?? catalogUnitForProduct(pid) ?? 0
+                                    if (unitId <= 0) {
+                                      unitId =
+                                        productDetail.units?.find((u) => u.isBaseUnit)?.id ??
+                                        productDetail.units?.[0]?.id ??
+                                        0
+                                    }
+                                    if (unitId > 0) {
+                                      form.setValue(`details.${index}.unitId`, unitId)
+                                      form.setValue(
+                                        `details.${index}.costPrice`,
+                                        catalogCostForReceiptUnit(productDetail, unitId),
+                                      )
+                                    }
+                                  } catch {
+                                    /* giữ đơn giá hiện tại / nhập tay */
+                                  }
+                                })()
                               }}
                               disabled={!isEditable}
                             >
@@ -520,30 +533,12 @@ export function ReceiptForm({
                               )}
                             />
                           </TableCell>
-                          <TableCell className="px-1 text-left">
-                            <Input
-                              placeholder="BATCH..."
-                              {...form.register(`details.${index}.batchNumber`)}
-                              disabled={!isEditable}
-                              className={cn(
-                                FORM_INPUT_CLASS,
-                                "h-10 font-mono text-xs group-hover:bg-white focus:bg-white",
-                                FORM_FIELD_DISABLED_OPAQUE,
-                              )}
-                            />
-                          </TableCell>
-                          <TableCell className="px-1 text-left">
-                            <Input
-                              type="date"
-                              {...form.register(`details.${index}.expiryDate`)}
-                              disabled={!isEditable}
-                              className={cn(
-                                FORM_INPUT_CLASS,
-                                "h-10 text-left text-xs group-hover:bg-white focus:bg-white px-2",
-                                FORM_FIELD_DISABLED_OPAQUE,
-                              )}
-                            />
-                          </TableCell>
+                          <ReceiptLineBatchExpiryFields
+                            rowIndex={index}
+                            productId={detail?.productId > 0 ? detail.productId : 0}
+                            isEditable={isEditable}
+                            dialogOpen={open}
+                          />
                           <TableCell className="pr-2 text-left">
                              <span className={cn(TABLE_CELL_NUMBER_CLASS, "text-left")}>{formatCurrency(lineTotal)}</span>
                           </TableCell>
@@ -693,5 +688,6 @@ export function ReceiptForm({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </FormProvider>
   )
 }

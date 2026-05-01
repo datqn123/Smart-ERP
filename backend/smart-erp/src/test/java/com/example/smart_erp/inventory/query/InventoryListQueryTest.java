@@ -12,7 +12,7 @@ class InventoryListQueryTest {
 
 	@Test
 	void of_defaults() {
-		InventoryListQuery q = InventoryListQuery.of(null, null, null, null, null, null, null);
+		InventoryListQuery q = InventoryListQuery.of(null, null, null, null, null, null, null, null);
 		assertThat(q.search()).isNull();
 		assertThat(q.stockLevel()).isEqualTo(InventoryStockLevel.ALL);
 		assertThat(q.page()).isEqualTo(1);
@@ -22,17 +22,23 @@ class InventoryListQueryTest {
 
 	@Test
 	void of_parsesSort() {
-		InventoryListQuery q = InventoryListQuery.of(null, null, null, null, null, null, "updatedAt:desc");
+		InventoryListQuery q = InventoryListQuery.of(null, null, null, null, null, null, null, "updatedAt:desc");
 		assertThat(q.sort().orderByFragment()).isEqualTo("i.updated_at DESC");
 	}
 
 	@Test
 	void of_invalidLimit_throwsBadRequest() {
-		assertThatThrownBy(() -> InventoryListQuery.of(null, null, null, null, null, "0", null))
+		assertThatThrownBy(() -> InventoryListQuery.of(null, null, null, null, null, null, "0", null))
 				.isInstanceOf(BusinessException.class).satisfies(ex -> {
 					BusinessException b = (BusinessException) ex;
 					assertThat(b.getCode()).isEqualTo(ApiErrorCode.BAD_REQUEST);
 					assertThat(b.getDetails().get("limit")).contains("1 đến 100");
 				});
+	}
+
+	@Test
+	void of_parsesProductId() {
+		InventoryListQuery q = InventoryListQuery.of(null, null, null, null, "42", null, null, null);
+		assertThat(q.productId()).isEqualTo(42);
 	}
 }

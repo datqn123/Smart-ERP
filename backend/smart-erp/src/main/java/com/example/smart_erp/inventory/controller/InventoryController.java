@@ -69,11 +69,12 @@ public class InventoryController {
 			@RequestParam(name = "stockLevel", required = false) String stockLevel,
 			@RequestParam(name = "locationId", required = false) String locationId,
 			@RequestParam(name = "categoryId", required = false) String categoryId,
+			@RequestParam(name = "productId", required = false) String productId,
 			@RequestParam(name = "page", required = false) String page,
 			@RequestParam(name = "limit", required = false) String limit,
 			@RequestParam(name = "sort", required = false) String sort) {
 		requireJwt(authentication);
-		InventoryListQuery q = InventoryListQuery.of(search, stockLevel, locationId, categoryId, page, limit, sort);
+		InventoryListQuery q = InventoryListQuery.of(search, stockLevel, locationId, categoryId, productId, page, limit, sort);
 		InventoryListPageData data = inventoryListService.list(q);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
 	}

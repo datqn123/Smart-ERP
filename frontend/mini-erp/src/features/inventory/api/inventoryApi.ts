@@ -65,6 +65,8 @@ export type GetInventoryListParams = {
   stockLevel?: "all" | "in_stock" | "low_stock" | "out_of_stock"
   locationId?: number
   categoryId?: number
+  /** Lọc theo `Inventory.product_id` (form phiếu nhập — danh sách lô tồn). */
+  productId?: number
   page?: number
   limit?: number
   sort?: string
@@ -110,6 +112,9 @@ export function getInventoryList(params: GetInventoryListParams) {
   }
   if (params.categoryId != null && params.categoryId > 0) {
     q.set("categoryId", String(params.categoryId))
+  }
+  if (params.productId != null && params.productId > 0) {
+    q.set("productId", String(params.productId))
   }
   if (params.page != null) {
     q.set("page", String(params.page))

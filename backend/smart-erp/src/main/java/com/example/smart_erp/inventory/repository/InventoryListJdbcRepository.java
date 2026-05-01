@@ -221,6 +221,10 @@ public class InventoryListJdbcRepository {
 			sb.append(" AND p.category_id = :_category_id");
 			src.addValue("_category_id", q.categoryId());
 		}
+		if (q.productId() != null) {
+			sb.append(" AND i.product_id = :_product_id");
+			src.addValue("_product_id", q.productId());
+		}
 		return new Filter(sb.toString(), src);
 	}
 

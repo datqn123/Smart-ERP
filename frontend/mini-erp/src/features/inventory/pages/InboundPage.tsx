@@ -4,6 +4,7 @@ import { usePageTitle } from "@/context/PageTitleContext"
 import { Plus, Search, Calendar } from "lucide-react"
 import type { StockReceipt } from "../types"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { ReceiptTable } from "../components/ReceiptTable"
 import { ReceiptDetailDialog } from "../components/ReceiptDetailDialog"
@@ -48,6 +49,7 @@ function parseSupplierId(raw: string): number | undefined {
 export function InboundPage() {
   const queryClient = useQueryClient()
   const { setTitle } = usePageTitle()
+  const user = useAuthStore((s) => s.user)
   const userCanApprove = useAuthStore((s) => s.user?.role === "Owner" && s.menuPermissions.can_approve)
   const scrollRootRef = useRef<HTMLDivElement>(null)
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
@@ -58,6 +60,7 @@ export function InboundPage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [supplierFilter, setSupplierFilter] = useState("")
+  const [onlyMine, setOnlyMine] = useState(false)
 
   const [selectedReceipt, setSelectedReceipt] = useState<StockReceipt | null>(null)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
@@ -75,8 +78,21 @@ export function InboundPage() {
   useEffect(() => { setTitle("Phiếu nhập kho") }, [setTitle])
 
   const listQueryKey = useMemo(
-    () => ["stock-receipts", "v1", "list", debouncedSearch, statusFilter, dateFrom, dateTo, supplierIdParam ?? "", PAGE_SIZE] as const,
-    [debouncedSearch, statusFilter, dateFrom, dateTo, supplierIdParam],
+    () =>
+      [
+        "stock-receipts",
+        "v1",
+        "list",
+        debouncedSearch,
+        statusFilter,
+        dateFrom,
+        dateTo,
+        supplierIdParam ?? "",
+        onlyMine,
+        user?.id ?? 0,
+        PAGE_SIZE,
+      ] as const,
+    [debouncedSearch, statusFilter, dateFrom, dateTo, supplierIdParam, onlyMine, user?.id],
   )
 
   const {
@@ -105,9 +121,10 @@ export function InboundPage() {
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
         supplierId: supplierIdParam,
+        mine: onlyMine && user != null && user.id > 0 ? true : undefined,
         page: pageParam,
         limit: PAGE_SIZE,
-        sort: "id:desc",
+        sort: "createdAt:desc",
       }
       return getStockReceiptList(base)
     },
@@ -353,6 +370,19 @@ export function InboundPage() {
           </div>
           <Input placeholder="NCC: nhập ID số hoặc lọc tên (đã tải)…" value={supplierFilter}
             onChange={(e) => setSupplierFilter(e.target.value)} className="h-9 sm:w-[280px]" />
+        </div>
+        <div className="flex items-center gap-2 min-h-[44px]">
+          <Checkbox
+            id="inbound-only-mine"
+            checked={onlyMine}
+            onCheckedChange={(v) => setOnlyMine(v === true)}
+            disabled={user == null || user.id <= 0}
+            className="size-5 shrink-0"
+            aria-label="Chỉ hiển thị phiếu do tôi tạo"
+          />
+          <label htmlFor="inbound-only-mine" className="text-sm text-slate-700 cursor-pointer select-none leading-snug">
+            Chỉ phiếu của tôi
+          </label>
         </div>
         <p className="text-xs text-slate-500">
           Hiển thị <span className="font-medium text-slate-700">{displayRows.length}</span>

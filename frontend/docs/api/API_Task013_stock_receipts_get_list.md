@@ -69,9 +69,10 @@ Authorization: Bearer <your_access_token>
 | `dateFrom` | string (YYYY-MM-DD) | Không | — | `receipt_date >= dateFrom` |
 | `dateTo` | string (YYYY-MM-DD) | Không | — | `receipt_date <= dateTo` |
 | `supplierId` | number | Không | — | Lọc `supplier_id` |
+| `mine` | boolean (query) | Không | `false` | Khi `true`: chỉ phiếu có `staff_id` = **JWT `subject`** (người tạo); không dùng `staffId` do client gửi |
 | `page` | number (int ≥ 1) | Không | `1` | |
 | `limit` | number (int 1–100) | Không | `20` | |
-| `sort` | string | Không | `receiptDate:desc` | Whitelist |
+| `sort` | string | Không | `createdAt:desc` | Whitelist: `id:asc`\|`id:desc`, `createdAt:asc`\|`createdAt:desc` |
 
 ### 5.3 Request body
 
@@ -87,6 +88,8 @@ _Không có_
 | Lọc trạng thái | `status` |
 | Lọc ngày | `dateFrom`, `dateTo` |
 | Lọc NCC (khi có dropdown id) | `supplierId` |
+| Checkbox «Chỉ phiếu của tôi» (Inbound) | `mine=true` |
+| Thứ tự danh sách (Inbound) | `sort=createdAt:desc` (mặc định BE khi không gửi `sort` tương đương tạo mới nhất trước) |
 | Cột “Dòng SP” | `data.items[].lineCount` *(FE nên dùng field này; không phụ thuộc mảng `details` trên list)* |
 | Infinite scroll | tăng `page` hoặc tăng `limit` theo policy FE |
 

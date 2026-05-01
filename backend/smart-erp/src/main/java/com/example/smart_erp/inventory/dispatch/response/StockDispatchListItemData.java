@@ -12,5 +12,10 @@ public record StockDispatchListItemData(
 		@JsonProperty("dispatchDate") LocalDate dispatchDate,
 		@JsonProperty("userName") String userName,
 		@JsonProperty("itemCount") int itemCount,
-		@JsonProperty("status") String status) {
+		@JsonProperty("status") String status,
+		@JsonProperty("createdByUserId") int createdByUserId,
+		@JsonProperty("manualDispatch") boolean manualDispatch,
+		@JsonProperty("shortageWarning") boolean shortageWarning,
+		@JsonProperty("canEdit") boolean canEdit,
+		@JsonProperty("canDelete") boolean canDelete) {
 }

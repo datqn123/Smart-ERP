@@ -3,7 +3,7 @@ import type { StockReceipt } from "../types"
 
 /**
  * Task013 — `GET /api/v1/stock-receipts` — `frontend/docs/api/API_Task013_stock_receipts_get_list.md` §7.
- * Sort BE: chỉ `id:asc` | `id:desc` (mặc định BE `id:desc`).
+ * Sort BE: `id:asc|id:desc`, `createdAt:asc|createdAt:desc` (mặc định BE khi không gửi sort: `created_at` desc).
  */
 export type StockReceiptListItemResponse = {
   id: number
@@ -42,9 +42,11 @@ export type GetStockReceiptListParams = {
   dateFrom?: string
   dateTo?: string
   supplierId?: number
+  /** Lọc phiếu do user JWT tạo (`staff_id` = subject); không gửi `staffId` từ client. */
+  mine?: boolean
   page?: number
   limit?: number
-  /** Chỉ `id:asc` hoặc `id:desc` (khớp BE). */
+  /** `id:asc|id:desc` hoặc `createdAt:asc|createdAt:desc`. */
   sort?: string
 }
 
@@ -96,6 +98,9 @@ export function getStockReceiptList(params: GetStockReceiptListParams) {
   }
   if (params.supplierId != null && params.supplierId > 0) {
     q.set("supplierId", String(params.supplierId))
+  }
+  if (params.mine === true) {
+    q.set("mine", "true")
   }
   if (params.page != null) {
     q.set("page", String(params.page))

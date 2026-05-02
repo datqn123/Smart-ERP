@@ -23,6 +23,7 @@ import com.example.smart_erp.catalog.response.CustomerDeleteData;
 import com.example.smart_erp.catalog.response.CustomerListPageData;
 import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.exception.BusinessException;
+import com.example.smart_erp.inventory.dispatch.StockDispatchAccessPolicy;
 import com.example.smart_erp.inventory.receipts.lifecycle.StockReceiptAccessPolicy;
 
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -182,25 +183,44 @@ public class CustomerService {
 
 	@Transactional
 	public CustomerDeleteData delete(int id, Jwt jwt) {
-		StockReceiptAccessPolicy.assertOwnerOnly(jwt, "Chỉ chủ cửa hàng mới được xóa khách hàng");
+		assertAdminOnlyForCustomerDelete(jwt);
 		customerJdbcRepository.lockCustomerForUpdate(id)
 				.orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND, "Không tìm thấy khách hàng"));
-		assertDeletableOrThrow(id);
-		int n = customerJdbcRepository.deleteCustomer(id);
+		assertSingleCustomerSoftDeletableOrThrow(id);
+		int n = customerJdbcRepository.softDeleteCustomer(id);
 		if (n != 1) {
 			throw new BusinessException(ApiErrorCode.INTERNAL_SERVER_ERROR, "Xóa khách hàng không thành công");
 		}
 		return new CustomerDeleteData(id, true);
 	}
 
-	private void assertDeletableOrThrow(int customerId) {
-		if (customerJdbcRepository.existsSalesOrderForCustomer(customerId)) {
-			throw new BusinessException(ApiErrorCode.CONFLICT, "Không thể xóa khách hàng đã phát sinh đơn bán hàng",
-					Map.of("reason", "HAS_SALES_ORDERS"));
+	private static void assertAdminOnlyForCustomerDelete(Jwt jwt) {
+		if (!StockDispatchAccessPolicy.isAdmin(jwt)) {
+			throw new BusinessException(ApiErrorCode.FORBIDDEN, "Bạn không có quyền thực hiện thao tác này.");
+		}
+	}
+
+	/** Task052 soft-delete: only non-terminal orders block. */
+	private void assertSingleCustomerSoftDeletableOrThrow(int customerId) {
+		if (customerJdbcRepository.existsOpenSalesOrderForCustomer(customerId)) {
+			throw new BusinessException(ApiErrorCode.CONFLICT, "Không thể xóa khách hàng vì còn đơn hàng chưa hoàn tất.",
+					Map.of("reason", "HAS_OPEN_SALES_ORDERS"));
 		}
 		if (customerJdbcRepository.existsPartnerDebtForCustomer(customerId)) {
 			throw new BusinessException(ApiErrorCode.CONFLICT, "Không thể xóa khách hàng đang có công nợ",
 					Map.of("reason", "HAS_PARTNER_DEBTS"));
+		}
+	}
+
+	/** Task053 bulk hard-delete: any sales order blocks. */
+	private void assertBulkCustomerDeletableOrThrow(int customerId) {
+		if (customerJdbcRepository.existsSalesOrderForCustomer(customerId)) {
+			throw new BusinessException(ApiErrorCode.CONFLICT, "Không thể xóa toàn bộ: ít nhất một khách hàng không đủ điều kiện",
+					Map.of("failedId", String.valueOf(customerId), "reason", "HAS_SALES_ORDERS"));
+		}
+		if (customerJdbcRepository.existsPartnerDebtForCustomer(customerId)) {
+			throw new BusinessException(ApiErrorCode.CONFLICT, "Không thể xóa toàn bộ: ít nhất một khách hàng không đủ điều kiện",
+					Map.of("failedId", String.valueOf(customerId), "reason", "HAS_PARTNER_DEBTS"));
 		}
 	}
 
@@ -224,21 +244,10 @@ public class CustomerService {
 			}
 		}
 		for (int cid : ids) {
-			if (customerJdbcRepository.existsSalesOrderForCustomer(cid)) {
-				throw new BusinessException(ApiErrorCode.CONFLICT,
-						"Không thể xóa toàn bộ: ít nhất một khách hàng không đủ điều kiện",
-						Map.of("failedId", String.valueOf(cid), "reason", "HAS_SALES_ORDERS"));
-			}
-		}
-		for (int cid : ids) {
-			if (customerJdbcRepository.existsPartnerDebtForCustomer(cid)) {
-				throw new BusinessException(ApiErrorCode.CONFLICT,
-						"Không thể xóa toàn bộ: ít nhất một khách hàng không đủ điều kiện",
-						Map.of("failedId", String.valueOf(cid), "reason", "HAS_PARTNER_DEBTS"));
-			}
+			assertBulkCustomerDeletableOrThrow(cid);
 		}
 		customerJdbcRepository.lockCustomersForUpdate(ids);
-		int deleted = customerJdbcRepository.deleteCustomers(ids);
+		int deleted = customerJdbcRepository.deleteCustomersHard(ids);
 		if (deleted != ids.size()) {
 			throw new BusinessException(ApiErrorCode.INTERNAL_SERVER_ERROR, "Xóa bulk không khớp số dòng");
 		}

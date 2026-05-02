@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { usePageTitle } from "@/context/PageTitleContext"
 import { useAuthStore } from "@/features/auth/store/useAuthStore"
 import type { Category, Product } from "../types"
@@ -11,7 +11,6 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { mockCategories } from "../mockData"
 import { toast } from "sonner"
 import { ApiRequestError } from "@/lib/api/http"
-import { Button } from "@/components/ui/button"
 import {
   getCategoryList,
   mapNodeDtoToCategory,
@@ -32,6 +31,7 @@ import {
   postProductImageMultipart,
   postProductsBulkDelete,
   productDetailToEditSnapshot,
+  PRODUCT_LIST_SORT_LABEL_VI,
   PRODUCT_LIST_SORT_WHITELIST,
   type GetProductListParams,
   type ProductEditSnapshot,
@@ -96,7 +96,6 @@ export function ProductsPage() {
   const { setTitle } = usePageTitle()
   const queryClient = useQueryClient()
   const isOwner = useAuthStore((s) => s.user?.role === "Owner")
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const editSnapshotRef = useRef<ProductEditSnapshot | null>(null)
   const [stagedImages, setStagedImages] = useState<StagedProductImages>({ files: [], urlAdds: [] })
 
@@ -104,9 +103,11 @@ export function ProductsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
-  const [page, setPage] = useState(1)
   const [sort, setSort] = useState<ProductListSort>("updatedAt:desc")
   const [selectedIds, setSelectedIds] = useState<number[]>([])
+
+  const scrollRootRef = useRef<HTMLDivElement>(null)
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
 
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
   const [isDeletingBulk, setIsDeletingBulk] = useState(false)
@@ -127,12 +128,8 @@ export function ProductsPage() {
   }, [search])
 
   useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, statusFilter, categoryFilter])
-
-  useEffect(() => {
     setSelectedIds([])
-  }, [page, debouncedSearch, statusFilter, categoryFilter])
+  }, [debouncedSearch, statusFilter, categoryFilter, sort])
 
   useEffect(() => {
     setTitle("Quản lý sản phẩm")
@@ -160,33 +157,70 @@ export function ProductsPage() {
     return Number.isFinite(n) && n > 0 ? n : undefined
   }, [categoryFilter])
 
-  const listParams: GetProductListParams = useMemo(
-    () => ({
-      search: debouncedSearch.trim() || undefined,
-      categoryId: categoryIdParam,
-      status: statusFilter as GetProductListParams["status"],
-      page,
-      limit: PAGE_SIZE,
-      sort,
-    }),
-    [debouncedSearch, categoryIdParam, statusFilter, page, sort],
-  )
-
   const listQueryKey = useMemo(
-    () => ["product-management", "products", "list", listParams] as const,
-    [listParams],
+    () =>
+      [
+        "product-management",
+        "products",
+        "list",
+        debouncedSearch,
+        categoryIdParam,
+        statusFilter,
+        sort,
+        PAGE_SIZE,
+      ] as const,
+    [debouncedSearch, categoryIdParam, statusFilter, sort],
   )
 
   const {
-    data: listPage,
+    data: listInfinite,
     isPending,
     isError,
     error,
-    isFetching,
-  } = useQuery({
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: listQueryKey,
-    queryFn: () => getProductList(listParams),
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      getProductList({
+        search: debouncedSearch.trim() || undefined,
+        categoryId: categoryIdParam,
+        status: statusFilter as GetProductListParams["status"],
+        page: pageParam,
+        limit: PAGE_SIZE,
+        sort,
+      }),
+    getNextPageParam: (lastPage) => {
+      if (lastPage.items.length < lastPage.limit) {
+        return undefined
+      }
+      if (lastPage.page * lastPage.limit >= lastPage.total) {
+        return undefined
+      }
+      return lastPage.page + 1
+    },
   })
+
+  useEffect(() => {
+    const root = scrollRootRef.current
+    const sentinel = loadMoreSentinelRef.current
+    if (!root || !sentinel) {
+      return
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const e = entries[0]
+        if (e?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage()
+        }
+      },
+      { root, rootMargin: "80px", threshold: 0 },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, listInfinite?.pages])
 
   const {
     data: productDetail,
@@ -293,18 +327,15 @@ export function ProductsPage() {
   })
 
   const products: Product[] = useMemo(
-    () => (listPage?.items ?? []).map(mapProductListItemDtoToProduct),
-    [listPage],
+    () =>
+      listInfinite?.pages
+        ? listInfinite.pages.flatMap((p) => p.items).map(mapProductListItemDtoToProduct)
+        : [],
+    [listInfinite],
   )
 
-  const total = listPage?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-
-  useEffect(() => {
-    if (page > totalPages) {
-      setPage(totalPages)
-    }
-  }, [page, totalPages])
+  const firstListPage = listInfinite?.pages[0]
+  const total = firstListPage?.total ?? 0
 
   useEffect(() => {
     if (!isError) return
@@ -335,18 +366,7 @@ export function ProductsPage() {
         setEditingProduct(undefined)
         setIsFormOpen(true)
         break
-      case "export":
-        toast.info("Đang xuất dữ liệu Excel...")
-        break
-      case "import":
-        fileInputRef.current?.click()
-        break
     }
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) toast.success(`Đã chọn: ${file.name}. Đang xử lý import...`)
   }
 
   const handleView = (item: Product) => {
@@ -417,12 +437,10 @@ export function ProductsPage() {
         categoryOptions={categoryOptions}
         selectedIds={selectedIds}
         onAction={handleToolbarAction}
-        fileInputRef={fileInputRef}
-        onFileChange={handleFileChange}
         canBulkDelete={isOwner}
       />
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0 text-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 shrink-0 text-sm">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-slate-500 whitespace-nowrap">Sắp xếp</span>
           <select
@@ -432,55 +450,53 @@ export function ProductsPage() {
           >
             {PRODUCT_LIST_SORT_WHITELIST.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {PRODUCT_LIST_SORT_LABEL_VI[s]}
               </option>
             ))}
           </select>
         </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          <Button type="button" variant="outline" size="sm" disabled={page <= 1 || isPending} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-            Trước
-          </Button>
-          <span className="text-slate-600 tabular-nums">
-            Trang {page}/{totalPages} · {total} SP
-            {isFetching && !isPending ? " · …" : ""}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages || isPending}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Sau
-          </Button>
-        </div>
       </div>
 
-      {(isPending || isFetching) && (
-        <p className="text-sm text-slate-500 shrink-0" role="status">
-          {isPending ? "Đang tải danh sách…" : "Đang cập nhật…"}
-        </p>
-      )}
-      {isError && (
-        <p className="text-sm text-red-600 shrink-0" role="alert">
-          Không tải được danh sách sản phẩm.
-        </p>
-      )}
-
       <div className="flex-1 flex flex-col min-h-0 bg-white border border-slate-200/60 rounded-xl overflow-hidden shadow-md">
-        <div className="flex-1 overflow-y-auto relative scroll-smooth [scrollbar-gutter:stable] min-h-0">
-          <ProductTable
-            data={products}
-            selectedIds={selectedIds}
-            onSelect={handleSelect}
-            onSelectAll={handleSelectAll}
-            onView={handleView}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            canDelete={isOwner}
-          />
-        </div>
+        {isPending && !listInfinite ? (
+          <div className="p-8 text-center text-slate-500 flex-1" role="status">
+            Đang tải danh sách…
+          </div>
+        ) : isError && !listInfinite ? (
+          <div className="p-8 text-center text-red-600 flex-1" role="alert">
+            Không tải được danh sách sản phẩm.
+          </div>
+        ) : (
+          <>
+            <div
+              ref={scrollRootRef}
+              className="flex-1 overflow-y-auto relative scroll-smooth [scrollbar-gutter:stable] min-h-0"
+            >
+              <ProductTable
+                data={products}
+                selectedIds={selectedIds}
+                onSelect={handleSelect}
+                onSelectAll={handleSelectAll}
+                onView={handleView}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                canDelete={isOwner}
+              />
+              <div ref={loadMoreSentinelRef} className="h-1 w-full shrink-0" aria-hidden />
+            </div>
+            {listInfinite && total > 0 && (
+              <div className="flex items-center justify-between flex-wrap gap-2 px-3 py-2 border-t border-slate-200 bg-slate-50/80 text-sm text-slate-600 min-h-11">
+                <span>
+                  Đang hiển thị {products.length} / {total} sản phẩm
+                </span>
+                {isFetchingNextPage && <span className="text-slate-500">Đang tải thêm…</span>}
+                {hasNextPage && !isFetchingNextPage && (
+                  <span className="text-slate-400 text-xs hidden sm:inline">Cuộn xuống để tải thêm</span>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <ConfirmDialog

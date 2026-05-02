@@ -164,8 +164,8 @@ public class SalesOrderJdbcRepository {
 
 	public Optional<Integer> findWalkinCustomerId() {
 		List<Integer> ids = namedJdbc.query(
-				"SELECT id FROM customers WHERE customer_code = 'WALKIN' ORDER BY id LIMIT 1", Map.of(),
-				(rs, rn) -> rs.getInt("id"));
+				"SELECT id FROM customers WHERE customer_code = 'WALKIN' AND deleted_at IS NULL ORDER BY id LIMIT 1",
+				Map.of(), (rs, rn) -> rs.getInt("id"));
 		return ids.isEmpty() ? Optional.empty() : Optional.of(ids.getFirst());
 	}
 

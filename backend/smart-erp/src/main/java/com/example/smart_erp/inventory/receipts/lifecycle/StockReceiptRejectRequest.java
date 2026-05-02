@@ -8,5 +8,6 @@ import jakarta.validation.constraints.Size;
 
 @JsonIgnoreProperties(ignoreUnknown = false)
 public record StockReceiptRejectRequest(
-		@JsonProperty("reason") @NotBlank @Size(max = 2000) String reason) {
+		@JsonProperty("reason") @NotBlank @Size(min = 15, max = 2000,
+				message = "Lý do từ chối phải ghi rõ (tối thiểu 15 ký tự), tối đa 2000 ký tự") String reason) {
 }

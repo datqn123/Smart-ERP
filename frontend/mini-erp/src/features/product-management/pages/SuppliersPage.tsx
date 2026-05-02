@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { usePageTitle } from "@/context/PageTitleContext"
 import { useAuthStore } from "@/features/auth/store/useAuthStore"
 import type { Supplier } from "../types"
@@ -9,7 +9,6 @@ import { SupplierDetailDialog } from "../components/SupplierDetailDialog"
 import { SupplierForm, SupplierFormSubmitAborted, type SupplierFormData } from "../components/SupplierForm"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
 import { ApiRequestError } from "@/lib/api/http"
 import {
   buildSupplierCreateBody,
@@ -66,14 +65,14 @@ export function SuppliersPage() {
   const { setTitle } = usePageTitle()
   const queryClient = useQueryClient()
   const isOwner = useAuthStore((s) => s.user?.role === "Owner")
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const selectedSupplierRef = useRef<Supplier | null>(null)
   const editingSupplierRef = useRef<Supplier | undefined>(undefined)
+  const scrollRootRef = useRef<HTMLDivElement>(null)
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
 
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [page, setPage] = useState(1)
   const [sort, setSort] = useState<SupplierListSort>("updatedAt:desc")
   const [selectedIds, setSelectedIds] = useState<number[]>([])
 
@@ -98,39 +97,72 @@ export function SuppliersPage() {
   }, [search])
 
   useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, statusFilter])
-
-  useEffect(() => {
     setSelectedIds([])
-  }, [page, debouncedSearch, statusFilter])
-
-  const listParams: GetSupplierListParams = useMemo(
-    () => ({
-      search: debouncedSearch.trim() || undefined,
-      status: statusFilter as GetSupplierListParams["status"],
-      page,
-      limit: PAGE_SIZE,
-      sort,
-    }),
-    [debouncedSearch, statusFilter, page, sort],
-  )
+  }, [debouncedSearch, statusFilter, sort])
 
   const listQueryKey = useMemo(
-    () => ["product-management", "suppliers", "list", listParams] as const,
-    [listParams],
+    () =>
+      [
+        "product-management",
+        "suppliers",
+        "list",
+        debouncedSearch,
+        statusFilter,
+        sort,
+        PAGE_SIZE,
+      ] as const,
+    [debouncedSearch, statusFilter, sort],
   )
 
   const {
-    data: listPage,
+    data: listInfinite,
     isPending,
     isError,
     error,
     isFetching,
-  } = useQuery({
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: listQueryKey,
-    queryFn: () => getSupplierList(listParams),
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      getSupplierList({
+        search: debouncedSearch.trim() || undefined,
+        status: statusFilter as GetSupplierListParams["status"],
+        page: pageParam,
+        limit: PAGE_SIZE,
+        sort,
+      }),
+    getNextPageParam: (lastPage) => {
+      if (lastPage.items.length < lastPage.limit) {
+        return undefined
+      }
+      if (lastPage.page * lastPage.limit >= lastPage.total) {
+        return undefined
+      }
+      return lastPage.page + 1
+    },
   })
+
+  useEffect(() => {
+    const root = scrollRootRef.current
+    const sentinel = loadMoreSentinelRef.current
+    if (!root || !sentinel) {
+      return
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const e = entries[0]
+        if (e?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage()
+        }
+      },
+      { root, rootMargin: "80px", threshold: 0 },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, listInfinite?.pages])
 
   const selectedSupplierId = selectedSupplier?.id
   const {
@@ -265,18 +297,14 @@ export function SuppliersPage() {
   }, [isFormOpen, editingSupplier, editFormDetailDto])
 
   const suppliers: Supplier[] = useMemo(
-    () => (listPage?.items ?? []).map(mapSupplierListItemDtoToSupplier),
-    [listPage],
+    () =>
+      listInfinite?.pages
+        ? listInfinite.pages.flatMap((p) => p.items).map(mapSupplierListItemDtoToSupplier)
+        : [],
+    [listInfinite],
   )
 
-  const total = listPage?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-
-  useEffect(() => {
-    if (page > totalPages) {
-      setPage(totalPages)
-    }
-  }, [page, totalPages])
+  const total = listInfinite?.pages[0]?.total ?? 0
 
   useEffect(() => {
     if (!isError) return
@@ -307,18 +335,7 @@ export function SuppliersPage() {
         setEditingSupplier(undefined)
         setIsFormOpen(true)
         break
-      case "export":
-        toast.info("Đang xuất dữ liệu Excel...")
-        break
-      case "import":
-        fileInputRef.current?.click()
-        break
     }
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) toast.success(`Đã chọn: ${file.name}. Đang xử lý import...`)
   }
 
   const handleView = (item: Supplier) => {
@@ -373,12 +390,10 @@ export function SuppliersPage() {
         onStatusChange={setStatusFilter}
         selectedIds={selectedIds}
         onAction={handleToolbarAction}
-        fileInputRef={fileInputRef}
-        onFileChange={handleFileChange}
         canBulkDelete={isOwner}
       />
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0 text-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 shrink-0 text-sm">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-slate-500 whitespace-nowrap">Sắp xếp</span>
           <select
@@ -393,37 +408,18 @@ export function SuppliersPage() {
             ))}
           </select>
         </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page <= 1 || isPending}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Trước
-          </Button>
-          <span className="text-slate-600 tabular-nums">
-            Trang {page}/{totalPages} · {total} NCC
-            {isFetching && !isPending ? " · …" : ""}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages || isPending}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Sau
-          </Button>
-        </div>
       </div>
 
-      {(isPending || isFetching) && (
+      {isPending && suppliers.length === 0 ? (
         <p className="text-sm text-slate-500 shrink-0" role="status">
-          {isPending ? "Đang tải danh sách…" : "Đang cập nhật…"}
+          Đang tải danh sách…
         </p>
-      )}
+      ) : null}
+      {isFetching && !isPending && !isFetchingNextPage ? (
+        <p className="text-sm text-slate-500 shrink-0" role="status">
+          Đang cập nhật…
+        </p>
+      ) : null}
       {isError && (
         <p className="text-sm text-red-600 shrink-0" role="alert">
           Không tải được danh sách nhà cung cấp.
@@ -431,7 +427,10 @@ export function SuppliersPage() {
       )}
 
       <div className="flex-1 flex flex-col min-h-0 bg-white border border-slate-200/60 rounded-xl overflow-hidden shadow-md">
-        <div className="flex-1 overflow-y-auto relative scroll-smooth [scrollbar-gutter:stable] min-h-0">
+        <div
+          ref={scrollRootRef}
+          className="flex-1 overflow-y-auto relative scroll-smooth [scrollbar-gutter:stable] min-h-0"
+        >
           <SupplierTable
             data={suppliers}
             selectedIds={selectedIds}
@@ -442,7 +441,19 @@ export function SuppliersPage() {
             onDelete={handleDelete}
             canDelete={isOwner}
           />
+          <div ref={loadMoreSentinelRef} className="h-1 w-full shrink-0" aria-hidden />
         </div>
+        {listInfinite && total > 0 ? (
+          <div className="flex items-center justify-between flex-wrap gap-2 px-3 py-2 border-t border-slate-200 bg-slate-50/80 text-sm text-slate-600 min-h-11 shrink-0">
+            <span>
+              Đang hiển thị {suppliers.length} / {total} NCC
+            </span>
+            {isFetchingNextPage ? <span className="text-slate-500">Đang tải thêm…</span> : null}
+            {hasNextPage && !isFetchingNextPage ? (
+              <span className="text-slate-400 text-xs hidden sm:inline">Cuộn xuống để tải thêm</span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <ConfirmDialog

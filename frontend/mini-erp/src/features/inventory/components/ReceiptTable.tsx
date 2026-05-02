@@ -29,12 +29,14 @@ interface ReceiptTableProps {
   onAction: (receipt: StockReceipt) => void
   onEdit?: (receipt: StockReceipt) => void
   onDelete?: (id: number) => void
+  /** Nếu có — nút xóa luôn chiếm chỗ; `false` = ẩn + disabled (khớp quyền/trạng thái trên BE). */
+  canDeleteReceipt?: (receipt: StockReceipt) => boolean
 }
 
 /**
  * Một bảng duy nhất (thead + tbody) — class cột lấy từ `@/lib/data-table-layout` (chuẩn dự án).
  */
-export function ReceiptTable({ receipts, onAction, onEdit, onDelete }: ReceiptTableProps) {
+export function ReceiptTable({ receipts, onAction, onEdit, onDelete, canDeleteReceipt }: ReceiptTableProps) {
   return (
     <Table data-testid="receipt-table" className={DATA_TABLE_ROOT_CLASS}>
       <TableHeader className="sticky top-0 z-20 shadow-sm border-b">
@@ -51,7 +53,9 @@ export function ReceiptTable({ receipts, onAction, onEdit, onDelete }: ReceiptTa
         </TableRow>
       </TableHeader>
       <TableBody>
-        {receipts.map((receipt) => (
+        {receipts.map((receipt) => {
+          const deleteAllowed = Boolean(onDelete && (canDeleteReceipt?.(receipt) ?? true))
+          return (
           <TableRow
             key={receipt.id}
             className="group hover:bg-slate-50/50 cursor-pointer h-16"
@@ -112,19 +116,34 @@ export function ReceiptTable({ receipts, onAction, onEdit, onDelete }: ReceiptTa
                 >
                   <Edit2 className="h-4 w-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-slate-500 hover:text-red-600 transition-colors"
-                  onClick={() => onDelete?.(receipt.id)}
-                  title="Xóa phiếu"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {onDelete ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    data-testid="delete-receipt-btn"
+                    className={cn(
+                      "h-8 w-8 text-slate-500 hover:text-red-600 transition-colors",
+                      !deleteAllowed && "invisible pointer-events-none",
+                    )}
+                    onClick={() => {
+                      if (deleteAllowed) {
+                        onDelete(receipt.id)
+                      }
+                    }}
+                    disabled={!deleteAllowed}
+                    title={deleteAllowed ? "Xóa phiếu" : undefined}
+                    aria-hidden={!deleteAllowed}
+                    tabIndex={deleteAllowed ? 0 : -1}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                ) : null}
               </div>
             </TableCell>
           </TableRow>
-        ))}
+          )
+        })}
       </TableBody>
     </Table>
   )

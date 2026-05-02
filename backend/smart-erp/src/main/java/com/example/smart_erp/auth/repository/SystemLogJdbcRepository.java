@@ -40,4 +40,18 @@ public class SystemLogJdbcRepository {
 				"INSERT INTO systemlogs (log_level, module, action, user_id, message, context_data) VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb))",
 				"INFO", "inventory", "PATCH_INVENTORY", userId, "Cập nhật meta tồn kho", contextJson);
 	}
+
+	/** Nhật ký phiếu nhập kho: phê duyệt / từ chối / xóa (context JSON tuỳ chọn). */
+	public void insertStockReceiptAudit(int userId, String action, String message, String contextJson) {
+		if (contextJson == null || contextJson.isBlank()) {
+			jdbcTemplate.update(
+					"INSERT INTO systemlogs (log_level, module, action, user_id, message) VALUES (?, ?, ?, ?, ?)",
+					"INFO", "inventory", action, userId, message);
+		}
+		else {
+			jdbcTemplate.update(
+					"INSERT INTO systemlogs (log_level, module, action, user_id, message, context_data) VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb))",
+					"INFO", "inventory", action, userId, message, contextJson);
+		}
+	}
 }

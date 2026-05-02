@@ -56,7 +56,7 @@ export function SupplierTable({
           <TableHead className={cn(SUPPLIER_TABLE_COL.name, TABLE_HEAD_CLASS, "px-4")}>Nhà cung cấp</TableHead>
           <TableHead className={cn(SUPPLIER_TABLE_COL.contact, TABLE_HEAD_CLASS, "px-4")}>Người liên hệ</TableHead>
           <TableHead className={cn(SUPPLIER_TABLE_COL.email, TABLE_HEAD_CLASS, "px-4")}>Email</TableHead>
-          <TableHead className={cn(SUPPLIER_TABLE_COL.address, TABLE_HEAD_CLASS, "px-4 text-right")}>Địa chỉ</TableHead>
+          <TableHead className={cn(SUPPLIER_TABLE_COL.address, TABLE_HEAD_CLASS, "px-4 text-left")}>Địa chỉ</TableHead>
           <TableHead className={cn(SUPPLIER_TABLE_COL.status, TABLE_HEAD_CLASS, "px-4")}>Trạng thái</TableHead>
           <TableHead className={cn(DATA_TABLE_ACTION_HEAD_CLASS, TABLE_HEAD_CLASS)}>Thao tác</TableHead>
         </TableRow>
@@ -84,7 +84,7 @@ export function SupplierTable({
                 <TableCell className={cn(SUPPLIER_TABLE_COL.name, TABLE_CELL_PRIMARY_CLASS, "px-4 truncate")}>{item.name}</TableCell>
                 <TableCell className={cn(SUPPLIER_TABLE_COL.contact, TABLE_CELL_SECONDARY_CLASS, "px-4 truncate")}>{item.contactPerson || '-'}</TableCell>
                 <TableCell className={cn(SUPPLIER_TABLE_COL.email, TABLE_CELL_SECONDARY_CLASS, "px-4 truncate")}>{item.email || '-'}</TableCell>
-                <TableCell className={cn(SUPPLIER_TABLE_COL.address, TABLE_CELL_SECONDARY_CLASS, "px-4 truncate")}>{item.address || '-'}</TableCell>
+                <TableCell className={cn(SUPPLIER_TABLE_COL.address, TABLE_CELL_SECONDARY_CLASS, "px-4 text-left truncate min-w-0")}>{item.address || '-'}</TableCell>
                 <TableCell className={cn(SUPPLIER_TABLE_COL.status, "px-4")}>
                   <Badge className={cn("text-xs font-normal border-none", item.status === 'Active' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500')}>
                     {item.status === 'Active' ? 'Hoạt động' : 'Ngừng'}

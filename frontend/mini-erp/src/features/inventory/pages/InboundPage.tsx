@@ -50,7 +50,15 @@ export function InboundPage() {
   const queryClient = useQueryClient()
   const { setTitle } = usePageTitle()
   const user = useAuthStore((s) => s.user)
-  const userCanApprove = useAuthStore((s) => s.user?.role === "Owner" && s.menuPermissions.can_approve)
+  const role = user?.role
+  const canApprovePerm = useAuthStore((s) => s.menuPermissions.can_approve)
+  const userCanApprove = Boolean(role === "Admin" || role === "Owner") && canApprovePerm
+
+  const canDeleteReceipt = (r: StockReceipt) => {
+    if (r.status === "Pending") return role === "Staff" || role === "Admin" || role === "Owner"
+    if (r.status === "Draft") return role === "Owner"
+    return false
+  }
   const scrollRootRef = useRef<HTMLDivElement>(null)
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
 
@@ -420,6 +428,7 @@ export function InboundPage() {
                 }}
                 onEdit={handleEditReceipt}
                 onDelete={handleDeleteReceipt}
+                canDeleteReceipt={canDeleteReceipt}
               />
 
               {isFetchingNextPage && (

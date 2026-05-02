@@ -1,6 +1,9 @@
 import { apiJson } from "@/lib/api/http"
 import type { StockReceipt } from "../types"
 
+/** Khớp validation BE `StockReceiptRejectRequest` — lý do từ chối phải ghi rõ. */
+export const STOCK_RECEIPT_REJECT_REASON_MIN_LEN = 15
+
 /**
  * Task013 — `GET /api/v1/stock-receipts` — `frontend/docs/api/API_Task013_stock_receipts_get_list.md` §7.
  * Sort BE: `id:asc|id:desc`, `createdAt:asc|createdAt:desc` (mặc định BE khi không gửi sort: `created_at` desc).
@@ -279,7 +282,7 @@ export type StockReceiptApproveBody = {
   inboundLocationId: number
 }
 
-/** Pending → Approved — `POST /api/v1/stock-receipts/{id}/approve` — `frontend/docs/api/API_Task019_stock_receipts_approve.md`. RBAC BE: `can_approve`. */
+/** Pending → Approved — `POST /api/v1/stock-receipts/{id}/approve` — `frontend/docs/api/API_Task019_stock_receipts_approve.md`. RBAC BE: `can_approve` + role Admin hoặc Owner. */
 export function approveStockReceipt(id: number, body: StockReceiptApproveBody) {
   return apiJson<StockReceiptViewResponse>(`/api/v1/stock-receipts/${id}/approve`, {
     method: "POST",

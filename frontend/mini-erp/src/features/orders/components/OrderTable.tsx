@@ -114,10 +114,12 @@ export function OrderTable({
                     />
                   </TableCell>
                 )}
-                <TableCell className={cn(ORDER_TABLE_COL.code, TABLE_CELL_MONO_CLASS, "px-4")}>{item.orderCode}</TableCell>
-                <TableCell className="px-4">
-                  <div className="flex flex-col gap-1">
-                    <span className={cn(TABLE_CELL_PRIMARY_CLASS, "truncate max-w-[200px]")}>{item.customerName}</span>
+                <TableCell className={cn(ORDER_TABLE_COL.code, TABLE_CELL_MONO_CLASS, "px-4 min-w-0")}>
+                  <span className="block truncate">{item.orderCode}</span>
+                </TableCell>
+                <TableCell className={cn(ORDER_TABLE_COL.customer, "px-4 min-w-0")}>
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span className={cn(TABLE_CELL_PRIMARY_CLASS, "block min-w-0 truncate")}>{item.customerName}</span>
                     <div className="flex gap-1 items-center">
                       <TypeBadge type={item.type} />
                       <span className={cn(TABLE_CELL_MONO_CLASS, "text-[10px] text-slate-400")}>• {item.itemsCount} mặt hàng</span>
@@ -130,7 +132,7 @@ export function OrderTable({
                 <TableCell className={cn(ORDER_TABLE_COL.total, TABLE_CELL_NUMBER_CLASS, "text-right px-4")}>
                   {formatCurrency(item.finalAmount)}
                 </TableCell>
-                <TableCell className="px-4 text-center">
+                <TableCell className={cn(ORDER_TABLE_COL.status, "px-4 text-center min-w-0")}>
                   <StatusBadge status={item.status} />
                 </TableCell>
                 <TableCell className={DATA_TABLE_ACTION_CELL_CLASS}>

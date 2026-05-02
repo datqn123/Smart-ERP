@@ -2,8 +2,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Eye, Edit2, Trash2, Star } from "lucide-react"
-import { formatCurrency } from "@/features/inventory/utils"
+import { Eye, Edit2, Trash2 } from "lucide-react"
 import { 
   DATA_TABLE_ROOT_CLASS, 
   DATA_TABLE_ACTION_HEAD_CLASS, 
@@ -18,13 +17,6 @@ import {
 import { cn } from "@/lib/utils"
 import type { Customer } from "../types"
 
-// Loyalty Badge
-function LoyaltyBadge({ points }: { points: number }) {
-  if (points >= 500) return <Badge className="bg-blue-100 text-blue-800 text-xs border-none"><Star className="h-3 w-3 mr-1" />{points}</Badge>
-  if (points >= 100) return <Badge className="bg-blue-50 text-blue-700 text-xs border-none"><Star className="h-3 w-3 mr-1" />{points}</Badge>
-  return <Badge className="bg-slate-100 text-slate-500 text-xs border-none">{points} điểm</Badge>
-}
-
 interface CustomerTableProps {
   data: Customer[]
   selectedIds: number[]
@@ -33,7 +25,7 @@ interface CustomerTableProps {
   onView: (item: Customer) => void
   onEdit: (item: Customer) => void
   onDelete: (item: Customer) => void
-  /** Task052 — BE `assertOwnerOnly` khi xóa. */
+  /** Task052 — BE chỉ Admin xóa mềm. */
   canDelete?: boolean
 }
 
@@ -65,8 +57,6 @@ export function CustomerTable({
           <TableHead className={cn(CUSTOMER_TABLE_COL.name, TABLE_HEAD_CLASS, "px-4")}>Khách hàng</TableHead>
           <TableHead className={cn(CUSTOMER_TABLE_COL.phone, TABLE_HEAD_CLASS, "px-4")}>SĐT</TableHead>
           <TableHead className={cn(CUSTOMER_TABLE_COL.email, TABLE_HEAD_CLASS, "px-4")}>Email</TableHead>
-          <TableHead className={cn(CUSTOMER_TABLE_COL.loyalty, TABLE_HEAD_CLASS, "px-4")}>Điểm</TableHead>
-          <TableHead className={cn(CUSTOMER_TABLE_COL.spending, TABLE_HEAD_CLASS, "px-4 text-right")}>Tổng chi</TableHead>
           <TableHead className={cn(CUSTOMER_TABLE_COL.orders, TABLE_HEAD_CLASS, "px-4 text-center")}>Đơn</TableHead>
           <TableHead className={cn(CUSTOMER_TABLE_COL.status, TABLE_HEAD_CLASS, "px-4")}>Trạng thái</TableHead>
           <TableHead className={cn(DATA_TABLE_ACTION_HEAD_CLASS, TABLE_HEAD_CLASS)}>Thao tác</TableHead>
@@ -75,7 +65,7 @@ export function CustomerTable({
       <TableBody className="divide-y divide-slate-100">
         {data.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={10} className="h-24 text-center text-slate-500 text-sm">
+            <TableCell colSpan={8} className="h-24 text-center text-slate-500 text-sm">
               Không tìm thấy khách hàng nào.
             </TableCell>
           </TableRow>
@@ -95,10 +85,6 @@ export function CustomerTable({
                 <TableCell className={cn(CUSTOMER_TABLE_COL.name, TABLE_CELL_PRIMARY_CLASS, "px-4 truncate")}>{item.name}</TableCell>
                 <TableCell className={cn(CUSTOMER_TABLE_COL.phone, TABLE_CELL_SECONDARY_CLASS, "px-4")}>{item.phone}</TableCell>
                 <TableCell className={cn(CUSTOMER_TABLE_COL.email, TABLE_CELL_SECONDARY_CLASS, "px-4 truncate")}>{item.email || '-'}</TableCell>
-                <TableCell className="px-4"><LoyaltyBadge points={item.loyaltyPoints} /></TableCell>
-                <TableCell className={cn(CUSTOMER_TABLE_COL.spending, TABLE_CELL_NUMBER_CLASS, "text-right px-4")}>
-                  {item.totalSpent ? formatCurrency(item.totalSpent) : '-'}
-                </TableCell>
                 <TableCell className={cn(CUSTOMER_TABLE_COL.orders, TABLE_CELL_NUMBER_CLASS, "text-center px-4")}>{item.orderCount ?? 0}</TableCell>
                 <TableCell className={cn(CUSTOMER_TABLE_COL.status, "px-4")}>
                   <Badge className={cn("text-xs font-normal border-none", item.status === 'Active' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500')}>

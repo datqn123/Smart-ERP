@@ -15,6 +15,18 @@ export const PRODUCT_LIST_SORT_WHITELIST = [
 
 export type ProductListSort = (typeof PRODUCT_LIST_SORT_WHITELIST)[number]
 
+/** Nhãn hiển thị cho dropdown Sắp xếp (giá trị gửi API vẫn là `field:dir`). */
+export const PRODUCT_LIST_SORT_LABEL_VI: Record<ProductListSort, string> = {
+  "name:asc": "Tên (A → Z)",
+  "name:desc": "Tên (Z → A)",
+  "skuCode:asc": "Mã SKU tăng dần",
+  "skuCode:desc": "Mã SKU giảm dần",
+  "updatedAt:asc": "Cập nhật (cũ nhất trước)",
+  "updatedAt:desc": "Cập nhật (mới nhất trước)",
+  "createdAt:asc": "Ngày tạo (cũ nhất trước)",
+  "createdAt:desc": "Ngày tạo (mới nhất trước)",
+}
+
 export type ProductListItemDto = {
   id: number
   skuCode: string

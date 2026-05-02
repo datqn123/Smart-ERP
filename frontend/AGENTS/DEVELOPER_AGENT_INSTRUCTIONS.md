@@ -84,6 +84,7 @@ Nếu phát hiện issue hiệu năng **nhỏ và rẻ** (quick win) thì fix ng
 - Toast/redirect đúng chuẩn (401/403/500).
 - TypeScript strict, **no `any`**.
 - Shadcn UI first.
+- **Bảng có nút Xóa (cột Thao tác)**: Mỗi dòng **luôn** render ô nút Xóa (cùng layout với các dòng khác); chỉ **ẩn / vô hiệu hoá** theo điều kiện từng bản ghi (trạng thái, quyền, v.v.) — ví dụ `invisible` + `disabled` + `pointer-events-none`, **không** bỏ hẳn nút ở một số dòng để tránh cột thao tác co giãn lệch.
 - Optimistic updates cho mutations (TanStack Query) khi có data mutation.
 
 ## 9. Lệnh thường dùng trong repo (tham chiếu)

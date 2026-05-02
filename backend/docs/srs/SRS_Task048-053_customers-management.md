@@ -5,7 +5,8 @@
 > **Ngày:** 27/04/2026  
 > **Đồng bộ sau trả lời PO (OQ §4):** 27/04/2026  
 > **Trạng thái:** Approved *(OQ §4.1 — **OQ-4(b)** migration `can_manage_customers`; **OQ-5(b)** dedupe `ids` bulk)*  
-> **PO duyệt:** PO — 27/04/2026 *(chữ ký PR/ticket theo quy trình team)*
+> **PO duyệt:** PO — 27/04/2026 *(chữ ký PR/ticket theo quy trình team)*  
+> **Amendment Task052 (02/05/2026):** [`SRS_PRD_customers-admin-soft-delete-single.md`](SRS_PRD_customers-admin-soft-delete-single.md) — **Approved**. Task052 `DELETE` đơn: **Admin-only** + **soft delete** + điều kiện đơn non-terminal; **Task053** bulk **giữ** Owner-only. Chi tiết **§0.2**.
 
 ---
 
@@ -23,7 +24,7 @@
 | Envelope | [`../../../frontend/docs/api/API_RESPONSE_ENVELOPE.md`](../../../frontend/docs/api/API_RESPONSE_ENVELOPE.md) |
 | UC / DB tham chiếu | [`../../../frontend/docs/UC/Database_Specification.md`](../../../frontend/docs/UC/Database_Specification.md) §4 (Customers, SalesOrders) — **đối chiếu Flyway** |
 | Flyway thực tế | [`../../smart-erp/src/main/resources/db/migration/V1__baseline_smart_inventory.sql`](../../smart-erp/src/main/resources/db/migration/V1__baseline_smart_inventory.sql) — `customers`, `salesorders` (**`fk_so_customer` ON DELETE RESTRICT**), **`partnerdebts`** (**`fk_pd_customer` ON DELETE RESTRICT**) |
-| Đồng bộ nhóm catalog | [`SRS_Task034-041_products-management.md`](SRS_Task034-041_products-management.md), [`SRS_Task042-047_suppliers-management.md`](SRS_Task042-047_suppliers-management.md) — NCC/SP dùng `can_manage_products`; **KH:** **`can_manage_customers`** (**OQ-4(b)**); xóa / bulk-delete: **chỉ Owner** (**OQ-1(a)**) |
+| Đồng bộ nhóm catalog | [`SRS_Task034-041_products-management.md`](SRS_Task034-041_products-management.md), [`SRS_Task042-047_suppliers-management.md`](SRS_Task042-047_suppliers-management.md) — NCC/SP dùng `can_manage_products`; **KH:** **`can_manage_customers`** (**OQ-4(b)**); **Task053** bulk-delete: **chỉ Owner**; **Task052** `DELETE` đơn — **§0.2** (Admin + soft delete). |
 | UI index | [`../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md`](../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md) |
 
 ### 0.1 GAP / mâu thuẫn nguồn → cách xử lý trong SRS
@@ -35,16 +36,28 @@
 | Task048 `sort` | “Whitelist” không liệt kê | Cần contract đo được | SRS §8.2 liệt kê **danh sách**; giá trị khác → **400**. |
 | Task053 bulk policy | all-or-nothing **hoặc** partial | [`SRS_Task042-047`](SRS_Task042-047_suppliers-management.md) đã chọn all-or-nothing | **Đã chốt OQ-2(a):** all-or-nothing. |
 | RBAC Task048 | “Owner, Staff, Admin — đọc” | **OQ-4(b):** permission **`can_manage_customers`** (migration seed) | Task048–051 kiểm JWT claim **`can_manage_customers`**; cập nhật menu Mini-ERP. |
-| Task052 RBAC | “Owner (khuyến nghị)” | Sản phẩm/NCC: **chỉ Owner** xóa | **Đã chốt OQ-1(a):** Task052–053 **chỉ Owner** xóa. |
+| Task052 RBAC | “Owner (khuyến nghị)” | Sản phẩm/NCC: **chỉ Owner** xóa | **OQ-1(a)** gốc: Task052–053 **chỉ Owner**. **Task052 đơn** supersede theo **§0.2** — **chỉ Admin** + soft delete. |
 | Task052 vs Task053 `message` 409 | Hai câu tiếng Việt khác nhau | Envelope: một convention | Một **bộ message** theo `details.reason` — §8.5. |
+
+### 0.2 Amendment Task052 — `DELETE /api/v1/customers/{id}` (02/05/2026)
+
+Nguồn chân lý: **[`SRS_PRD_customers-admin-soft-delete-single.md`](SRS_PRD_customers-admin-soft-delete-single.md)** (**Approved**).
+
+| Hạng mục | Trước amendment (OQ-1(a) / code gốc) | Sau amendment |
+| :--- | :--- | :--- |
+| RBAC **Task052** | Chỉ Owner | **Chỉ Admin** (JWT `role` = `Admin`, so khớp phân biệt hoa thường theo convention dự án) |
+| Persistence | Hard `DELETE` | **Soft delete** — set `deleted_at`; partial unique trên `customer_code` khi `deleted_at IS NULL` |
+| Chặn `salesorders` | Có **bất kỳ** đơn → 409 (`HAS_SALES_ORDERS` / tương đương) | Chỉ khi còn đơn **non-terminal**; `details.reason` = **`HAS_OPEN_SALES_ORDERS`** |
+| `partnerdebts` | Kiểm trước xóa | **Giữ** — `HAS_PARTNER_DEBTS` |
+| **Task053** bulk | Chỉ Owner | **Không đổi** — chỉ Owner; UI ẩn bulk trong phạm vi PRD |
 
 ---
 
 ## 1. Tóm tắt điều hành
 
 - **Vấn đề:** UC9 cần API **danh sách phân trang** khách hàng (kèm read-model `totalSpent`, `orderCount`, `loyaltyPoints`), **tạo**, **chi tiết**, **PATCH** (RBAC cho `loyaltyPoints`), **xóa một**, **xóa bulk**, thống nhất envelope với màn **Khách hàng** trên Mini-ERP.
-- **Mục tiêu nghiệp vụ:** Master data KH; chặn xóa khi còn **đơn bán** (`salesorders`) hoặc **công nợ đối tác** (`partnerdebts` theo `customer_id`) — tránh **500** do FK RESTRICT.
-- **Đối tượng:** User JWT; quyền đọc/ghi Task048–051 theo **`can_manage_customers`** (**OQ-4(b)**); xóa Task052–053: **chỉ Owner** (**OQ-1(a)**).
+- **Mục tiêu nghiệp vụ:** Master data KH; chặn xóa khi còn ràng buộc đơn/nợ theo **§0.2** (Task052 đơn) và theo OQ gốc (Task053); tránh **500** do FK RESTRICT.
+- **Đối tượng:** User JWT; quyền đọc/ghi Task048–051 theo **`can_manage_customers`** (**OQ-4(b)**); **Task052** `DELETE` đơn: **chỉ Admin** (**§0.2**); **Task053** bulk: **chỉ Owner** (**OQ-1(a)**).
 
 ### 1.1 Giao diện Mini-ERP
 
@@ -65,7 +78,7 @@
 | C3 | Chi tiết một KH | `GET /api/v1/customers/{id}` | `200` + object đầy đủ như list item | **404** nếu không tồn tại |
 | C4 | Tạo KH | `POST /api/v1/customers` | `201` + object; `loyaltyPoints: 0` | `customer_code` UNIQUE → **409**; server set `loyalty_points = 0` |
 | C5 | Cập nhật một phần | `PATCH /api/v1/customers/{id}` | `200` + object như Task050 | Ít nhất một field; `loyaltyPoints` trong body: **403** nếu **Staff** (JWT `role`) — **Owner** và **Admin** được (**Task051**); đổi `customerCode` trùng KH khác → **409** |
-| C6 | Xóa một KH | `DELETE /api/v1/customers/{id}` | `200` + `{ id, deleted: true }` | **Chỉ Owner** (**OQ-1(a)**); chặn nếu còn `salesorders` **hoặc** `partnerdebts` — **BR-2** |
+| C6 | Xóa một KH | `DELETE /api/v1/customers/{id}` | `200` + `{ id, deleted: true }` | **§0.2:** **chỉ Admin**; **soft delete** `deleted_at`; chặn đơn **non-terminal** (`HAS_OPEN_SALES_ORDERS`) + `partnerdebts` (`HAS_PARTNER_DEBTS`) — thay mô tả Owner-only / hard delete cũ |
 | C7 | Xóa nhiều KH | `POST /api/v1/customers/bulk-delete` | `200` hoặc `409` | **OQ-2(a):** all-or-nothing; sau **dedupe** tối đa **50** id duy nhất (**OQ-5(b)**) |
 
 ---
@@ -76,7 +89,7 @@
 
 - Sáu endpoint Task048–053; validation, phân trang, envelope, mã HTTP như §8.
 - Read-model từ `salesorders` theo **BR-1**.
-- Kiểm tra toàn vẹn trước `DELETE` gồm **`salesorders`** và **`partnerdebts`** (Flyway V1).
+- Kiểm tra toàn vẹn trước xóa KH: **Task052** theo **§0.2** (đơn non-terminal + `partnerdebts`); **Task053** bulk theo rule all-or-nothing + EXISTS đơn/nợ như triển khai hiện tại (Flyway V1).
 - RBAC `loyaltyPoints` trên PATCH theo **BR-3**.
 - **OQ-4(b):** Flyway migration mới bổ sung **`can_manage_customers`** vào JSON `Roles.permissions` (Owner / Staff / Admin — giá trị boolean theo policy PM); `JwtTokenService` / `MenuPermissionClaims` (hoặc tương đương) đọc claim; FE route `/products/customers` kiểm quyền theo claim.
 
@@ -120,6 +133,14 @@
 | **OQ-4** | Quyền KH? | (a) `can_manage_products`. **(b)** `can_manage_customers`. |
 | **OQ-5** | `ids` trùng? | (a) 400. **(b)** Dedupe. |
 
+### 4.3 Amendment PO — Task052 đơn (02/05/2026)
+
+| Nguồn | Nội dung |
+| :--- | :--- |
+| SRS | [`SRS_PRD_customers-admin-soft-delete-single.md`](SRS_PRD_customers-admin-soft-delete-single.md) — **Approved** |
+| Hiệu lực | **Task052** `DELETE` đơn: supersede hàng **OQ-1(a)** trong bảng §4.1 **chỉ** cho endpoint này — **chỉ Admin**, soft delete, `HAS_OPEN_SALES_ORDERS`. **Task053** bulk: **vẫn** OQ-1(a) **chỉ Owner**. |
+| OQ-3 | Lý do **409** cho Task052 đơn bổ sung **`HAS_OPEN_SALES_ORDERS`**; bulk/Task053 vẫn dùng `HAS_SALES_ORDERS` / `HAS_PARTNER_DEBTS` / `NOT_FOUND` theo triển khai. |
+
 ---
 
 ## 5. Phân tích scope tệp & bằng chứng
@@ -132,7 +153,7 @@
 
 - Package gợi ý: `com.example.smart_erp.catalog` (cùng module sản phẩm/NCC) hoặc package `customers` — **ADR Tech Lead**.
 - Thành phần: `CustomersController`, `CustomerService`, JDBC repository trên `customers`; JOIN/subquery `salesorders`; EXISTS `salesorders` + `partnerdebts` trước xóa.
-- Policy: **`@PreAuthorize` / `*AccessPolicy`** — **`can_manage_customers`** cho Task048–051 (**OQ-4(b)** — migration JSON `roles.permissions` + đọc claim JWT); **`assertOwnerRole`** (chỉ **Owner**) cho Task052–053 (**OQ-1(a)**).
+- Policy: **`@PreAuthorize` / `*AccessPolicy`** — **`can_manage_customers`** cho Task048–051 (**OQ-4(b)** — migration JSON `roles.permissions` + đọc claim JWT); **Task052** `DELETE` đơn: **assert Admin role** (**§0.2**); **Task053** bulk: **`assertOwnerOnly`** (**OQ-1(a)**).
 
 ### 5.3 Rủi ro phát hiện sớm
 
@@ -143,15 +164,15 @@
 
 ## 6. Persona & RBAC
 
-| Vai trò / quyền | Điều kiện | Task048–050 (đọc) | Task049, 051 (ghi) | Task051 `loyaltyPoints` | Task052–053 (xóa) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Staff** | JWT + **`can_manage_customers`** + `role` = Staff | **Được** | **Được** | **403** nếu body có `loyaltyPoints` (**BR-3**) | **403** (**OQ-1(a)**) |
-| **Admin** | JWT + **`can_manage_customers`** + `role` = Admin | **Được** | **Được** | **Được** chỉnh (**BR-3**) | **403** (**OQ-1(a)** — chỉ Owner xóa) |
-| **Owner** | JWT + **`can_manage_customers`** + `role` = Owner | **Được** | **Được** | **Được** chỉnh | **Được** khi không vi phạm **BR-2** |
-| **Thiếu `can_manage_customers`** | JWT hợp lệ (kể cả chỉ có `can_manage_products`) | **403** | **403** | **403** | **403** |
-| Thiếu token / lỗi auth | | **401** | **401** | **401** | **401** |
+| Vai trò / quyền | Điều kiện | Task048–050 (đọc) | Task049, 051 (ghi) | Task051 `loyaltyPoints` | Task052 (xóa **một**) | Task053 (bulk) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Staff** | JWT + **`can_manage_customers`** + `role` = Staff | **Được** | **Được** | **403** nếu body có `loyaltyPoints` (**BR-3**) | **403** | **403** |
+| **Admin** | JWT + **`can_manage_customers`** + `role` = Admin | **Được** | **Được** | **Được** chỉnh (**BR-3**) | **Được** khi thỏa rule §0.2 (**§0.2**) | **403** (chỉ Owner) |
+| **Owner** | JWT + **`can_manage_customers`** + `role` = Owner | **Được** | **Được** | **Được** chỉnh | **403** (Task052 **Admin-only**) | **Được** khi không vi phạm điều kiện bulk |
+| **Thiếu `can_manage_customers`** | JWT hợp lệ (kể cả chỉ có `can_manage_products`) | **403** | **403** | **403** | **403** | **403** |
+| Thiếu token / lỗi auth | | **401** | **401** | **401** | **401** | **401** |
 
-> **Ghi chú:** **OQ-4(b)** — seed khuyến nghị: Owner / Staff / Admin đều **`can_manage_customers`: true** trừ khi PM muốn giới hạn role (ghi riêng ticket); **OQ-1(a)** — Admin **không** được xóa KH.
+> **Ghi chú:** **OQ-4(b)** — seed khuyến nghị: Owner / Staff / Admin đều **`can_manage_customers`: true** trừ khi PM muốn giới hạn role (ghi riêng ticket). **Task052** đơn: **chỉ Admin** — **§0.2**. **Task053** bulk: **chỉ Owner** — **OQ-1(a)**.
 
 ---
 
@@ -168,12 +189,14 @@
 
 ### 7.2 Luồng chính (xóa một — narrative)
 
+*(Theo **§0.2** / [`SRS_PRD_customers-admin-soft-delete-single.md`](SRS_PRD_customers-admin-soft-delete-single.md).)*
+
 1. Client gọi `DELETE /api/v1/customers/{id}` + Bearer.  
-2. API RBAC — không phải Owner → **403** (**OQ-1(a)**).  
-3. `SELECT id FROM customers WHERE id = :id FOR UPDATE` — không có → **404**.  
-4. `SELECT 1 FROM salesorders WHERE customer_id = :id LIMIT 1` — có → **409** (`HAS_SALES_ORDERS`).  
+2. API RBAC — `role` ≠ **Admin** → **403**.  
+3. `SELECT id FROM customers WHERE id = :id AND deleted_at IS NULL FOR UPDATE` — không có → **404**.  
+4. EXISTS `salesorders` non-terminal (không thuộc `Delivered` / `Cancelled`) → **409** (`HAS_OPEN_SALES_ORDERS`).  
 5. `SELECT 1 FROM partnerdebts WHERE customer_id = :id LIMIT 1` — có → **409** (`HAS_PARTNER_DEBTS`).  
-6. `DELETE FROM customers WHERE id = :id` → **200**.
+6. `UPDATE customers SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id AND deleted_at IS NULL` → **200**.
 
 ### 7.3 Sơ đồ (xóa một)
 
@@ -185,29 +208,34 @@ sequenceDiagram
   participant D as DB
   U->>C: Xác nhận xóa KH
   C->>A: DELETE /api/v1/customers/{id}
-  A->>D: SELECT … FOR UPDATE customers
-  D-->>A: row / empty
-  alt không tồn tại
-    A-->>C: 404
-  else tồn tại
-    A->>D: EXISTS salesorders?
-    D-->>A: yes/no
-    alt có bất kỳ đơn salesorders nào (mọi trạng thái)
-      A-->>C: 409 HAS_SALES_ORDERS
-    else không
-      A->>D: EXISTS partnerdebts?
+  A->>A: role = Admin?
+  alt không đủ quyền
+    A-->>C: 403
+  else Admin
+    A->>D: SELECT active FOR UPDATE
+    D-->>A: row / empty
+    alt không tồn tại active
+      A-->>C: 404
+    else có
+      A->>D: EXISTS non-terminal salesorders?
       D-->>A: yes/no
-      alt có công nợ KH
-        A-->>C: 409 HAS_PARTNER_DEBTS
+      alt có đơn chưa hoàn tất
+        A-->>C: 409 HAS_OPEN_SALES_ORDERS
       else không
-        A->>D: DELETE customers
-        A-->>C: 200 deleted
+        A->>D: EXISTS partnerdebts?
+        D-->>A: yes/no
+        alt có công nợ KH
+          A-->>C: 409 HAS_PARTNER_DEBTS
+        else không
+          A->>D: UPDATE deleted_at
+          A-->>C: 200 deleted
+        end
       end
     end
   end
 ```
 
-> **Lưu ý nghiệp vụ:** Ràng buộc “đã có đơn” nên áp dụng cho đơn **mọi trạng thái** (kể cả `Cancelled`) vì FK vẫn giữ quan hệ — **BR-2** dùng EXISTS trên `salesorders` **không** lọc `Cancelled`. Read-model `totalSpent`/`orderCount` vẫn **loại Cancelled** (**BR-1**).
+> **Lưu ý nghiệp vụ (Task052 đơn — §0.2):** Chỉ chặn xóa mềm khi còn đơn **non-terminal**; đơn `Delivered` / `Cancelled` **không** chặn. Read-model `totalSpent`/`orderCount` (**BR-1**) vẫn **loại Cancelled** như cũ — độc lập với rule Task052.
 
 ---
 
@@ -224,7 +252,7 @@ sequenceDiagram
 | 049 | `POST /api/v1/customers` | Bearer | `201` |
 | 050 | `GET /api/v1/customers/{id}` | Bearer | |
 | 051 | `PATCH /api/v1/customers/{id}` | Bearer | Partial |
-| 052 | `DELETE /api/v1/customers/{id}` | Bearer | **Chỉ Owner** — **OQ-1(a)** |
+| 052 | `DELETE /api/v1/customers/{id}` | Bearer | **Chỉ Admin** — **§0.2** (soft delete) |
 | 053 | `POST /api/v1/customers/bulk-delete` | Bearer | **≤50 id duy nhất** sau dedupe (**OQ-5(b)**); **OQ-2(a)** |
 
 ### 8.2 `GET /api/v1/customers` — query
@@ -411,6 +439,8 @@ sequenceDiagram
 
 ### 8.6 `DELETE /api/v1/customers/{id}`
 
+*(**§0.2** — soft delete; chi tiết bổ sung trong [`SRS_PRD_customers-admin-soft-delete-single.md`](SRS_PRD_customers-admin-soft-delete-single.md).)*
+
 **200**
 
 ```json
@@ -421,14 +451,14 @@ sequenceDiagram
 }
 ```
 
-**409 — còn đơn hàng**
+**409 — còn đơn hàng chưa hoàn tất**
 
 ```json
 {
   "success": false,
   "error": "CONFLICT",
-  "message": "Không thể xóa khách hàng đã phát sinh đơn bán hàng",
-  "details": { "reason": "HAS_SALES_ORDERS" }
+  "message": "Không thể xóa khách hàng vì còn đơn hàng chưa hoàn tất.",
+  "details": { "reason": "HAS_OPEN_SALES_ORDERS" }
 }
 ```
 
@@ -443,13 +473,13 @@ sequenceDiagram
 }
 ```
 
-**403 — non-Owner**
+**403 — không phải Admin**
 
 ```json
 {
   "success": false,
   "error": "FORBIDDEN",
-  "message": "Chỉ chủ cửa hàng mới được xóa khách hàng",
+  "message": "Bạn không có quyền thực hiện thao tác này.",
   "details": {}
 }
 ```
@@ -558,6 +588,7 @@ GROUP BY c.id;
 
 ### 10.3 SQL gợi ý — list + phân trang
 
+- Predicate mặc định: **`c.deleted_at IS NULL`** (ẩn KH đã xóa mềm — **§0.2**).
 - Lớp đếm `total`: `SELECT COUNT(*) FROM customers c WHERE …` (cùng predicate `search` / `status` như list).
 - Lớp list: JOIN aggregate (subquery `GROUP BY customer_id` cho `total_spent` / `order_count`) **hoặc** `LEFT JOIN salesorders` + `GROUP BY c.id` — ưu tiên một kế hoạch query để tránh N+1; map `sort` whitelist → cột + **tie-break `c.id ASC`**.
 
@@ -568,7 +599,7 @@ GROUP BY c.id;
 
 ### 10.5 Transaction & khóa
 
-- **PATCH / DELETE một:** `SELECT … FROM customers WHERE id = :id FOR UPDATE` rồi `UPDATE` / kiểm tra EXISTS / `DELETE`.
+- **PATCH / Task052 DELETE một:** `SELECT … FROM customers WHERE id = :id AND deleted_at IS NULL FOR UPDATE` rồi `UPDATE` / kiểm tra EXISTS / **Task052:** `UPDATE deleted_at` (**§0.2**).
 - **Bulk-delete:** một transaction **read committed** (mặc định); rollback toàn bộ khi một id lỗi (**OQ-2(a)**).
 
 ### 10.6 Kiểm chứng cho Tester
@@ -616,25 +647,29 @@ Given Owner và PATCH {"loyaltyPoints": 100}
 When PATCH /api/v1/customers/1
 Then 200 và loyaltyPoints cập nhật
 
-Given KH không có salesorders và không có partnerdebts, user Owner
+Given KH không có salesorders non-terminal, không có partnerdebts, user Admin
 When DELETE /api/v1/customers/{id}
-Then 200 và data.deleted = true
+Then 200 và data.deleted = true (soft delete)
 
-Given KH có ít nhất một salesorder
+Given KH có salesorder status Pending (non-terminal)
 When DELETE /api/v1/customers/{id}
-Then 409 và details.reason = HAS_SALES_ORDERS
+Then 409 và details.reason = HAS_OPEN_SALES_ORDERS
+
+Given KH chỉ có salesorders Delivered/Cancelled, không nợ, user Admin
+When DELETE /api/v1/customers/{id}
+Then 200
 
 Given KH có partnerdebts theo customer_id
 When DELETE /api/v1/customers/{id}
 Then 409 và details.reason = HAS_PARTNER_DEBTS
 
+Given Owner (có can_manage_customers) và DELETE đơn hợp lệ
+When DELETE /api/v1/customers/{id}
+Then 403 (Task052 Admin-only — §0.2)
+
 Given Owner và bulk ids hợp lệ (sau dedupe), mọi id đều xóa được
 When POST /api/v1/customers/bulk-delete
 Then 200 và deletedCount bằng số id duy nhất đã xóa
-
-Given Admin (có can_manage_customers) và DELETE hợp lệ
-When DELETE /api/v1/customers/{id}
-Then 403 (OQ-1(a))
 
 Given một id trong bulk có đơn hàng
 When POST /api/v1/customers/bulk-delete
@@ -655,7 +690,7 @@ Then 400
 
 | GAP / Giả định | Tác động | Hành động đề xuất |
 | :--- | :--- | :--- |
-| API Task052 chưa nêu `partnerdebts` | Drift spec ↔ DB | Cập nhật `API_Task052_customers_delete.md` theo SRS. |
+| API Task052 đồng bộ §0.2 / SRS_PRD | Drift nếu code chưa triển khai | Giữ `API_Task052_customers_delete.md` khớp §8.6 + SRS_PRD. |
 | API Task048 chưa liệt kê `sort` | Drift | Cập nhật Task048 theo §8.2. |
 | API Task053 thiếu ví dụ JSON 200/409; policy dedupe | Drift | Đồng bộ từ SRS §8.7 + **OQ-5(b)**. |
 | API Task048–051 tham chiếu `can_manage_products` (nếu có) | Drift so với **OQ-4(b)** | Cập nhật API markdown + Zod/FE guard dùng **`can_manage_customers`**. |

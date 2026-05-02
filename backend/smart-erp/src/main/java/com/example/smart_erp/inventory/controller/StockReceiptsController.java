@@ -126,7 +126,7 @@ public class StockReceiptsController {
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã gửi yêu cầu duyệt"));
 	}
 
-	/** Task019 — {@code can_approve} + JWT {@code role} = Owner (SRS §6). */
+	/** Task019 — {@code can_approve} + JWT {@code role} Admin hoặc Owner. */
 	@PostMapping("/stock-receipts/{id}/approve")
 	@PreAuthorize("hasAuthority('can_approve')")
 	public ResponseEntity<ApiSuccessResponse<StockReceiptViewData>> approve(Authentication authentication,
@@ -136,7 +136,7 @@ public class StockReceiptsController {
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã phê duyệt phiếu nhập kho"));
 	}
 
-	/** Task020 — cùng rule Owner với Task019 (SRS §6). */
+	/** Task020 — cùng rule Admin/Owner với Task019. */
 	@PostMapping("/stock-receipts/{id}/reject")
 	@PreAuthorize("hasAuthority('can_approve')")
 	public ResponseEntity<ApiSuccessResponse<StockReceiptViewData>> reject(Authentication authentication,

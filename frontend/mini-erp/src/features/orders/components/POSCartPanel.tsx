@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Trash2, Plus, Minus, User, CreditCard, Receipt, Tag, Loader2 } from "lucide-react"
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
@@ -63,9 +63,8 @@ export function POSCartPanel() {
   /** Khi chọn từ danh sách — gửi kèm `voucherId` cho preview/checkout khớp BE. */
   const [selectedVoucherId, setSelectedVoucherId] = useState<number | null>(null)
 
-  useEffect(() => {
-    if (!voucherCode) setSelectedVoucherId(null)
-  }, [voucherCode])
+  /** Khi không còn mã — không gửi `voucherId` preview; tránh setState trong effect (eslint). */
+  const voucherIdForPreview = voucherCode?.trim() ? selectedVoucherId : null
 
   const vouchersInfinite = useInfiniteQuery({
     queryKey: [...VOUCHERS_LIST_QUERY_KEY, "retail-panel"],
@@ -86,7 +85,7 @@ export function POSCartPanel() {
     queryKey: [
       "retail-voucher-preview",
       voucherCode,
-      selectedVoucherId,
+      voucherIdForPreview,
       cartPreviewKey,
       discount,
     ] as const,
@@ -95,7 +94,7 @@ export function POSCartPanel() {
       const snap = useOrderStore.getState()
       const code = snap.voucherCode?.trim()
       return postRetailVoucherPreview({
-        voucherId: selectedVoucherId ?? undefined,
+        voucherId: voucherIdForPreview ?? undefined,
         voucherCode: code || undefined,
         lines: snap.cart.map((i) => ({
           productId: i.productId,
@@ -374,59 +373,59 @@ export function POSCartPanel() {
         )}
       </div>
 
-      <div className="p-4 bg-slate-900 text-white shadow-[0_-10px_20px_rgba(0,0,0,0.1)]">
-        <div className="space-y-3">
-          <div className="flex justify-between text-slate-400 text-sm font-medium">
+      <div className="px-4 pt-3 pb-3 bg-slate-900 text-white shadow-[0_-10px_20px_rgba(0,0,0,0.1)] shrink-0">
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-slate-400 text-xs font-medium">
             <span>Tạm tính ({cart.length} món)</span>
             <span>{formatCurrency(getTotal())}</span>
           </div>
           {discount > 0 && (
-            <div className="flex justify-between text-amber-200 text-sm font-medium">
+            <div className="flex justify-between text-amber-200 text-xs font-medium">
               <span>Giảm giá</span>
               <span>-{formatCurrency(discount)}</span>
             </div>
           )}
           {voucherCode && (
-            <div className="flex justify-between text-slate-400 text-xs">
+            <div className="flex justify-between text-slate-500 text-[11px]">
               <span>Mã voucher</span>
               <span className="truncate max-w-[55%] text-right">{voucherCode}</span>
             </div>
           )}
-          <Separator className="bg-slate-800" />
-          <div className="flex justify-between items-center">
-            <span className="text-base font-bold text-slate-300">Tổng cộng (ước tính)</span>
-            <span className="text-3xl font-black tracking-tighter text-white inline-flex items-center gap-2">
-              {voucherCode && previewQuery.isFetching ? <Loader2 className="h-6 w-6 animate-spin text-slate-400" /> : null}
-              {formatCurrency(displayTotal)}
+          <Separator className="bg-slate-800 my-1" />
+          <div className="flex justify-between items-baseline gap-2">
+            <span className="text-xs font-bold text-slate-400 shrink-0">Tổng cộng (ước tính)</span>
+            <span className="text-xl sm:text-2xl font-black tracking-tight text-white text-right inline-flex items-center justify-end gap-1.5 min-w-0">
+              {voucherCode && previewQuery.isFetching ? <Loader2 className="h-5 w-5 animate-spin text-slate-400 shrink-0" /> : null}
+              <span className="tabular-nums break-all">{formatCurrency(displayTotal)}</span>
             </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 mt-6">
+        <div className="grid grid-cols-2 gap-2 mt-3">
           <Button
             type="button"
             variant="outline"
             disabled={pending || cart.length === 0}
-            className="bg-transparent border-slate-700 text-white hover:bg-slate-800 h-12 inline-flex items-center justify-center gap-2"
+            className="bg-transparent border-slate-700 text-white hover:bg-slate-800 h-10 min-h-11 px-2 text-xs sm:text-sm inline-flex items-center justify-center gap-1.5"
             onClick={() => runCheckout("Unpaid")}
           >
             {pending && checkoutMutation.variables === "Unpaid" ? (
               <Loader2 className="h-4 w-4 animate-spin shrink-0" />
             ) : (
-              <CreditCard className="h-4 w-4 shrink-0" />
+              <CreditCard className="h-3.5 w-3.5 shrink-0" />
             )}
-            Thẻ/Chuyển khoản
+            <span className="text-center leading-tight">Thẻ/Chuyển khoản</span>
           </Button>
           <Button
             type="button"
             disabled={pending || cart.length === 0}
-            className="bg-white text-slate-900 hover:bg-slate-100 h-12 font-bold uppercase tracking-wide inline-flex items-center justify-center gap-2"
+            className="bg-white text-slate-900 hover:bg-slate-100 h-10 min-h-11 px-2 text-xs sm:text-sm font-bold uppercase tracking-wide inline-flex items-center justify-center gap-1.5"
             onClick={() => runCheckout("Paid")}
           >
             {pending && checkoutMutation.variables === "Paid" ? (
               <Loader2 className="h-4 w-4 animate-spin shrink-0 text-slate-900" />
             ) : null}
-            Tiền mặt (F12)
+            Tiền mặt
           </Button>
         </div>
       </div>

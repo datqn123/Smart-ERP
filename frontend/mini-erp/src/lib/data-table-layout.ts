@@ -78,15 +78,15 @@ export const AUDIT_SESSION_TABLE_COL = {
   status: "w-[120px]",
 } as const
 
-/** Sản phẩm (danh sách SKU) */
+/** Sản phẩm (danh sách SKU) — tên có truncate; không dùng min-w lớn để tránh nuốt chỗ các cột số/trạng thái. */
 export const PRODUCT_TABLE_COL = {
   select: "w-[48px]",
-  skuCode: "w-[112px]",
-  productName: "min-w-[280px]",
-  categoryName: "w-[160px]",
-  stock: "w-[108px]",
-  price: "w-[140px]",
-  status: "w-[120px]",
+  skuCode: "w-[124px]",
+  productName: "w-[200px] min-w-0",
+  categoryName: "w-[200px]",
+  stock: "w-[120px]",
+  price: "w-[160px]",
+  status: "w-[132px]",
 } as const
 
 /** Danh mục sản phẩm (cấu trúc cây) */
@@ -102,36 +102,34 @@ export const CATEGORY_TABLE_COL = {
 export const CUSTOMER_TABLE_COL = {
   select: "w-[48px]",
   code: "w-[112px]",
-  name: "min-w-[180px]",
-  phone: "w-[124px]",
-  email: "w-[160px]",
-  loyalty: "w-[108px]",
-  spending: "w-[124px]",
-  orders: "w-[72px]",
-  status: "w-[112px]",
+  name: "min-w-[200px]",
+  phone: "w-[128px]",
+  email: "w-[200px]",
+  orders: "w-[80px]",
+  status: "w-[120px]",
 } as const
 
-/** Nhà cung cấp */
+/** Nhà cung cấp — `address` dùng `w-[1%]` để hút phần dư trong `table-fixed` (RULES_UI_TABLE). */
 export const SUPPLIER_TABLE_COL = {
   select: "w-[48px]",
-  code: "w-[112px]",
-  name: "min-w-[200px]",
-  contact: "w-[140px]",
-  email: "w-[180px]",
-  address: "min-w-[200px]",
+  code: "w-[100px]",
+  name: "w-[180px] min-w-0",
+  contact: "w-[120px] min-w-0",
+  email: "w-[200px] min-w-0",
+  address: "min-w-[200px] w-[1%]",
   status: "w-[112px]",
 } as const
 
-/** Đơn hàng */
+/** Đơn hàng (Wholesale / Retail — `OrderTable`): `code` hút phần dư; `customer` cố định + truncate, tránh cột Khách hàng quá rộng. */
 export const ORDER_TABLE_COL = {
   select: "w-[48px]",
-  code: "w-[220px]",
-  customer: "min-w-[180px]",
+  code: "min-w-[108px] w-[1%]",
+  customer: "w-[176px] min-w-0",
   date: "w-[104px]",
   items: "w-[84px]",
-  total: "w-[128px]",
+  total: "w-[136px]",
   payment: "w-[112px]",
-  status: "w-[120px]",
+  status: "w-[128px]",
 } as const
 
 /** Nhân viên / Người dùng */

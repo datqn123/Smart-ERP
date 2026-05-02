@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { usePageTitle } from "@/context/PageTitleContext"
 import { useAuthStore } from "@/features/auth/store/useAuthStore"
 import type { Customer } from "../types"
@@ -13,7 +13,6 @@ import {
 } from "../components/CustomerForm"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
 import { ApiRequestError } from "@/lib/api/http"
 import {
   buildCustomerCreateBody,
@@ -29,7 +28,6 @@ import {
   mapCustomerListItemDtoToCustomer,
   patchCustomer,
   postCustomer,
-  postCustomersBulkDelete,
   type CustomerListSort,
   type GetCustomerListParams,
 } from "../api/customersApi"
@@ -51,6 +49,10 @@ function toastCustomerDeleteError(e: ApiRequestError) {
   const base = e.body?.message ?? e.message
   const failedId = d?.failedId
   const idHint = failedId != null && String(failedId).length > 0 ? ` — failedId: ${String(failedId)}` : ""
+  if (reason === "HAS_OPEN_SALES_ORDERS") {
+    toast.error("Không thể xóa: khách hàng còn đơn hàng chưa hoàn tất." + idHint + (base ? ` — ${base}` : ""))
+    return
+  }
   if (reason === "HAS_SALES_ORDERS") {
     toast.error("Không thể xóa: khách hàng đã có đơn bán hàng." + idHint + (base ? ` — ${base}` : ""))
     return
@@ -69,22 +71,21 @@ function toastCustomerDeleteError(e: ApiRequestError) {
 export function CustomersPage() {
   const { setTitle } = usePageTitle()
   const queryClient = useQueryClient()
-  const isOwner = useAuthStore((s) => s.user?.role === "Owner")
+  const isAdmin = useAuthStore((s) => s.user?.role === "Admin")
   const isStaff = useAuthStore((s) => s.user?.role === "Staff")
   const canEditLoyaltyPoints = !isStaff
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const selectedCustomerRef = useRef<Customer | null>(null)
   const editingCustomerRef = useRef<Customer | undefined>(undefined)
+  const scrollRootRef = useRef<HTMLDivElement>(null)
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
 
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [page, setPage] = useState(1)
   const [sort, setSort] = useState<CustomerListSort>("updatedAt:desc")
   const [selectedIds, setSelectedIds] = useState<number[]>([])
 
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null)
-  const [isDeletingBulk, setIsDeletingBulk] = useState(false)
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
@@ -127,40 +128,74 @@ export function CustomersPage() {
     return () => clearTimeout(t)
   }, [search])
 
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, statusFilter])
-
-  const listParams: GetCustomerListParams = useMemo(
+  const listFilters: Omit<GetCustomerListParams, "page"> = useMemo(
     () => ({
       search: debouncedSearch.trim() || undefined,
       status: statusFilter as GetCustomerListParams["status"],
-      page,
       limit: PAGE_SIZE,
       sort,
     }),
-    [debouncedSearch, statusFilter, page, sort],
+    [debouncedSearch, statusFilter, sort],
   )
 
-  const listQueryKey = useMemo(
-    () => [...CUSTOMER_LIST_QUERY_KEY, listParams] as const,
-    [listParams],
+  const infiniteListQueryKey = useMemo(
+    () => [...CUSTOMER_LIST_QUERY_KEY, "infinite", listFilters] as const,
+    [listFilters],
   )
 
   const {
-    data: listPage,
+    data: listInfinite,
     isPending: isListPending,
     isError: isListError,
     error: listError,
     isFetching: isListFetching,
-  } = useQuery({
-    queryKey: listQueryKey,
-    queryFn: () => getCustomerList(listParams),
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: infiniteListQueryKey,
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      getCustomerList({
+        ...listFilters,
+        page: pageParam,
+      }),
+    getNextPageParam: (lastPage) => {
+      if (lastPage.items.length < lastPage.limit) {
+        return undefined
+      }
+      if (lastPage.page * lastPage.limit >= lastPage.total) {
+        return undefined
+      }
+      return lastPage.page + 1
+    },
   })
 
+  useEffect(() => {
+    const root = scrollRootRef.current
+    const sentinel = loadMoreSentinelRef.current
+    if (!root || !sentinel) {
+      return
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const e = entries[0]
+        if (e?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage()
+        }
+      },
+      { root, rootMargin: "80px", threshold: 0 },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, listInfinite?.pages])
+
   const customers: Customer[] = useMemo(
-    () => (listPage?.items ?? []).map(mapCustomerListItemDtoToCustomer),
-    [listPage],
+    () =>
+      listInfinite?.pages
+        ? listInfinite.pages.flatMap((p) => p.items).map(mapCustomerListItemDtoToCustomer)
+        : [],
+    [listInfinite],
   )
 
   const editingFormId = isFormOpen && editingCustomer ? editingCustomer.id : null
@@ -183,14 +218,7 @@ export function CustomersPage() {
     return editingCustomer
   }, [isFormOpen, editingCustomer, editFormDetailDto])
 
-  const total = listPage?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-
-  useEffect(() => {
-    if (page > totalPages) {
-      setPage(totalPages)
-    }
-  }, [page, totalPages])
+  const total = listInfinite?.pages[0]?.total ?? 0
 
   useEffect(() => {
     if (!isListError) return
@@ -199,48 +227,7 @@ export function CustomersPage() {
 
   useEffect(() => {
     setSelectedIds([])
-  }, [page, debouncedSearch, statusFilter, sort])
-
-  const bulkDeleteCustomersMutation = useMutation({
-    mutationFn: (ids: number[]) => postCustomersBulkDelete(ids),
-    onSuccess: (data) => {
-      void queryClient.invalidateQueries({ queryKey: [...CUSTOMER_LIST_QUERY_KEY] })
-      for (const id of data.deletedIds) {
-        void queryClient.invalidateQueries({ queryKey: ["product-management", "customers", "detail", id] })
-      }
-      setSelectedIds([])
-      setIsDeletingBulk(false)
-      setSelectedCustomer((p) => (p && data.deletedIds.includes(p.id) ? null : p))
-      if (selectedCustomerRef.current && data.deletedIds.includes(selectedCustomerRef.current.id)) {
-        setIsDetailOpen(false)
-      }
-      setEditingCustomer((p) => (p && data.deletedIds.includes(p.id) ? undefined : p))
-      if (editingCustomerRef.current && data.deletedIds.includes(editingCustomerRef.current.id)) {
-        setIsFormOpen(false)
-      }
-      toast.success(
-        data.deletedCount > 0 ? `Đã xóa ${data.deletedCount} khách hàng` : "Đã xóa khách hàng",
-      )
-    },
-    onError: (e) => {
-      setIsDeletingBulk(false)
-      if (e instanceof ApiRequestError) {
-        if (e.status === 409) {
-          toastCustomerDeleteError(e)
-          return
-        }
-        if (e.status === 403) {
-          toast.error(e.body?.message ?? e.message)
-          return
-        }
-        if (e.status === 400) {
-          errToast(e)
-          return
-        }
-      }
-      errToast(e)
-    },
-  })
+  }, [debouncedSearch, statusFilter, sort])
 
   const deleteCustomerMutation = useMutation({
     mutationFn: (id: number) => deleteCustomer(id),
@@ -305,29 +292,12 @@ export function CustomersPage() {
         toast.info(`Chỉnh sửa ${selectedIds.length} khách hàng`)
         break
       case "delete":
-        if (!isOwner) {
-          toast.error("Chỉ tài khoản Owner mới được xóa hàng loạt khách hàng.")
-          return
-        }
-        setIsDeletingBulk(true)
+        toast.info("Xóa hàng loạt tạm không dùng trên giao diện này.")
         break
       case "create":
         setEditingCustomer(undefined)
         setIsFormOpen(true)
         break
-      case "export":
-        toast.info("Đang xuất dữ liệu Excel…")
-        break
-      case "import":
-        fileInputRef.current?.click()
-        break
-    }
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      toast.success(`Đã chọn: ${file.name}. Đang xử lý import…`)
     }
   }
 
@@ -342,8 +312,8 @@ export function CustomersPage() {
   }
 
   const handleDelete = (item: Customer) => {
-    if (!isOwner) {
-      toast.error("Chỉ tài khoản Owner mới được xóa khách hàng.")
+    if (!isAdmin) {
+      toast.error("Chỉ tài khoản Admin mới được xóa khách hàng.")
       return
     }
     setDeleteTarget(item)
@@ -355,25 +325,6 @@ export function CustomersPage() {
       return
     }
     void deleteCustomerMutation.mutateAsync(target.id)
-  }
-
-  const confirmBulkDelete = () => {
-    if (!isOwner) {
-      toast.error("Chỉ tài khoản Owner mới được xóa hàng loạt khách hàng.")
-      setIsDeletingBulk(false)
-      return
-    }
-    const ids = [...new Set(selectedIds)]
-    if (ids.length === 0) {
-      setIsDeletingBulk(false)
-      return
-    }
-    if (ids.length > 50) {
-      toast.error("Tối đa 50 khách hàng một lần xóa hàng loạt (sau khi loại trùng).")
-      setIsDeletingBulk(false)
-      return
-    }
-    void bulkDeleteCustomersMutation.mutateAsync(ids)
   }
 
   return (
@@ -390,9 +341,7 @@ export function CustomersPage() {
         onStatusChange={setStatusFilter}
         selectedIds={selectedIds}
         onAction={handleToolbarAction}
-        fileInputRef={fileInputRef}
-        onFileChange={handleFileChange}
-        canBulkDelete={isOwner}
+        canBulkDelete={false}
       />
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0 text-sm">
@@ -412,60 +361,51 @@ export function CustomersPage() {
             ))}
           </select>
         </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page <= 1 || isListPending}
-            onClick={() => {
-              setPage((p) => Math.max(1, p - 1))
-            }}
-          >
-            Trước
-          </Button>
-          <span className="text-slate-600 tabular-nums">
-            Trang {page}/{totalPages} · {total} KH
-            {isListFetching && !isListPending ? " · …" : ""}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages || isListPending}
-            onClick={() => {
-              setPage((p) => p + 1)
-            }}
-          >
-            Sau
-          </Button>
-        </div>
       </div>
 
-      {(isListPending || isListFetching) && (
+      {isListFetching && !isListPending && !isFetchingNextPage && (
         <p className="text-sm text-slate-500 shrink-0" role="status">
-          {isListPending ? "Đang tải danh sách…" : "Đang cập nhật…"}
+          Đang cập nhật…
         </p>
       )}
-      {isListError && (
-        <p className="text-sm text-red-600 shrink-0" role="alert">
-          Không tải được danh sách khách hàng.
-        </p>
-      )}
-
       <div className="flex-1 flex flex-col min-h-0 bg-white border border-slate-200/60 rounded-xl overflow-hidden shadow-md">
-        <div className="flex-1 overflow-y-auto relative scroll-smooth [scrollbar-gutter:stable] min-h-0">
-          <CustomerTable
-            data={customers}
-            selectedIds={selectedIds}
-            onSelect={handleSelect}
-            onSelectAll={handleSelectAll}
-            onView={handleView}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            canDelete={isOwner}
-          />
-        </div>
+        {isListPending && !listInfinite ? (
+          <div className="p-8 text-center text-slate-500 flex-1" role="status">
+            Đang tải danh sách…
+          </div>
+        ) : isListError && !listInfinite ? (
+          <div className="p-8 text-center text-red-600 flex-1" role="alert">
+            Không tải được danh sách khách hàng.
+          </div>
+        ) : (
+          <div className="flex flex-1 flex-col min-h-0">
+            <div
+              ref={scrollRootRef}
+              className="flex-1 overflow-y-auto relative scroll-smooth [scrollbar-gutter:stable] min-h-0"
+            >
+              <CustomerTable
+                data={customers}
+                selectedIds={selectedIds}
+                onSelect={handleSelect}
+                onSelectAll={handleSelectAll}
+                onView={handleView}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                canDelete={isAdmin}
+              />
+              <div ref={loadMoreSentinelRef} className="h-1 w-full shrink-0" aria-hidden />
+            </div>
+            {!isListError && (
+              <div className="flex items-center justify-between flex-wrap gap-2 px-3 py-2 border-t border-slate-200 bg-slate-50/80 text-sm text-slate-600 min-h-11 shrink-0">
+                <span className="tabular-nums">
+                  Đang hiển thị {customers.length} / {total} khách hàng
+                  {hasNextPage ? " — cuộn xuống cuối để tải thêm 20" : ""}
+                </span>
+                {isFetchingNextPage && <span className="text-slate-500">Đang tải thêm…</span>}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <ConfirmDialog
@@ -479,17 +419,9 @@ export function CustomersPage() {
         title="Xác nhận xóa"
         description={
           deleteTarget
-            ? `Bạn có chắc chắn muốn xóa khách hàng "${deleteTarget.name}"? Hành động này không thể hoàn tác.`
+            ? `Bạn có chắc chắn muốn xóa khách hàng "${deleteTarget.name}"? Khách sẽ được ẩn khỏi danh sách (xóa mềm).`
             : undefined
         }
-      />
-
-      <ConfirmDialog
-        open={isDeletingBulk}
-        onOpenChange={setIsDeletingBulk}
-        onConfirm={confirmBulkDelete}
-        title="Xác nhận xóa nhiều"
-        description={`Bạn có chắc chắn muốn xóa ${selectedIds.length} khách hàng đã chọn?`}
       />
 
       <CustomerDetailDialog

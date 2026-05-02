@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, Trash2, Edit2, Plus, Download, Upload } from "lucide-react"
+import { Search, Trash2, Edit2, Plus } from "lucide-react"
 
 interface CustomerToolbarProps {
   searchStr: string
@@ -9,15 +9,13 @@ interface CustomerToolbarProps {
   onStatusChange: (val: string) => void
   selectedIds: number[]
   onAction: (action: string) => void
-  fileInputRef: React.RefObject<HTMLInputElement | null>
-  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  /** Task053 bulk / Task052: chỉ Owner xóa. */
+  /** Task053 bulk — ẩn trên UI (SRS PRD); giữ prop cho tương lai. */
   canBulkDelete?: boolean
 }
 
 export function CustomerToolbar({
   searchStr, onSearch, statusFilter, onStatusChange,
-  selectedIds, onAction, fileInputRef, onFileChange,
+  selectedIds, onAction,
   canBulkDelete = false,
 }: CustomerToolbarProps) {
   const hasSelection = selectedIds.length > 0;
@@ -63,16 +61,6 @@ export function CustomerToolbar({
           <Button onClick={() => onAction("create")} className="h-10 bg-slate-900 hover:bg-slate-800 text-white rounded-md shadow-sm">
             <Plus className="h-4 w-4 mr-1.5" /> Tạo KH
           </Button>
-
-          <div className="hidden lg:flex items-center gap-2">
-            <Button onClick={() => onAction("export")} variant="outline" className="h-10 rounded-md">
-              <Download className="h-4 w-4 mr-1.5" /> Xuất
-            </Button>
-            <Button onClick={() => onAction("import")} variant="outline" className="h-10 rounded-md">
-              <Upload className="h-4 w-4 mr-1.5" /> Nhập
-            </Button>
-          </div>
-          <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onFileChange} />
         </div>
       </div>
     </div>

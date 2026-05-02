@@ -20,6 +20,15 @@ vi.mock("@/components/shared/ConfirmDialog", () => ({
   ConfirmDialog: () => null,
 }))
 
+vi.stubGlobal(
+  "IntersectionObserver",
+  class {
+    observe = vi.fn()
+    unobserve = vi.fn()
+    disconnect = vi.fn()
+  },
+)
+
 vi.mock("../api/suppliersApi", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../api/suppliersApi")>()
   return {

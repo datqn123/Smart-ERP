@@ -112,12 +112,12 @@ class CustomersControllerWebMvcTest {
 	}
 
 	@Test
-	void delete_returns200ForOwner() throws Exception {
+	void delete_returns200ForAdmin() throws Exception {
 		when(customerService.delete(eq(3), any())).thenReturn(new CustomerDeleteData(3, true));
 
 		mockMvc.perform(delete("/api/v1/customers/3")
 				.with(Objects.requireNonNull(jwt().authorities(new SimpleGrantedAuthority("can_manage_customers")))
-						.jwt(j -> j.subject("1").claim("role", "Owner"))))
+						.jwt(j -> j.subject("1").claim("role", "Admin"))))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.data.deleted").value(true));
 	}
 

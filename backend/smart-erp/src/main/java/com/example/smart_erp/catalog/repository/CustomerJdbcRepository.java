@@ -96,6 +96,7 @@ public class CustomerJdbcRepository {
 	}
 
 	private static void appendListFilters(StringBuilder sql, MapSqlParameterSource p, String search, String status) {
+		sql.append(" AND c.deleted_at IS NULL");
 		if (search != null && !search.isBlank()) {
 			sql.append(
 					" AND (c.name ILIKE :s OR c.customer_code ILIKE :s OR c.phone ILIKE :s OR c.email ILIKE :s)");
@@ -126,14 +127,15 @@ public class CustomerJdbcRepository {
 	}
 
 	public boolean existsCustomerCode(String customerCode) {
-		List<Integer> hit = namedJdbc.query("SELECT 1 FROM customers WHERE customer_code = :c LIMIT 1",
+		List<Integer> hit = namedJdbc.query(
+				"SELECT 1 FROM customers WHERE customer_code = :c AND deleted_at IS NULL LIMIT 1",
 				Map.of("c", customerCode), (rs, rn) -> 1);
 		return !hit.isEmpty();
 	}
 
 	public boolean existsOtherCustomerCode(int excludeId, String customerCode) {
 		List<Integer> hit = namedJdbc.query(
-				"SELECT 1 FROM customers WHERE customer_code = :c AND id <> :id LIMIT 1",
+				"SELECT 1 FROM customers WHERE customer_code = :c AND id <> :id AND deleted_at IS NULL LIMIT 1",
 				Map.of("c", customerCode, "id", excludeId), (rs, rn) -> 1);
 		return !hit.isEmpty();
 	}
@@ -162,7 +164,7 @@ public class CustomerJdbcRepository {
 				       c.created_at, c.updated_at,
 				       COALESCE(agg.total_spent, 0) AS total_spent,
 				       COALESCE(agg.order_cnt, 0) AS order_cnt
-				""" + FROM_CUSTOMER_AGG + " WHERE c.id = :id";
+				""" + FROM_CUSTOMER_AGG + " WHERE c.id = :id AND c.deleted_at IS NULL";
 		List<CustomerData> rows = namedJdbc.query(sql, Map.of("id", id), CUSTOMER_MAPPER);
 		return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
 	}
@@ -170,7 +172,7 @@ public class CustomerJdbcRepository {
 	public Optional<CustomerLockRow> lockCustomerForUpdate(int id) {
 		String sql = """
 				SELECT id, customer_code, name, phone, email, address, loyalty_points, status
-				FROM customers WHERE id = :id FOR UPDATE
+				FROM customers WHERE id = :id AND deleted_at IS NULL FOR UPDATE
 				""";
 		List<CustomerLockRow> rows = namedJdbc.query(sql, Map.of("id", id),
 				(rs, rn) -> new CustomerLockRow(rs.getInt("id"), rs.getString("customer_code"), rs.getString("name"),
@@ -197,14 +199,27 @@ public class CustomerJdbcRepository {
 	}
 
 	public boolean existsCustomerId(int id) {
-		List<Integer> hit = namedJdbc.query("SELECT 1 FROM customers WHERE id = :id LIMIT 1", Map.of("id", id),
+		List<Integer> hit = namedJdbc.query(
+				"SELECT 1 FROM customers WHERE id = :id AND deleted_at IS NULL LIMIT 1", Map.of("id", id),
 				(rs, rn) -> 1);
 		return !hit.isEmpty();
 	}
 
+	/** Bulk / legacy guard: any sales order row for customer. */
 	public boolean existsSalesOrderForCustomer(int customerId) {
 		List<Integer> hit = namedJdbc.query("SELECT 1 FROM salesorders WHERE customer_id = :id LIMIT 1",
 				Map.of("id", customerId), (rs, rn) -> 1);
+		return !hit.isEmpty();
+	}
+
+	/** Single soft-delete: block if any order is not in a terminal status. */
+	public boolean existsOpenSalesOrderForCustomer(int customerId) {
+		List<Integer> hit = namedJdbc.query("""
+				SELECT 1 FROM salesorders so
+				WHERE so.customer_id = :id
+				  AND LOWER(so.status) NOT IN ('delivered', 'cancelled')
+				LIMIT 1
+				""", Map.of("id", customerId), (rs, rn) -> 1);
 		return !hit.isEmpty();
 	}
 
@@ -214,11 +229,18 @@ public class CustomerJdbcRepository {
 		return !hit.isEmpty();
 	}
 
-	public int deleteCustomer(int id) {
+	public int softDeleteCustomer(int id) {
+		return namedJdbc.update(
+				"UPDATE customers SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :id AND deleted_at IS NULL",
+				Map.of("id", id));
+	}
+
+	/** Owner bulk hard-delete (Task053). */
+	public int deleteCustomerHard(int id) {
 		return namedJdbc.update("DELETE FROM customers WHERE id = :id", Map.of("id", id));
 	}
 
-	public int deleteCustomers(List<Integer> ids) {
+	public int deleteCustomersHard(List<Integer> ids) {
 		return namedJdbc.update("DELETE FROM customers WHERE id IN (:ids)", Map.of("ids", ids));
 	}
 

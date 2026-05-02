@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.example.smart_erp.auth.repository.SystemLogJdbcRepository;
 import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.inventory.receipts.lifecycle.StockReceiptLifecycleJdbcRepository.ReceiptHeaderLockRow;
@@ -26,10 +31,19 @@ public class StockReceiptLifecycleService {
 
 	private static final int RECEIPT_CODE_RETRY = 5;
 
+	private static final int REJECT_REASON_MIN_LEN = 15;
+
 	private final StockReceiptLifecycleJdbcRepository repo;
 
-	public StockReceiptLifecycleService(StockReceiptLifecycleJdbcRepository repo) {
+	private final SystemLogJdbcRepository systemLogJdbcRepository;
+
+	private final ObjectMapper objectMapper;
+
+	public StockReceiptLifecycleService(StockReceiptLifecycleJdbcRepository repo,
+			SystemLogJdbcRepository systemLogJdbcRepository, ObjectMapper objectMapper) {
 		this.repo = repo;
+		this.systemLogJdbcRepository = systemLogJdbcRepository;
+		this.objectMapper = objectMapper;
 	}
 
 	@Transactional
@@ -111,10 +125,18 @@ public class StockReceiptLifecycleService {
 	@Transactional
 	public void delete(long id, Jwt jwt) {
 		ReceiptHeaderLockRow h = lockOrThrow(id);
-		StockReceiptAccessPolicy.assertOwnerOnly(jwt);
-		if (!"Draft".equals(h.status()) && !"Pending".equals(h.status())) {
+		if ("Pending".equals(h.status())) {
+			StockReceiptAccessPolicy.assertStaffAdminOrOwnerForPendingReceiptDelete(jwt);
+		}
+		else if ("Draft".equals(h.status())) {
+			StockReceiptAccessPolicy.assertOwnerOnlyForDraftReceiptDelete(jwt);
+		}
+		else {
 			throw new BusinessException(ApiErrorCode.CONFLICT, "Chỉ được xóa phiếu ở trạng thái Nháp hoặc Chờ duyệt");
 		}
+		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
+		writeStockReceiptAudit(uid, "STOCK_RECEIPT_DELETE", "Xóa phiếu nhập kho " + h.receiptCode() + " (" + h.status() + ")",
+				Map.of("receiptId", id, "receiptCode", h.receiptCode(), "priorStatus", h.status()));
 		repo.deleteReceipt(id);
 	}
 
@@ -137,7 +159,7 @@ public class StockReceiptLifecycleService {
 		if (!StockReceiptAccessPolicy.hasAuthority(authentication, StockReceiptAccessPolicy.AUTH_CAN_APPROVE)) {
 			throw new BusinessException(ApiErrorCode.FORBIDDEN, "Bạn không có quyền phê duyệt phiếu nhập kho");
 		}
-		StockReceiptAccessPolicy.assertOwnerOnly(jwt);
+		StockReceiptAccessPolicy.assertAdminOrOwnerForApproveReject(jwt);
 		int approverId = StockReceiptAccessPolicy.parseUserId(jwt);
 		if (!repo.warehouseLocationActive(req.inboundLocationId())) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Vị trí nhập kho không tồn tại hoặc không Active");
@@ -173,6 +195,8 @@ public class StockReceiptLifecycleService {
 		BigDecimal ledgerAmount = h.totalAmount().negate();
 		repo.insertFinancePurchaseCost(h.receiptDate(), (int) id, ledgerAmount, "Nhập kho " + h.receiptCode(), approverId);
 		repo.updateApprove(id, approverId);
+		writeStockReceiptAudit(approverId, "STOCK_RECEIPT_APPROVE", "Phê duyệt phiếu nhập kho " + h.receiptCode(),
+				Map.of("receiptId", id, "receiptCode", h.receiptCode(), "inboundLocationId", req.inboundLocationId()));
 		return loadOrThrow(id);
 	}
 
@@ -181,14 +205,22 @@ public class StockReceiptLifecycleService {
 		if (!StockReceiptAccessPolicy.hasAuthority(authentication, StockReceiptAccessPolicy.AUTH_CAN_APPROVE)) {
 			throw new BusinessException(ApiErrorCode.FORBIDDEN, "Bạn không có quyền từ chối phiếu nhập kho");
 		}
-		StockReceiptAccessPolicy.assertOwnerOnly(jwt);
+		StockReceiptAccessPolicy.assertAdminOrOwnerForApproveReject(jwt);
 		int reviewerId = StockReceiptAccessPolicy.parseUserId(jwt);
 		ReceiptHeaderLockRow h = lockOrThrow(id);
 		if (!"Pending".equals(h.status())) {
 			throw new BusinessException(ApiErrorCode.CONFLICT, "Phiếu không ở trạng thái Chờ duyệt");
 		}
 		String reason = req.reason().trim();
+		if (reason.length() < REJECT_REASON_MIN_LEN) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Lý do từ chối phải ghi rõ (tối thiểu " + REJECT_REASON_MIN_LEN + " ký tự)");
+		}
 		repo.updateReject(id, reviewerId, reason);
+		Map<String, Object> ctx = new HashMap<>();
+		ctx.put("receiptId", id);
+		ctx.put("receiptCode", h.receiptCode());
+		ctx.put("reason", reason);
+		writeStockReceiptAudit(reviewerId, "STOCK_RECEIPT_REJECT", "Từ chối phiếu nhập kho " + h.receiptCode(), ctx);
 		return loadOrThrow(id);
 	}
 
@@ -204,6 +236,16 @@ public class StockReceiptLifecycleService {
 
 	private StockReceiptViewData loadOrThrow(long id) {
 		return repo.loadView(id).orElseThrow(StockReceiptLifecycleService::notFound);
+	}
+
+	private void writeStockReceiptAudit(int userId, String action, String message, Map<String, Object> context) {
+		try {
+			String json = context == null || context.isEmpty() ? null : objectMapper.writeValueAsString(context);
+			systemLogJdbcRepository.insertStockReceiptAudit(userId, action, message, json);
+		}
+		catch (JsonProcessingException ignored) {
+			// Không làm hỏng giao dịch nghiệp vụ nếu ghi log thất bại
+		}
 	}
 
 	private void validateSupplier(int supplierId) {

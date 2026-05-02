@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react"
+import { render, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { CustomersPage } from "./CustomersPage"
 import { describe, it, expect, vi } from "vitest"
@@ -20,6 +20,15 @@ vi.mock("@/components/shared/ConfirmDialog", () => ({
   ConfirmDialog: () => null,
 }))
 
+vi.stubGlobal(
+  "IntersectionObserver",
+  class {
+    observe = vi.fn()
+    unobserve = vi.fn()
+    disconnect = vi.fn()
+  },
+)
+
 vi.mock("../api/customersApi", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../api/customersApi")>()
   return {
@@ -31,7 +40,7 @@ vi.mock("../api/customersApi", async (importOriginal) => {
 })
 
 describe("CustomersPage Structural Test", () => {
-  it("should have Toolbar and Table as children of a gap container", () => {
+  it("should have Toolbar and Table as children of a gap container", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     })
@@ -42,15 +51,16 @@ describe("CustomersPage Structural Test", () => {
         </PageTitleProvider>
       </QueryClientProvider>,
     )
-    
+
     const toolbar = getByTestId("customer-toolbar")
-    const table = getByTestId("customer-table")
-    
+    const table = await waitFor(() => getByTestId("customer-table"))
+
     const toolbarParent = toolbar.parentElement
-    const tableWrapper = table.parentElement?.parentElement
-    const tableGrandParent = tableWrapper?.parentElement
-    
-    expect(toolbarParent).toBe(tableGrandParent)
+    /** Table → scroll root → flex column wrapper → white card → page gap container */
+    const tableGapAncestor =
+      table.parentElement?.parentElement?.parentElement?.parentElement
+
+    expect(toolbarParent).toBe(tableGapAncestor)
     expect(toolbarParent?.className).toContain("gap-")
   })
 })

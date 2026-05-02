@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Search, Filter, Plus, Loader2, Package } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -30,6 +30,7 @@ export function POSProductSelector() {
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const addItem = useOrderStore((state) => state.addItem)
+  const lineIdSeq = useRef(0)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), SEARCH_DEBOUNCE_MS)
@@ -69,8 +70,9 @@ export function POSProductSelector() {
       toast.error("Hết hàng — không thể thêm vào giỏ.")
       return
     }
+    lineIdSeq.current += 1
     addItem({
-      id: Date.now() + Math.floor(Math.random() * 1000),
+      id: lineIdSeq.current,
       productId: p.productId,
       unitId: p.unitId,
       productName: p.productName,
@@ -84,13 +86,13 @@ export function POSProductSelector() {
   }
 
   return (
-    <div className="flex flex-col h-full space-y-4">
-      <div className="flex gap-3">
+    <div className="flex flex-col h-full space-y-3">
+      <div className="flex gap-2 shrink-0">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
             placeholder="Tìm sản phẩm (Tên, SKU, Barcode)..."
-            className="pl-10 h-11 bg-white border-slate-200 text-base focus-visible:ring-1 focus-visible:ring-slate-400 focus-visible:border-slate-400"
+            className="pl-9 h-10 text-sm bg-white border-slate-200 focus-visible:ring-1 focus-visible:ring-slate-400 focus-visible:border-slate-400"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -98,7 +100,7 @@ export function POSProductSelector() {
         <Button
           variant="outline"
           size="icon"
-          className="shrink-0 h-11 w-11 border-slate-200 hover:bg-slate-50"
+          className="shrink-0 h-10 w-10 border-slate-200 hover:bg-slate-50"
           type="button"
           onClick={handleFilterClick}
         >

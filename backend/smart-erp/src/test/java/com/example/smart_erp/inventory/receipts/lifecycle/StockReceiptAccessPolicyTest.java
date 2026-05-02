@@ -58,4 +58,36 @@ class StockReceiptAccessPolicyTest {
 				.isInstanceOf(BusinessException.class).extracting(ex -> ((BusinessException) ex).getCode())
 				.isEqualTo(ApiErrorCode.FORBIDDEN);
 	}
+
+	@Test
+	void assertAdminOrOwnerForApproveReject_acceptsAdminAndOwner() {
+		assertThatCode(() -> StockReceiptAccessPolicy.assertAdminOrOwnerForApproveReject(jwt("1", "Admin")))
+				.doesNotThrowAnyException();
+		assertThatCode(() -> StockReceiptAccessPolicy.assertAdminOrOwnerForApproveReject(jwt("1", "  OWNER  ")))
+				.doesNotThrowAnyException();
+	}
+
+	@Test
+	void assertAdminOrOwnerForApproveReject_rejectsStaff() {
+		assertThatThrownBy(() -> StockReceiptAccessPolicy.assertAdminOrOwnerForApproveReject(jwt("1", "Staff")))
+				.isInstanceOf(BusinessException.class).extracting(ex -> ((BusinessException) ex).getCode())
+				.isEqualTo(ApiErrorCode.FORBIDDEN);
+	}
+
+	@Test
+	void assertStaffAdminOrOwnerForPendingReceiptDelete_acceptsStaffAdminOwner() {
+		assertThatCode(() -> StockReceiptAccessPolicy.assertStaffAdminOrOwnerForPendingReceiptDelete(jwt("1", "Staff")))
+				.doesNotThrowAnyException();
+		assertThatCode(() -> StockReceiptAccessPolicy.assertStaffAdminOrOwnerForPendingReceiptDelete(jwt("1", "Admin")))
+				.doesNotThrowAnyException();
+		assertThatCode(() -> StockReceiptAccessPolicy.assertStaffAdminOrOwnerForPendingReceiptDelete(jwt("1", "Owner")))
+				.doesNotThrowAnyException();
+	}
+
+	@Test
+	void assertStaffAdminOrOwnerForPendingReceiptDelete_rejectsOtherRole() {
+		assertThatThrownBy(() -> StockReceiptAccessPolicy.assertStaffAdminOrOwnerForPendingReceiptDelete(jwt("1", "Guest")))
+				.isInstanceOf(BusinessException.class).extracting(ex -> ((BusinessException) ex).getCode())
+				.isEqualTo(ApiErrorCode.FORBIDDEN);
+	}
 }

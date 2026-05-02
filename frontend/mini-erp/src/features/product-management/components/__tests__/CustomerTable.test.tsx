@@ -34,6 +34,7 @@ test("CustomerTable renders correctly with standardization", () => {
       onView={onView}
       onEdit={onEdit}
       onDelete={onDelete}
+      canDelete
     />
   )
 

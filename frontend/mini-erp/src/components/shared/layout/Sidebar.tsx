@@ -88,7 +88,6 @@ const navConfig: NavItemConfig[] = [
     subItems: [
       { label: "Đơn bán lẻ", path: "/orders/retail" },
       { label: "Đơn bán sỉ", path: "/orders/wholesale" },
-      { label: "Đơn trả hàng", path: "/orders/returns" },
     ],
   },
   {

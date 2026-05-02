@@ -24,6 +24,7 @@ import {
   approveStockReceipt,
   rejectStockReceipt,
   STOCK_RECEIPT_APPROVE_LOCATION_OPTIONS,
+  STOCK_RECEIPT_REJECT_REASON_MIN_LEN,
 } from "../api/stockReceiptsApi"
 import { ApiRequestError } from "@/lib/api/http"
 import { toast } from "sonner"
@@ -56,7 +57,7 @@ interface ReceiptFormProps {
   onOpenChange: (open: boolean) => void
   receipt?: StockReceipt
   onSubmit: (data: ReceiptFormData, saveMode: "draft" | "pending") => void | Promise<void>
-  /** UC4 — Owner + `can_approve` (JWT); hiển thị Duyệt / Từ chối khi phiếu `Pending`. */
+  /** Admin hoặc Owner + `can_approve` (JWT); hiển thị Duyệt / Từ chối khi phiếu `Pending`. */
   canApprove?: boolean
   /** Sau approve/reject thành công — vd. invalidate list + detail. */
   onAfterApproveOrReject?: (receiptId: number) => void | Promise<void>
@@ -252,6 +253,10 @@ export function ReceiptForm({
     const reason = rejectReason.trim()
     if (!reason) {
       toast.error("Vui lòng nhập lý do từ chối")
+      return
+    }
+    if (reason.length < STOCK_RECEIPT_REJECT_REASON_MIN_LEN) {
+      toast.error(`Lý do từ chối phải ghi rõ (tối thiểu ${STOCK_RECEIPT_REJECT_REASON_MIN_LEN} ký tự)`)
       return
     }
     setRejectBusy(true)
@@ -686,15 +691,16 @@ export function ReceiptForm({
                 <div>
                   <p className="text-sm font-semibold text-slate-900">Từ chối phiếu nhập</p>
                   <p className="mt-0.5 text-xs text-slate-600">
-                    Nhập lý do (bắt buộc). « Xác nhận từ chối » gửi yêu cầu từ chối lên server.
+                    Nhập lý do rõ ràng (tối thiểu {STOCK_RECEIPT_REJECT_REASON_MIN_LEN} ký tự). « Xác nhận từ chối » gửi lên server.
                   </p>
                 </div>
                 <Textarea
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="Ví dụ: Số lượng không khớp hóa đơn gốc…"
+                  placeholder="Ví dụ: Số lượng không khớp hóa đơn gốc — cần đính kèm bằng chứng…"
                   disabled={rejectBusy}
                   className="min-h-[120px] bg-white text-sm"
+                  minLength={STOCK_RECEIPT_REJECT_REASON_MIN_LEN}
                   maxLength={2000}
                   aria-label="Lý do từ chối"
                 />

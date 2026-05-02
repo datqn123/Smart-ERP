@@ -45,4 +45,22 @@ describe("ReceiptTable", () => {
     
     expect(mockOnAction).toHaveBeenCalledWith(mockStockReceipts[0])
   })
+
+  it("should keep delete button in DOM but disabled when canDeleteReceipt returns false", () => {
+    const onDelete = vi.fn()
+    const receipt = { ...mockStockReceipts[0], status: "Approved" as const }
+    render(
+      <ReceiptTable
+        receipts={[receipt]}
+        onAction={mockOnAction}
+        onDelete={onDelete}
+        canDeleteReceipt={() => false}
+      />,
+    )
+    const del = screen.getByTestId("delete-receipt-btn")
+    expect(del).toBeDisabled()
+    expect(del).toHaveAttribute("aria-hidden", "true")
+    fireEvent.click(del)
+    expect(onDelete).not.toHaveBeenCalled()
+  })
 })

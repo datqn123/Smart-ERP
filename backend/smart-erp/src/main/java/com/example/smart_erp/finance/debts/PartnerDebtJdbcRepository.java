@@ -178,7 +178,9 @@ public class PartnerDebtJdbcRepository {
 	}
 
 	public boolean existsCustomer(int id) {
-		var list = namedJdbc.query("SELECT 1 FROM customers WHERE id = :id LIMIT 1", new MapSqlParameterSource("id", id), (rs, i) -> 1);
+		var list = namedJdbc.query(
+				"SELECT 1 FROM customers WHERE id = :id AND deleted_at IS NULL LIMIT 1",
+				new MapSqlParameterSource("id", id), (rs, i) -> 1);
 		return !list.isEmpty();
 	}
 

@@ -59,9 +59,10 @@ public class ManualStockDispatchService {
 		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
 		boolean manual = row.manualDispatch();
 		boolean editableLife = manual && ManualDispatchStatuses.isEditable(row.status());
-		boolean canEdit = editableLife && uid == row.createdByUserId();
+		boolean canEdit = editableLife
+				&& (uid == row.createdByUserId() || StockDispatchAccessPolicy.isElevatedDispatchManager(jwt));
 		boolean canDelete = editableLife
-				&& (uid == row.createdByUserId() || StockDispatchAccessPolicy.isAdmin(jwt));
+				&& (uid == row.createdByUserId() || StockDispatchAccessPolicy.isElevatedDispatchManager(jwt));
 		return new StockDispatchListItemData(row.id(), row.dispatchCode(), row.orderCode(), row.customerName(),
 				row.dispatchDate(), row.userName(), row.itemCount(), row.status(), row.createdByUserId(), manual,
 				row.shortageWarning(), canEdit, canDelete);
@@ -74,9 +75,10 @@ public class ManualStockDispatchService {
 		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
 		boolean manual = header.orderId() == null;
 		boolean editableLife = manual && ManualDispatchStatuses.isEditable(header.status());
-		boolean canEdit = editableLife && uid == header.userId();
+		boolean canEdit = editableLife
+				&& (uid == header.userId() || StockDispatchAccessPolicy.isElevatedDispatchManager(jwt));
 		boolean canDelete = editableLife
-				&& (uid == header.userId() || StockDispatchAccessPolicy.isAdmin(jwt));
+				&& (uid == header.userId() || StockDispatchAccessPolicy.isElevatedDispatchManager(jwt));
 		boolean shortage = manual && dispatchRepo.detailHasShortage(dispatchId);
 		List<StockDispatchDetailLineData> lines = manual ? dispatchRepo.loadManualDetailLines(dispatchId)
 				: List.of();
@@ -142,7 +144,7 @@ public class ManualStockDispatchService {
 		if (locked.orderId() != null) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Phiếu gắn đơn hàng không sửa qua API này.");
 		}
-		StockDispatchAccessPolicy.assertManualDispatchCreator(locked.creatorUserId(), jwt);
+		StockDispatchAccessPolicy.assertCreatorOrAdminForManualEdit(locked.creatorUserId(), jwt);
 		if (!ManualDispatchStatuses.isManualLifecycle(locked.status())) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST,
 					"Phiếu xuất thủ công cũ không có luồng chờ giao / đang giao.");

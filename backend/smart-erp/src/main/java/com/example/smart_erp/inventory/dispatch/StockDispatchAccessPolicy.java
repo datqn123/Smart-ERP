@@ -15,12 +15,54 @@ public final class StockDispatchAccessPolicy {
 	}
 
 	public static boolean isAdmin(Jwt jwt) {
-		String role = jwt.getClaimAsString("role");
-		return StringUtils.hasText(role) && ADMIN_ROLE_NAME.equalsIgnoreCase(role.trim());
+		String role = roleClaimTrimmed(jwt);
+		return StringUtils.hasText(role) && ADMIN_ROLE_NAME.equalsIgnoreCase(role);
+	}
+
+	/**
+	 * Owner hoặc Admin — cùng claim {@code role} trên access JWT (đăng nhập / refresh).
+	 * User seed {@code admin} trong V1 gắn {@code role_id} của Owner (id=1), không phải bản ghi role tên "Admin".
+	 */
+	public static boolean isElevatedDispatchManager(Jwt jwt) {
+		return isAdmin(jwt) || isOwner(jwt);
+	}
+
+	private static boolean isOwner(Jwt jwt) {
+		String role = roleClaimTrimmed(jwt);
+		return StringUtils.hasText(role) && StockReceiptAccessPolicy.OWNER_ROLE_NAME.equalsIgnoreCase(role);
+	}
+
+	/** Đọc claim {@code role}: ưu tiên chuỗi; null/blank nếu thiếu. */
+	private static String roleClaimTrimmed(Jwt jwt) {
+		if (jwt == null) {
+			return null;
+		}
+		Object raw = jwt.getClaim("role");
+		if (raw == null) {
+			return null;
+		}
+		if (raw instanceof String s) {
+			return s.trim();
+		}
+		String asText = String.valueOf(raw).trim();
+		return StringUtils.hasText(asText) ? asText : null;
 	}
 
 	public static void assertManualDispatchCreator(int dispatchCreatorUserId, Jwt jwt) {
 		StockReceiptAccessPolicy.assertReceiptCreator(dispatchCreatorUserId, jwt);
+	}
+
+	/** PATCH phiếu xuất tay — người tạo hoặc Owner/Admin (cùng điều kiện trạng thái với soft-delete). */
+	public static void assertCreatorOrAdminForManualEdit(int dispatchCreatorUserId, Jwt jwt) {
+		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
+		if (uid == dispatchCreatorUserId) {
+			return;
+		}
+		if (isElevatedDispatchManager(jwt)) {
+			return;
+		}
+		throw new BusinessException(ApiErrorCode.FORBIDDEN,
+				"Chỉ người tạo phiếu hoặc Owner/Admin mới được sửa phiếu xuất tay này");
 	}
 
 	public static void assertCreatorOrAdminForSoftDelete(int dispatchCreatorUserId, Jwt jwt) {
@@ -28,9 +70,10 @@ public final class StockDispatchAccessPolicy {
 		if (uid == dispatchCreatorUserId) {
 			return;
 		}
-		if (isAdmin(jwt)) {
+		if (isElevatedDispatchManager(jwt)) {
 			return;
 		}
-		throw new BusinessException(ApiErrorCode.FORBIDDEN, "Chỉ người tạo phiếu hoặc Admin mới được xóa mềm phiếu này");
+		throw new BusinessException(ApiErrorCode.FORBIDDEN,
+				"Chỉ người tạo phiếu hoặc Owner/Admin mới được xóa mềm phiếu này");
 	}
 }

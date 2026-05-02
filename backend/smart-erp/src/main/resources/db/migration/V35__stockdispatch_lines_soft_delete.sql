@@ -3,8 +3,8 @@
 
 CREATE TABLE IF NOT EXISTS stockdispatch_lines (
     id           BIGSERIAL PRIMARY KEY,
-    dispatch_id  BIGINT NOT NULL REFERENCES stockdispatches (id) ON DELETE CASCADE,
-    inventory_id BIGINT NOT NULL REFERENCES inventory (id),
+    dispatch_id  INTEGER NOT NULL REFERENCES stockdispatches (id) ON DELETE CASCADE,
+    inventory_id INTEGER NOT NULL REFERENCES inventory (id),
     quantity     INTEGER NOT NULL CHECK (quantity > 0),
     CONSTRAINT uq_stockdispatch_line UNIQUE (dispatch_id, inventory_id)
 );

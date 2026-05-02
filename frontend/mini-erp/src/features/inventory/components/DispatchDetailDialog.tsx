@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog"
 import { formatDate } from "../utils"
 import type { StockDispatch } from "../types"
+import type { StockDispatchDetailResponse } from "../api/dispatchApi"
 import { StatusBadge } from "./StatusBadge"
 import { Package, Calendar, User, Truck, MapPin, ClipboardList, CheckCircle2, XCircle, Printer, Boxes, Timer, Activity, UserCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -20,10 +21,26 @@ interface DispatchDetailDialogProps {
   isOpen: boolean;
   onClose: () => void;
   canApprove?: boolean;
+  /** Chi tiết REST (dòng thủ công, xóa mềm, thiếu hàng). */
+  detailFromApi?: StockDispatchDetailResponse | null;
+  detailLoading?: boolean;
 }
 
-export function DispatchDetailDialog({ dispatch, isOpen, onClose, canApprove = false }: DispatchDetailDialogProps) {
+export function DispatchDetailDialog({
+  dispatch,
+  isOpen,
+  onClose,
+  canApprove = false,
+  detailFromApi,
+  detailLoading,
+}: DispatchDetailDialogProps) {
   if (!dispatch) return null;
+
+  const manualLines = detailFromApi?.lines && detailFromApi.lines.length > 0 ? detailFromApi.lines : null;
+  const pickTotal = Math.max(manualLines?.length ?? dispatch.items.length, 1);
+  const pickDone = manualLines
+    ? manualLines.filter((l) => !l.shortageLine && l.quantity <= l.availableQuantity).length
+    : dispatch.items.filter((i) => i.isFullyDispatched).length;
 
   const handleComplete = () => alert(`Đã hoàn tất xuất kho phiếu ${dispatch.dispatchCode}`);
   const handleCancel = () => alert(`Đã hủy phiếu ${dispatch.dispatchCode}`);
@@ -63,17 +80,34 @@ export function DispatchDetailDialog({ dispatch, isOpen, onClose, canApprove = f
         </DialogHeader>
 
         <div className="p-8 pt-6">
+          {detailLoading && <p className="text-xs text-slate-500 mb-4">Đang tải chi tiết phiếu…</p>}
+          {detailFromApi?.deleteReason ? (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 text-red-900 text-sm p-3">
+              <p className="font-semibold">Phiếu đã xóa mềm</p>
+              {detailFromApi.deletedByUserName ? (
+                <p className="text-xs mt-1 text-red-800">Người xóa: {detailFromApi.deletedByUserName}</p>
+              ) : null}
+              <p className="mt-2 whitespace-pre-wrap text-red-950">{detailFromApi.deleteReason}</p>
+            </div>
+          ) : null}
+          {detailFromApi?.shortageWarning && !detailFromApi?.deleteReason ? (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 text-amber-950 text-sm p-3">
+              Cảnh báo thiếu hàng: có dòng yêu cầu vượt tồn khả dụng.
+            </div>
+          ) : null}
           {/* Progress Tracker (Premium Feel) */}
           <div className="mb-12 pt-4">
               <div className="flex justify-between relative">
                   <div className="absolute top-1/2 left-0 w-full h-0.5 bg-slate-100 -translate-y-1/2 z-0" />
-                  <div className={cn("absolute top-1/2 left-0 h-0.5 bg-slate-900 -translate-y-1/2 z-0 transition-all duration-700", 
-                    dispatch.status === "Pending" ? "w-0" : 
-                    dispatch.status === "Partial" ? "w-1/2" : "w-full"
+                  <div className={cn(
+                    "absolute top-1/2 left-0 h-0.5 bg-slate-900 -translate-y-1/2 z-0 transition-all duration-700",
+                    dispatch.status === "WaitingDispatch" || dispatch.status === "Pending" ? "w-1/3" :
+                    dispatch.status === "Delivering" || dispatch.status === "Partial" ? "w-2/3" :
+                    "w-full",
                   )} />
-                  <Step icon={Timer} label="Tiếp nhận" active />
-                  <Step icon={Activity} label="Đang soạn" active={["Partial", "Shipped"].includes(dispatch.status)} />
-                  <Step icon={CheckCircle2} label="Đã xuất" active={ dispatch.status === "Shipped" } />
+                  <Step icon={Timer} label="Chờ xuất" active={dispatch.status === "WaitingDispatch" || dispatch.status === "Pending"} />
+                  <Step icon={Activity} label="Đang giao" active={dispatch.status === "Delivering" || dispatch.status === "Partial"} />
+                  <Step icon={CheckCircle2} label="Đã giao" active={dispatch.status === "Delivered" || dispatch.status === "Full"} />
               </div>
           </div>
 
@@ -118,26 +152,50 @@ export function DispatchDetailDialog({ dispatch, isOpen, onClose, canApprove = f
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {dispatch.items.map((item) => (
-                                <TableRow key={item.id} className="hover:bg-slate-50/30 transition-colors border-slate-50">
+                            {manualLines
+                              ? manualLines.map((row) => (
+                                  <TableRow key={row.lineId} className="hover:bg-slate-50/30 transition-colors border-slate-50">
                                     <TableCell className="py-3">
-                                        <p className="font-bold text-slate-900">{item.productName}</p>
-                                        <p className="text-[10px] text-slate-500 font-medium bg-slate-100 px-1.5 py-0.5 rounded-md inline-block mt-1">
-                                            {item.warehouseLocation} - {item.shelfCode}
-                                        </p>
+                                      <p className="font-bold text-slate-900">{row.productName}</p>
+                                      <p className="text-[10px] text-slate-500 font-medium bg-slate-100 px-1.5 py-0.5 rounded-md inline-block mt-1">
+                                        {row.warehouseCode} — {row.shelfCode}
+                                      </p>
+                                      {row.shortageLine ? (
+                                        <p className="text-[10px] text-amber-700 font-bold mt-1">Thiếu hàng</p>
+                                      ) : null}
                                     </TableCell>
                                     <TableCell className="py-3 text-right">
-                                        <span className="text-xs text-slate-400">{item.orderedQty} {item.unitName}</span>
+                                      <span className="text-xs text-slate-400">Tồn {row.availableQuantity}</span>
                                     </TableCell>
                                     <TableCell className="py-3 text-right">
-                                        <span className={cn(
-                                            "font-black text-slate-900",
-                                            item.dispatchQty < item.orderedQty && "text-amber-600"
-                                        )}>{item.dispatchQty}</span>
-                                        <span className="text-[10px] text-slate-400 ml-1">{item.unitName}</span>
+                                      <span className={cn("font-black text-slate-900", row.shortageLine && "text-amber-600")}>
+                                        {row.quantity}
+                                      </span>
                                     </TableCell>
-                                </TableRow>
-                            ))}
+                                  </TableRow>
+                                ))
+                              : dispatch.items.map((item) => (
+                                  <TableRow key={item.id} className="hover:bg-slate-50/30 transition-colors border-slate-50">
+                                    <TableCell className="py-3">
+                                      <p className="font-bold text-slate-900">{item.productName}</p>
+                                      <p className="text-[10px] text-slate-500 font-medium bg-slate-100 px-1.5 py-0.5 rounded-md inline-block mt-1">
+                                        {item.warehouseLocation} - {item.shelfCode}
+                                      </p>
+                                    </TableCell>
+                                    <TableCell className="py-3 text-right">
+                                      <span className="text-xs text-slate-400">{item.orderedQty} {item.unitName}</span>
+                                    </TableCell>
+                                    <TableCell className="py-3 text-right">
+                                      <span className={cn(
+                                        "font-black text-slate-900",
+                                        item.dispatchQty < item.orderedQty && "text-amber-600",
+                                      )}>
+                                        {item.dispatchQty}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400 ml-1">{item.unitName}</span>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
                         </TableBody>
                     </Table>
                 </div>
@@ -146,13 +204,13 @@ export function DispatchDetailDialog({ dispatch, isOpen, onClose, canApprove = f
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tình trạng soạn hàng</p>
                     <div className="flex items-center gap-2">
                          <div className="h-2 w-24 bg-slate-200 rounded-full overflow-hidden">
-                            <div 
-                                className="h-full bg-slate-900 transition-all duration-1000" 
-                                style={{ width: `${(dispatch.items.filter(i => i.isFullyDispatched).length / dispatch.items.length) * 100}%` }}
+                            <div
+                              className="h-full bg-slate-900 transition-all duration-1000"
+                              style={{ width: `${(pickDone / pickTotal) * 100}%` }}
                             />
                          </div>
                          <span className="text-[10px] font-black text-slate-900">
-                             {dispatch.items.filter(i => i.isFullyDispatched).length}/{dispatch.items.length}
+                           {pickDone}/{pickTotal}
                          </span>
                     </div>
                 </div>
@@ -169,7 +227,7 @@ export function DispatchDetailDialog({ dispatch, isOpen, onClose, canApprove = f
            
            <div className="flex gap-3 ml-auto">
               <Button variant="outline" onClick={onClose} className="border-slate-300 h-10 px-6">Đóng</Button>
-              {canApprove && (dispatch.status === "Pending" || dispatch.status === "Partial") && (
+              {canApprove && !detailFromApi?.manualDispatch && (dispatch.status === "Pending" || dispatch.status === "Partial") && (
                 <>
                   <Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 h-10 px-6" onClick={handleCancel}>
                     <XCircle className="w-4 h-4 mr-2" /> Hủy phiếu

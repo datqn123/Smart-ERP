@@ -98,24 +98,44 @@ export function DispatchTable({ dispatches, onAction, onEdit, onDelete }: Dispat
                 >
                   <Eye className="h-4 w-4" />
                 </Button>
-                {onEdit && dispatch.canEdit && (
+                {onEdit != null && (
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-slate-500 hover:text-slate-900 transition-colors"
+                    className={cn(
+                      "h-8 w-8 transition-colors",
+                      dispatch.canEdit === true
+                        ? "text-slate-500 hover:text-slate-900"
+                        : "text-slate-300 cursor-not-allowed",
+                    )}
+                    disabled={dispatch.canEdit !== true}
                     onClick={() => onEdit(dispatch)}
-                    title="Sửa phiếu"
+                    title={
+                      dispatch.canEdit === true
+                        ? "Sửa phiếu"
+                        : "Chỉ sửa được phiếu xuất tay (chờ xuất/đang giao) do bạn tạo hoặc nếu bạn là Owner/Admin."
+                    }
                   >
                     <Edit2 className="h-4 w-4" />
                   </Button>
                 )}
-                {onDelete && dispatch.canDelete && (
+                {onDelete != null && (
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-slate-500 hover:text-red-600 transition-colors"
+                    className={cn(
+                      "h-8 w-8 transition-colors",
+                      dispatch.canDelete === true
+                        ? "text-slate-500 hover:text-red-600"
+                        : "text-slate-300 cursor-not-allowed",
+                    )}
+                    disabled={dispatch.canDelete !== true}
                     onClick={() => onDelete(dispatch.id)}
-                    title="Xóa phiếu"
+                    title={
+                      dispatch.canDelete === true
+                        ? "Xóa mềm phiếu"
+                        : "Chỉ xóa mềm được phiếu xuất tay (chờ xuất/đang giao) — người tạo hoặc Owner/Admin."
+                    }
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

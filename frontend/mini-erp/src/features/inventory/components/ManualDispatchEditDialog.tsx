@@ -212,8 +212,9 @@ export function ManualDispatchEditDialog({ open, onOpenChange, dispatchId }: Pro
                             onChange={(e) => {
                               const v = parseInt(e.target.value, 10)
                               const next = Number.isNaN(v) ? 1 : v
+                              const capped = Math.min(Math.max(1, next), row.availableQuantity)
                               setLines((prev) =>
-                                prev.map((p, i) => (i === idx ? { ...p, quantity: Math.max(1, next) } : p)),
+                                prev.map((p, i) => (i === idx ? { ...p, quantity: capped } : p)),
                               )
                             }}
                           />

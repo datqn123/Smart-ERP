@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchParams } from "react-router-dom"
 import { usePageTitle } from "@/context/PageTitleContext"
 import { Truck, Search, Calendar, Download, Upload, Plus } from "lucide-react"
 import type { StockDispatch } from "../types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 
 import { DispatchTable } from "../components/DispatchTable"
 import { DispatchDetailDialog } from "../components/DispatchDetailDialog"
 import { DispatchForm, type DispatchFormData } from "../components/DispatchForm"
-import { getStockDispatchList, mapStockDispatchListItemToUi } from "../api/dispatchApi"
+import { ManualDispatchEditDialog } from "../components/ManualDispatchEditDialog"
+import { getStockDispatchDetail, getStockDispatchList, mapStockDispatchListItemToUi, softDeleteStockDispatch } from "../api/dispatchApi"
 import { ApiRequestError } from "@/lib/api/http"
 
 const PAGE_SIZE = 20
@@ -19,7 +23,10 @@ const SEARCH_DEBOUNCE_MS = 400
 
 const statusOptions = [
   { value: "all", label: "Tất cả trạng thái" },
-  { value: "Pending", label: "Chờ xuất" },
+  { value: "WaitingDispatch", label: "Chờ xuất (xuất tay)" },
+  { value: "Delivering", label: "Đang giao" },
+  { value: "Delivered", label: "Đã giao" },
+  { value: "Pending", label: "Chờ xuất (đơn)" },
   { value: "Full", label: "Đủ hàng" },
   { value: "Partial", label: "Một phần" },
   { value: "Cancelled", label: "Đã hủy" },
@@ -41,6 +48,10 @@ export function DispatchPage() {
   const [isPanelOpen, setIsPanelOpen] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingDispatch, setEditingDispatch] = useState<StockDispatch | undefined>()
+  const [manualEditOpen, setManualEditOpen] = useState(false)
+  const [manualEditId, setManualEditId] = useState<number | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
+  const [deleteReason, setDeleteReason] = useState("")
   const scrollRootRef = useRef<HTMLDivElement>(null)
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
 
@@ -71,6 +82,37 @@ export function DispatchPage() {
       ["stock-dispatches", "v1", "list", debouncedSearch, statusFilter, dateFrom, dateTo, PAGE_SIZE] as const,
     [debouncedSearch, statusFilter, dateFrom, dateTo],
   )
+
+  const panelDetailQuery = useQuery({
+    queryKey: ["stock-dispatch-detail", selectedDispatch?.id ?? 0],
+    queryFn: () => getStockDispatchDetail(selectedDispatch!.id),
+    enabled: isPanelOpen && selectedDispatch != null && selectedDispatch.id > 0,
+  })
+
+  const softDeleteMutation = useMutation({
+    mutationFn: () =>
+      softDeleteStockDispatch(
+        confirmDeleteId!,
+        deleteReason.trim(),
+      ),
+    onSuccess: async () => {
+      toast.success("Đã xóa mềm phiếu")
+      setConfirmDeleteId(null)
+      setDeleteReason("")
+      setIsPanelOpen(false)
+      setSelectedDispatch(null)
+      await queryClient.invalidateQueries({ queryKey: ["stock-dispatches", "v1", "list"] })
+      await queryClient.invalidateQueries({ queryKey: ["stock-dispatch-detail"] })
+    },
+    onError: (e) => {
+      if (e instanceof ApiRequestError) {
+        toast.error(e.body?.message ?? "Không xóa được phiếu")
+      }
+      else {
+        toast.error("Không xóa được phiếu")
+      }
+    },
+  })
 
   const { data, isPending, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
       queryKey: listQueryKey,
@@ -267,6 +309,14 @@ export function DispatchPage() {
                   setSelectedDispatch(d)
                   setIsPanelOpen(true)
                 }}
+                onEdit={(d) => {
+                  setManualEditId(d.id)
+                  setManualEditOpen(true)
+                }}
+                onDelete={(id) => {
+                  setConfirmDeleteId(id)
+                  setDeleteReason("")
+                }}
               />
               {isFetchingNextPage && (
                 <div className="flex justify-center p-6 bg-slate-50/30">
@@ -289,7 +339,71 @@ export function DispatchPage() {
         isOpen={isPanelOpen}
         onClose={() => setIsPanelOpen(false)}
         canApprove={true}
+        detailFromApi={panelDetailQuery.data ?? null}
+        detailLoading={panelDetailQuery.isFetching}
       />
+
+      <ManualDispatchEditDialog
+        open={manualEditOpen}
+        dispatchId={manualEditId}
+        onOpenChange={(o) => {
+          setManualEditOpen(o)
+          if (!o) {
+            setManualEditId(null)
+          }
+        }}
+      />
+
+      <Dialog
+        open={confirmDeleteId != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmDeleteId(null)
+            setDeleteReason("")
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Xóa mềm phiếu xuất</DialogTitle>
+            <DialogDescription>
+              Ghi rõ lý do để người tạo phiếu tra cứu sau này. Thao tác không khôi phục từ giao diện này.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="dispatch-del-reason">Lý do xóa</Label>
+            <Textarea
+              id="dispatch-del-reason"
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              placeholder="Tối thiểu 3 ký tự"
+              rows={3}
+              className="resize-none"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setConfirmDeleteId(null)
+                setDeleteReason("")
+              }}
+              disabled={softDeleteMutation.isPending}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="button"
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={softDeleteMutation.isPending || deleteReason.trim().length < 3}
+              onClick={() => softDeleteMutation.mutate()}
+            >
+              {softDeleteMutation.isPending ? "Đang xóa…" : "Xóa mềm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <DispatchForm open={isFormOpen} onOpenChange={setIsFormOpen} dispatch={editingDispatch} onSubmit={handleFormSubmit} />
     </div>

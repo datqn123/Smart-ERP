@@ -52,6 +52,21 @@ public class SalesOrdersController {
 		this.salesOrderService = salesOrderService;
 	}
 
+	/** Task102 — lịch sử hóa đơn bán lẻ (Retail, read-only list). */
+	@GetMapping("/retail/history")
+	@PreAuthorize("hasAuthority('can_manage_orders')")
+	public ResponseEntity<ApiSuccessResponse<SalesOrderListPageData>> retailHistory(Authentication authentication,
+			@RequestParam(required = false) String search,
+			@RequestParam(required = false) String dateFrom,
+			@RequestParam(required = false) String dateTo,
+			@RequestParam(required = false, defaultValue = "1") int page,
+			@RequestParam(required = false, defaultValue = "20") int limit,
+			@RequestParam(required = false) String sort) {
+		requireJwt(authentication);
+		SalesOrderListPageData data = salesOrderService.listRetailHistory(search, dateFrom, dateTo, page, limit, sort);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thao tác thành công"));
+	}
+
 	@GetMapping
 	@PreAuthorize("hasAuthority('can_manage_orders')")
 	public ResponseEntity<ApiSuccessResponse<SalesOrderListPageData>> list(Authentication authentication,

@@ -22,6 +22,10 @@ interface OrderDetailDialogProps {
   /** Task058 — mở luồng hủy đơn (dialog lý do / POST cancel). */
   onCancelOrder?: (order: Order) => void
   onEditOrder?: (order: Order) => void
+  /** Task102 — chỉ đọc: ẩn hủy/sửa. */
+  readOnly?: boolean
+  /** Khi truyền: hiển thị dòng hàng từ API (thay mock). */
+  detailLines?: OrderItem[]
 }
 
 // Mock items for detail display
@@ -36,8 +40,12 @@ export function OrderDetailDialog({
   onClose,
   onCancelOrder,
   onEditOrder,
+  readOnly = false,
+  detailLines,
 }: OrderDetailDialogProps) {
   if (!order) return null
+
+  const lineItems = detailLines !== undefined ? detailLines : mockOrderItems
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -149,7 +157,7 @@ export function OrderDetailDialog({
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
-                                {mockOrderItems.map((item) => (
+                                {lineItems.map((item) => (
                                     <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                                         <td className="p-4">
                                             <p className="font-bold text-slate-900">{item.productName}</p>
@@ -197,8 +205,16 @@ export function OrderDetailDialog({
         </div>
 
         <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-between gap-3">
-           <div className="flex gap-2">
-               <Button
+          {readOnly ? (
+            <div className="flex w-full justify-end">
+              <Button type="button" variant="outline" onClick={onClose} className="px-6 border-slate-300 min-h-11">
+                Đóng
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <Button
                   type="button"
                   variant="outline"
                   disabled={!onCancelOrder}
@@ -206,10 +222,12 @@ export function OrderDetailDialog({
                   className="min-h-11 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
                 >
                   <XCircle size={16} className="mr-2" /> Hủy đơn
-               </Button>
-           </div>
-           <div className="flex gap-3">
-                <Button variant="outline" onClick={onClose} className="px-6 border-slate-300">Đóng</Button>
+                </Button>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={onClose} className="px-6 border-slate-300">
+                  Đóng
+                </Button>
                 <Button
                   type="button"
                   disabled={!onEditOrder}
@@ -220,9 +238,11 @@ export function OrderDetailDialog({
                     onClose()
                   }}
                 >
-                    <Edit size={16} className="mr-2" /> Chỉnh sửa
+                  <Edit size={16} className="mr-2" /> Chỉnh sửa
                 </Button>
-           </div>
+              </div>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>

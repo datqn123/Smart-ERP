@@ -160,7 +160,7 @@ export const SalesOrdersListQuerySchema = z.object({
 
 ## 11. Ánh xạ UI
 
-| Màn | `orderChannel` |
+| Màn | `orderChannel` / ghi chú |
 | :-- | :-------------- |
-| `/orders/wholesale` | `Wholesale` |
+| `/orders/wholesale` | **Không còn dùng Task054 cho màn này** — màn **Lịch sử hóa đơn bán lẻ** dùng [`API_Task102_sales_orders_retail_history_get_list.md`](API_Task102_sales_orders_retail_history_get_list.md) (`GET /sales-orders/retail/history`). |
 | `/orders/returns` | `Return` |

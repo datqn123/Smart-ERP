@@ -114,7 +114,8 @@ public class OrderLinkedDispatchService {
 			if (recipientId == actorUserId) {
 				continue;
 			}
-			notificationRepo.insertSystemAlert(recipientId, title, message, "StockDispatch", refId);
+			notificationRepo.insertTyped(recipientId, "StockDispatchPendingApproval", title, message, "StockDispatch",
+					refId);
 		}
 	}
 

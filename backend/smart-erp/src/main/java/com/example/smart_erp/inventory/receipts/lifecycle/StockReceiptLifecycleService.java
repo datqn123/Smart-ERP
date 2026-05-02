@@ -39,11 +39,15 @@ public class StockReceiptLifecycleService {
 
 	private final ObjectMapper objectMapper;
 
+	private final StockReceiptNotifier stockReceiptNotifier;
+
 	public StockReceiptLifecycleService(StockReceiptLifecycleJdbcRepository repo,
-			SystemLogJdbcRepository systemLogJdbcRepository, ObjectMapper objectMapper) {
+			SystemLogJdbcRepository systemLogJdbcRepository, ObjectMapper objectMapper,
+			StockReceiptNotifier stockReceiptNotifier) {
 		this.repo = repo;
 		this.systemLogJdbcRepository = systemLogJdbcRepository;
 		this.objectMapper = objectMapper;
+		this.stockReceiptNotifier = stockReceiptNotifier;
 	}
 
 	@Transactional
@@ -62,7 +66,11 @@ public class StockReceiptLifecycleService {
 				long id = repo.insertReceipt(code, req.supplierId(), staffId, receiptDate, status, invoice, total,
 						blankToNull(req.notes()));
 				insertAllDetails(id, req.details());
-				return loadOrThrow(id);
+				StockReceiptViewData created = loadOrThrow(id);
+				if ("Pending".equals(created.status())) {
+					stockReceiptNotifier.notifyPendingApproval(staffId, id, created.receiptCode());
+				}
+				return created;
 			}
 			catch (DuplicateKeyException e) {
 				if (attempt == RECEIPT_CODE_RETRY - 1) {
@@ -151,7 +159,9 @@ public class StockReceiptLifecycleService {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Không thể gửi duyệt phiếu không có dòng chi tiết");
 		}
 		repo.updateStatusSubmit(id);
-		return loadOrThrow(id);
+		StockReceiptViewData submitted = loadOrThrow(id);
+		stockReceiptNotifier.notifyPendingApproval(StockReceiptAccessPolicy.parseUserId(jwt), id, submitted.receiptCode());
+		return submitted;
 	}
 
 	@Transactional

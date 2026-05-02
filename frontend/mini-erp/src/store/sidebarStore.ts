@@ -5,7 +5,6 @@ export type NavItemKey =
   | "inventory"
   | "products"
   | "orders"
-  | "approvals"
   | "cashflow"
   | "analytics"
   | "ai-tools"

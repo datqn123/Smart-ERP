@@ -28,6 +28,8 @@ interface OrderTableProps {
   onDelete?: (item: Order) => void
   renderCustomActions?: (item: Order) => React.ReactNode
   showCheckbox?: boolean
+  /** Task102 — ẩn cột trạng thái trên list lịch sử bán lẻ. */
+  hideStatusColumn?: boolean
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -65,10 +67,12 @@ export function OrderTable({
   onEdit, 
   onDelete,
   renderCustomActions,
-  showCheckbox = true
+  showCheckbox = true,
+  hideStatusColumn = false,
 }: OrderTableProps) {
   const allSelected = data.length > 0 && selectedIds.length === data.length;
   const someSelected = selectedIds.length > 0 && selectedIds.length < data.length;
+  const colCount = (showCheckbox ? 1 : 0) + 4 + (hideStatusColumn ? 0 : 1) + 1;
 
   return (
     <Table className={DATA_TABLE_ROOT_CLASS}>
@@ -87,14 +91,16 @@ export function OrderTable({
           <TableHead className={cn(ORDER_TABLE_COL.customer, TABLE_HEAD_CLASS, "px-4")}>Khách hàng</TableHead>
           <TableHead className={cn(ORDER_TABLE_COL.date, TABLE_HEAD_CLASS, "px-4")}>Ngày tạo</TableHead>
           <TableHead className={cn(ORDER_TABLE_COL.total, TABLE_HEAD_CLASS, "text-right px-4")}>Tổng tiền</TableHead>
-          <TableHead className={cn(ORDER_TABLE_COL.status, TABLE_HEAD_CLASS, "text-center px-4")}>Trạng thái</TableHead>
+          {!hideStatusColumn && (
+            <TableHead className={cn(ORDER_TABLE_COL.status, TABLE_HEAD_CLASS, "text-center px-4")}>Trạng thái</TableHead>
+          )}
           <TableHead className={cn(DATA_TABLE_ACTION_HEAD_CLASS, TABLE_HEAD_CLASS)}>Thao tác</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody className="divide-y divide-slate-100">
         {data.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={showCheckbox ? 7 : 6} className="h-64 text-center">
+            <TableCell colSpan={colCount} className="h-64 text-center">
                <div className="flex flex-col items-center justify-center text-slate-400 gap-2">
                   <p className="text-sm">Không tìm thấy đơn hàng nào</p>
                </div>
@@ -132,9 +138,11 @@ export function OrderTable({
                 <TableCell className={cn(ORDER_TABLE_COL.total, TABLE_CELL_NUMBER_CLASS, "text-right px-4")}>
                   {formatCurrency(item.finalAmount)}
                 </TableCell>
-                <TableCell className={cn(ORDER_TABLE_COL.status, "px-4 text-center min-w-0")}>
-                  <StatusBadge status={item.status} />
-                </TableCell>
+                {!hideStatusColumn && (
+                  <TableCell className={cn(ORDER_TABLE_COL.status, "px-4 text-center min-w-0")}>
+                    <StatusBadge status={item.status} />
+                  </TableCell>
+                )}
                 <TableCell className={DATA_TABLE_ACTION_CELL_CLASS}>
                   <div className="flex items-center justify-center gap-1">
                     {renderCustomActions ? (

@@ -11,14 +11,35 @@ import {
   getNotifications,
   patchNotificationRead,
   postNotificationsMarkAllRead,
+  type NotificationItemDto,
 } from "@/features/notifications/api/notificationsApi"
 import { formatRelativePastVi } from "@/features/notifications/lib/formatRelativePastVi"
+import { ReceiptDetailDialog } from "@/features/inventory/components/ReceiptDetailDialog"
+import { DispatchDetailDialog } from "@/features/inventory/components/DispatchDetailDialog"
+import { getStockReceiptById, mapStockReceiptViewToUi } from "@/features/inventory/api/stockReceiptsApi"
+import {
+  approveStockDispatch,
+  getStockDispatchDetail,
+  mapStockDispatchDetailToUi,
+} from "@/features/inventory/api/dispatchApi"
+import type { StockDispatch, StockReceipt } from "@/features/inventory/types"
+import type { StockDispatchDetailResponse } from "@/features/inventory/api/dispatchApi"
+import { ApiRequestError } from "@/lib/api/http"
+import { toast } from "sonner"
 
 function initialsFromName(name: string): string {
   const p = name.trim().split(/\s+/).filter(Boolean)
   if (p.length === 0) return "?"
   if (p.length === 1) return p[0].slice(0, 2).toUpperCase()
   return (p[0][0] + p[p.length - 1][0]).toUpperCase()
+}
+
+function isOpenableStockReceipt(n: NotificationItemDto): boolean {
+  return n.referenceType === "StockReceipt" && n.referenceId != null && n.referenceId > 0
+}
+
+function isOpenableStockDispatch(n: NotificationItemDto): boolean {
+  return n.referenceType === "StockDispatch" && n.referenceId != null && n.referenceId > 0
 }
 
 export function Header() {
@@ -28,7 +49,18 @@ export function Header() {
   const { sidebarOpen, setSidebarOpen } = useUIStore()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const user = useAuthStore((s) => s.user)
+  const role = user?.role
+  const canApprovePerm = useAuthStore((s) => s.menuPermissions.can_approve)
+  const userCanApproveReceipt = Boolean((role === "Admin" || role === "Owner") && canApprovePerm)
+  const isAdmin = role === "Admin"
   const queryClient = useQueryClient()
+
+  const [headerReceipt, setHeaderReceipt] = useState<StockReceipt | null>(null)
+  const [headerReceiptOpen, setHeaderReceiptOpen] = useState(false)
+  const [headerDispatch, setHeaderDispatch] = useState<StockDispatch | null>(null)
+  const [headerDispatchDetail, setHeaderDispatchDetail] = useState<StockDispatchDetailResponse | null>(null)
+  const [headerDispatchOpen, setHeaderDispatchOpen] = useState(false)
+  const [notifBusyId, setNotifBusyId] = useState<number | null>(null)
 
   const notificationsQuery = useQuery({
     queryKey: ["notifications", "list"],
@@ -48,6 +80,30 @@ export function Header() {
     mutationFn: () => postNotificationsMarkAllRead(),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] })
+    },
+  })
+
+  const approveHeaderDispatch = useMutation({
+    mutationFn: (dispatchId: number) => approveStockDispatch(dispatchId),
+    onSuccess: async (_data, dispatchId) => {
+      toast.success("Đã duyệt phiếu — chuyển chờ xuất")
+      await queryClient.invalidateQueries({ queryKey: ["stock-dispatch-detail", dispatchId] })
+      await queryClient.invalidateQueries({ queryKey: ["stock-dispatches", "v1", "list"] })
+      await queryClient.invalidateQueries({ queryKey: ["notifications", "list"] })
+      try {
+        const d = await getStockDispatchDetail(dispatchId)
+        setHeaderDispatchDetail(d)
+        setHeaderDispatch(mapStockDispatchDetailToUi(d))
+      } catch {
+        /* ignore refresh errors */
+      }
+    },
+    onError: (e: unknown) => {
+      if (e instanceof ApiRequestError) {
+        toast.error(e.body?.message ?? "Không duyệt được phiếu")
+      } else {
+        toast.error("Không duyệt được phiếu")
+      }
     },
   })
 
@@ -71,7 +127,6 @@ export function Header() {
     }
   }, [isNotificationsOpen, isAuthenticated, queryClient])
 
-  // Simple breadcrumb logic based on path
   const pathSegments = location.pathname.split("/").filter(Boolean)
   const currentPage =
     pathSegments.length > 0
@@ -84,12 +139,57 @@ export function Header() {
   const unreadTotal = notifData?.unreadTotal ?? 0
   const notifErr = notificationsQuery.error instanceof Error ? notificationsQuery.error.message : null
 
+  async function handleNotificationActivate(n: NotificationItemDto) {
+    if (isOpenableStockReceipt(n)) {
+      setNotifBusyId(n.id)
+      try {
+        const raw = await getStockReceiptById(n.referenceId!)
+        const ui = mapStockReceiptViewToUi(raw)
+        setHeaderReceipt(ui)
+        setHeaderReceiptOpen(true)
+        setIsNotificationsOpen(false)
+        await markOneRead.mutateAsync(n.id)
+      } catch (e) {
+        if (e instanceof ApiRequestError) {
+          toast.error(e.body?.message ?? "Không mở được phiếu nhập. Thông báo có thể đã hết hiệu lực.")
+        } else {
+          toast.error("Không mở được phiếu nhập.")
+        }
+      } finally {
+        setNotifBusyId(null)
+      }
+      return
+    }
+    if (isOpenableStockDispatch(n)) {
+      setNotifBusyId(n.id)
+      try {
+        const detail = await getStockDispatchDetail(n.referenceId!)
+        setHeaderDispatchDetail(detail)
+        setHeaderDispatch(mapStockDispatchDetailToUi(detail))
+        setHeaderDispatchOpen(true)
+        setIsNotificationsOpen(false)
+        await markOneRead.mutateAsync(n.id)
+      } catch (e) {
+        if (e instanceof ApiRequestError) {
+          toast.error(e.body?.message ?? "Không mở được phiếu xuất. Thông báo có thể đã hết hiệu lực.")
+        } else {
+          toast.error("Không mở được phiếu xuất.")
+        }
+      } finally {
+        setNotifBusyId(null)
+      }
+      return
+    }
+    if (!n.read) {
+      markOneRead.mutate(n.id)
+    }
+    setIsNotificationsOpen(false)
+  }
+
   return (
     <header className="h-14 bg-white border-b border-slate-200 flex items-center px-4 md:px-6 shadow-sm sticky top-0 z-50">
       <div className="flex items-center justify-between w-full">
-        {/* LEFT SIDE: Mobile Menu & Breadcrumb */}
         <div className="flex items-center space-x-2 text-sm text-slate-600">
-          {/* Mobile Menu Toggle */}
           <button
             type="button"
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -110,9 +210,7 @@ export function Header() {
           <span className="font-medium text-slate-900">{currentPage}</span>
         </div>
 
-        {/* RIGHT SIDE: Actions */}
         <div className="flex items-center space-x-4">
-          {/* Notifications */}
           <div className="relative" ref={notificationRef}>
             <Button
               type="button"
@@ -175,18 +273,17 @@ export function Header() {
                           key={n.id}
                           role="button"
                           tabIndex={0}
-                          onClick={() => {
-                            if (!n.read) markOneRead.mutate(n.id)
-                          }}
+                          onClick={() => void handleNotificationActivate(n)}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault()
-                              if (!n.read) markOneRead.mutate(n.id)
+                              void handleNotificationActivate(n)
                             }
                           }}
                           className={cn(
                             "p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors relative text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50 min-h-[44px]",
                             !n.read && "bg-blue-50/30",
+                            notifBusyId === n.id && "pointer-events-none opacity-70",
                           )}
                         >
                           {!n.read && (
@@ -194,7 +291,10 @@ export function Header() {
                           )}
                           <div className="flex justify-between items-start mb-1.5 gap-2 pl-3">
                             <span className="font-bold text-sm text-slate-900 leading-snug">{n.title}</span>
-                            <span className="text-xs text-slate-400 whitespace-nowrap shrink-0">
+                            <span className="text-xs text-slate-400 whitespace-nowrap shrink-0 flex items-center gap-1">
+                              {notifBusyId === n.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
+                              ) : null}
                               {formatRelativePastVi(n.createdAt)}
                             </span>
                           </div>
@@ -213,10 +313,8 @@ export function Header() {
             )}
           </div>
 
-          {/* Separator */}
           <div className="h-6 w-px bg-slate-200 hidden sm:block" />
 
-          {/* User Profile */}
           <div className="flex items-center space-x-2 hidden md:flex cursor-pointer hover:opacity-80 transition-opacity">
             <div className="text-right">
               <div className="text-sm font-medium text-slate-900 leading-none">
@@ -233,6 +331,41 @@ export function Header() {
           </div>
         </div>
       </div>
+
+      <ReceiptDetailDialog
+        receipt={headerReceipt}
+        isOpen={headerReceiptOpen}
+        onClose={() => {
+          setHeaderReceiptOpen(false)
+          setHeaderReceipt(null)
+        }}
+        canApprove={userCanApproveReceipt}
+        isLoadingDetail={false}
+        onAfterApprove={async () => {
+          await queryClient.invalidateQueries({ queryKey: ["notifications", "list"] })
+          await queryClient.invalidateQueries({ queryKey: ["stock-receipts"] })
+        }}
+      />
+
+      <DispatchDetailDialog
+        dispatch={headerDispatch}
+        isOpen={headerDispatchOpen}
+        onClose={() => {
+          setHeaderDispatchOpen(false)
+          setHeaderDispatch(null)
+          setHeaderDispatchDetail(null)
+        }}
+        canApprove
+        canApproveStockLines={isAdmin}
+        onApproveStockDispatch={() => {
+          if (headerDispatch?.id) {
+            approveHeaderDispatch.mutate(headerDispatch.id)
+          }
+        }}
+        approveStockDispatchPending={approveHeaderDispatch.isPending}
+        detailFromApi={headerDispatchDetail}
+        detailLoading={false}
+      />
     </header>
   )
 }

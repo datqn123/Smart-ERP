@@ -195,6 +195,7 @@ _(Endpoint Owner xử lý yêu cầu reset mật khẩu nhân viên nằm trong 
 | PATCH | `/sales-orders/{id}` | Cập nhật meta / trạng thái / thanh toán | [`API_Task057_sales_orders_patch.md`](API_Task057_sales_orders_patch.md) |
 | POST | `/sales-orders/{id}/cancel` | Hủy đơn (`cancelled_by`, …) | [`API_Task058_sales_orders_cancel.md`](API_Task058_sales_orders_cancel.md) |
 | GET | `/pos/products` | Tìm hàng cho **POS / Bán lẻ** | [`API_Task059_pos_products_get_search.md`](API_Task059_pos_products_get_search.md) |
+| GET | `/sales-orders/retail/history` | `SalesOrders` — **lịch sử hóa đơn bán lẻ** (Retail only, read-only list) | [`API_Task102_sales_orders_retail_history_get_list.md`](API_Task102_sales_orders_retail_history_get_list.md) |
 | POST | `/sales-orders/retail/checkout` | Thanh toán **một lần** (bán lẻ) | [`API_Task060_sales_orders_retail_checkout.md`](API_Task060_sales_orders_retail_checkout.md) |
 | GET | `/vouchers` | Danh sách voucher áp dụng được (POS) | [`API_Task092_vouchers_and_retail_preview.md`](API_Task092_vouchers_and_retail_preview.md) |
 | GET | `/vouchers/{id}` | Chi tiết voucher | [`API_Task092_vouchers_and_retail_preview.md`](API_Task092_vouchers_and_retail_preview.md) |
@@ -368,6 +369,7 @@ Mỗi file `API_TaskXXX` phải ghi rõ **`RBAC Roles`** và điều kiện **ow
 | [`API_Task058_sales_orders_cancel.md`](API_Task058_sales_orders_cancel.md) | Draft — `POST /sales-orders/{id}/cancel` |
 | [`API_Task059_pos_products_get_search.md`](API_Task059_pos_products_get_search.md) | Draft — `GET /pos/products` (UC9 — POS bán lẻ) |
 | [`API_Task060_sales_orders_retail_checkout.md`](API_Task060_sales_orders_retail_checkout.md) | Draft — `POST /sales-orders/retail/checkout` |
+| [`API_Task102_sales_orders_retail_history_get_list.md`](API_Task102_sales_orders_retail_history_get_list.md) | Draft — `GET /sales-orders/retail/history` (UC9 — lịch sử hóa đơn bán lẻ; SRS Task102 Approved 02/05/2026) |
 | [`API_Task092_vouchers_and_retail_preview.md`](API_Task092_vouchers_and_retail_preview.md) | Draft — `GET /vouchers`, `GET /vouchers/{id}`, `POST /sales-orders/retail/voucher-preview` (UC9 POS) |
 | [`API_Task061_approvals_pending_get_list.md`](API_Task061_approvals_pending_get_list.md) | Draft — `GET /approvals/pending` (UC4 — Chờ phê duyệt) |
 | [`API_Task062_approvals_history_get_list.md`](API_Task062_approvals_history_get_list.md) | Draft — `GET /approvals/history` (UC4 — Lịch sử phê duyệt) |

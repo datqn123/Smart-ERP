@@ -27,6 +27,18 @@ public class SalesOrderJdbcRepository {
 		this.namedJdbc = namedJdbc;
 	}
 
+	/** Task102 — whitelist sort cho lịch sử bán lẻ. */
+	public static String resolveRetailHistoryOrderBy(String sortRaw) {
+		String s = sortRaw == null || sortRaw.isBlank() ? "createdAt:desc" : sortRaw.trim();
+		return switch (s) {
+			case "createdAt:asc" -> "so.created_at ASC";
+			case "createdAt:desc" -> "so.created_at DESC";
+			case "finalAmount:asc" -> "so.final_amount ASC";
+			case "finalAmount:desc" -> "so.final_amount DESC";
+			default -> throw new IllegalArgumentException("sort");
+		};
+	}
+
 	public static String resolveListOrderBy(String sortRaw) {
 		String s = sortRaw == null || sortRaw.isBlank() ? "createdAt:desc" : sortRaw.trim();
 		return switch (s) {
@@ -88,6 +100,59 @@ public class SalesOrderJdbcRepository {
 		MapSqlParameterSource p = new MapSqlParameterSource();
 		appendListFilters(new StringBuilder(), p, orderChannel, search, status, paymentStatus);
 		return p;
+	}
+
+	public long countRetailHistory(String search, Instant createdFrom, Instant createdToExclusive) {
+		StringBuilder sql = new StringBuilder("""
+				SELECT COUNT(*)::bigint FROM salesorders so
+				JOIN customers c ON c.id = so.customer_id
+				WHERE 1 = 1
+				""");
+		MapSqlParameterSource p = new MapSqlParameterSource();
+		appendRetailHistoryFilters(sql, p, search, createdFrom, createdToExclusive);
+		Long n = namedJdbc.queryForObject(sql.toString(), p, Long.class);
+		return n == null ? 0L : n;
+	}
+
+	public List<SalesOrderListItemData> findRetailHistoryPage(String search, Instant createdFrom,
+			Instant createdToExclusive, String orderBySql, int limit, int offset) {
+		String sql = """
+				SELECT so.id, so.order_code, so.customer_id, c.name AS customer_name,
+				       so.total_amount, so.discount_amount, so.final_amount, so.status, so.order_channel,
+				       so.payment_status, so.notes, so.created_at, so.updated_at,
+				       (SELECT COUNT(*)::int FROM orderdetails od WHERE od.order_id = so.id) AS items_count
+				FROM salesorders so
+				JOIN customers c ON c.id = so.customer_id
+				WHERE 1 = 1
+				""";
+		StringBuilder sb = new StringBuilder(sql);
+		MapSqlParameterSource p = new MapSqlParameterSource();
+		appendRetailHistoryFilters(sb, p, search, createdFrom, createdToExclusive);
+		p.addValue("lim", limit).addValue("off", offset);
+		String ordered = sb + " ORDER BY " + orderBySql + " LIMIT :lim OFFSET :off";
+		return namedJdbc.query(ordered, p, (rs, rn) -> new SalesOrderListItemData(rs.getInt("id"),
+				rs.getString("order_code"), rs.getInt("customer_id"), rs.getString("customer_name"),
+				rs.getBigDecimal("total_amount"), rs.getBigDecimal("discount_amount"), rs.getBigDecimal("final_amount"),
+				rs.getString("status"), rs.getString("order_channel"), rs.getString("payment_status"),
+				rs.getInt("items_count"), rs.getString("notes"), toInstant(rs.getTimestamp("created_at")),
+				toInstant(rs.getTimestamp("updated_at"))));
+	}
+
+	private static void appendRetailHistoryFilters(StringBuilder sql, MapSqlParameterSource p, String search,
+			Instant createdFrom, Instant createdToExclusive) {
+		sql.append(" AND so.order_channel = 'Retail' AND so.status IN ('Delivered', 'Cancelled') ");
+		if (search != null && !search.isBlank()) {
+			sql.append(" AND (so.order_code ILIKE :s OR c.name ILIKE :s)");
+			p.addValue("s", "%" + search.trim() + "%");
+		}
+		if (createdFrom != null) {
+			sql.append(" AND so.created_at >= :createdFrom");
+			p.addValue("createdFrom", Timestamp.from(createdFrom));
+		}
+		if (createdToExclusive != null) {
+			sql.append(" AND so.created_at < :createdToExclusive");
+			p.addValue("createdToExclusive", Timestamp.from(createdToExclusive));
+		}
 	}
 
 	private static void appendListFilters(StringBuilder sql, MapSqlParameterSource p, String orderChannel,

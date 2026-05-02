@@ -25,7 +25,17 @@
 | Sổ cái (đọc) | [`SRS_Task063_finance-ledger-get-list.md`](SRS_Task063_finance-ledger-get-list.md) — cùng domain `financeledger` |
 | Ghi sổ mẫu | [`../../smart-erp/src/main/java/com/example/smart_erp/inventory/receipts/lifecycle/StockReceiptLifecycleJdbcRepository.java`](../../smart-erp/src/main/java/com/example/smart_erp/inventory/receipts/lifecycle/StockReceiptLifecycleJdbcRepository.java) — `INSERT INTO financeledger` |
 | UI index | [`../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md`](../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md) — `cashflow/` |
+| PRD amend (đa quỹ, movements, Admin PATCH) | [`SRS_PRD_cash-transactions-admin-unified-multi-fund.md`](SRS_PRD_cash-transactions-admin-unified-multi-fund.md) — **Approved** 02/05/2026; **§0.2** |
 | Triển khai BE | `CashTransactionsController`, `CashTransactionService`, `CashTransactionJdbcRepository` dưới `com.example.smart_erp.finance` (triển khai 30/04/2026); Flyway **V25** (`performed_by` + seed Staff) |
+
+### 0.2 Amendment — PRD đa quỹ & movements (tham chiếu chéo)
+
+> **Nguồn:** [`SRS_PRD_cash-transactions-admin-unified-multi-fund.md`](SRS_PRD_cash-transactions-admin-unified-multi-fund.md) — **Approved** PO 02/05/2026.  
+> **Hiệu lực:** khi triển khai PRD (Flyway + endpoint mới + amend API), các điểm sau **bổ sung** / **siết** nội dung §6 / **BR-9** của tài liệu Task064–068 này:
+
+1. **PATCH / DELETE** `/api/v1/cash-transactions/{id}`: ngoài trường hợp **`created_by` = `sub`**, cho phép user có JWT **`role` = `Admin`** (và đủ `can_view_finance`) thực hiện thao tác **cùng điều kiện trạng thái** như Task067/068 (phiếu thủ công).  
+2. **POST** `/api/v1/cash-transactions`: bắt buộc **`fundId`** trong body sau migration `fund_id` + bảng quỹ (theo PRD **OQ-6**).  
+3. Endpoint **`GET /api/v1/cashflow/movements`** và quản lý **ghi** quỹ thuộc PRD — không thay thế Task064–068 nhưng **RBAC movements = Admin-only** theo PRD.
 
 ---
 
@@ -124,17 +134,18 @@
 
 ## 6. Persona & RBAC
 
-> Kiểm tra **`can_view_finance`** giống Task063: `FinanceLedgerAccessPolicy.assertCanViewFinanceLedger` (hoặc helper tương đương) cho **cả năm** endpoint. **Sau đó** với **PATCH** và **DELETE**: assert **`created_by` = user id từ JWT** — nếu không → **403** (kể cả Owner/Admin: **không** ngoại lệ theo PO). **POST** gán `created_by`/`performed_by` = sub (không so khớp trước).
+> Kiểm tra **`can_view_finance`** giống Task063: `FinanceLedgerAccessPolicy.assertCanViewFinanceLedger` (hoặc helper tương đương) cho **cả năm** endpoint. **Sau đó** với **PATCH** và **DELETE**: assert **`created_by` = user id từ JWT** — nếu không → **403**. **Ngoại lệ (sau khi triển khai PRD — §0.2):** nếu JWT **`role` = `Admin`** thì được PATCH/DELETE phiếu của người khác khi đủ điều kiện nghiệp vụ Task067/068. **POST** gán `created_by`/`performed_by` = sub (không so khớp trước).
 
 | Vai trò / điều kiện | Task064 GET list | Task066 GET | Task065 POST | Task067 PATCH | Task068 DELETE |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | Thiếu / hết JWT | 401 | 401 | 401 | 401 | 401 |
 | `can_view_finance` false | 403 | 403 | 403 | 403 | 403 |
-| Đủ quyền finance nhưng **không** phải người tạo (PATCH/DELETE) | — | — | — | 403 | 403 |
-| Đủ quyền | 200 | 200/404 | 201 | 200/404/409 | 200/404/409 |
+| Đủ quyền finance nhưng **không** phải người tạo **và** `role` ≠ Admin (PATCH/DELETE) | — | — | — | 403 | 403 |
+| **Admin** + `can_view_finance`, không phải người tạo (PATCH/DELETE) | — | — | — | 200/404/409 | 200/404/409 |
+| Đủ quyền (người tạo hoặc Admin như trên) | 200 | 200/404 | 201 | 200/404/409 | 200/404/409 |
 
 `message` 403 thiếu quyền module: *Bạn không có quyền thực hiện thao tác này.*  
-`message` 403 không phải người tạo: *Chỉ người tạo phiếu mới được thực hiện thao tác này.*
+`message` 403 không phải người tạo (non-Admin): *Chỉ người tạo phiếu mới được thực hiện thao tác này.*
 
 ---
 

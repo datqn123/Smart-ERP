@@ -21,8 +21,6 @@ import { CustomersPage } from "./features/product-management/pages/CustomersPage
 import { RetailPage } from "./features/orders/pages/RetailPage"
 import { WholesalePage } from "./features/orders/pages/WholesalePage"
 import { ReturnsPage } from "./features/orders/pages/ReturnsPage"
-import PendingApprovalsPage from "./features/approvals/pages/PendingApprovalsPage"
-import ApprovalHistoryPage from "./features/approvals/pages/ApprovalHistoryPage"
 
 // Cashflow
 import { TransactionsPage } from "./features/cashflow/pages/TransactionsPage"
@@ -93,9 +91,9 @@ function App() {
           <Route path="/orders/wholesale" element={<WholesalePage />} />
           <Route path="/orders/returns" element={<ReturnsPage />} />
 
-          {/* Approvals Routes */}
-          <Route path="/approvals/pending" element={<PendingApprovalsPage />} />
-          <Route path="/approvals/history" element={<ApprovalHistoryPage />} />
+          {/* Approvals hub removed — old URLs redirect */}
+          <Route path="/approvals/pending" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/approvals/history" element={<Navigate to="/dashboard" replace />} />
 
           {/* Cashflow Routes */}
           <Route path="/cashflow/transactions" element={<TransactionsPage />} />

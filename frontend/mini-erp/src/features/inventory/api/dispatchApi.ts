@@ -1,5 +1,5 @@
 import { apiJson } from "@/lib/api/http"
-import type { DispatchStatus, StockDispatch } from "../types"
+import type { DispatchItem, DispatchStatus, StockDispatch } from "../types"
 
 export type StockDispatchCreateLineBody = {
   inventoryId: number
@@ -162,6 +162,48 @@ export function softDeleteStockDispatch(id: number, reason: string) {
     auth: true,
     body: JSON.stringify({ reason }),
   })
+}
+
+/** Map chi tiết phiếu (GET /stock-dispatches/{id}) → model dialog — dùng khi mở từ thông báo (không có bản list). */
+export function mapStockDispatchDetailToUi(d: StockDispatchDetailResponse): StockDispatch {
+  const items: DispatchItem[] = (d.lines ?? []).map((line) => ({
+    id: line.lineId,
+    dispatchId: d.id,
+    orderDetailId: 0,
+    productId: line.productId ?? 0,
+    productName: line.productName,
+    skuCode: line.skuCode,
+    unitId: 0,
+    unitName: "",
+    orderedQty: line.quantity,
+    alreadyDispatchedQty: 0,
+    remainingQty: line.quantity,
+    dispatchQty: line.quantity,
+    warehouseLocation: line.warehouseCode,
+    shelfCode: line.shelfCode,
+    availableStock: line.availableQuantity,
+    isFullyDispatched: !line.shortageLine && line.quantity <= line.availableQuantity,
+  }))
+  return {
+    id: d.id,
+    dispatchCode: d.dispatchCode,
+    orderId: 0,
+    orderCode: d.orderCode,
+    customerName: d.customerName,
+    userId: d.userId,
+    userName: d.userName,
+    dispatchDate: d.dispatchDate,
+    status: d.status,
+    notes: d.notes ?? undefined,
+    createdAt: "",
+    updatedAt: "",
+    items,
+    lineCount: d.lines?.length ?? 0,
+    canEdit: d.canEdit,
+    canDelete: d.canDelete,
+    manualDispatch: d.manualDispatch,
+    shortageWarning: d.shortageWarning,
+  }
 }
 
 export function mapStockDispatchListItemToUi(row: StockDispatchListItemResponse): StockDispatch {

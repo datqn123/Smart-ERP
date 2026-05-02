@@ -59,14 +59,23 @@ public class NotificationJdbcRepository {
 
 	public void insertSystemAlert(int recipientUserId, String title, String message, String referenceType,
 			int referenceId) {
+		insertTyped(recipientUserId, "SystemAlert", title, message, referenceType, referenceId);
+	}
+
+	/**
+	 * Insert in-app notification. {@code notificationType} must match DB CHECK (see Flyway).
+	 */
+	public void insertTyped(int recipientUserId, String notificationType, String title, String message,
+			String referenceType, int referenceId) {
 		String sql = """
 				INSERT INTO notifications (user_id, notification_type, title, message, is_read,
 					reference_type, reference_id)
-				VALUES (:_uid, 'SystemAlert', :_title, :_message, FALSE,
+				VALUES (:_uid, :_ntype, :_title, :_message, FALSE,
 					:_ref_type, :_ref_id)
 				""";
-		var src = new MapSqlParameterSource("_uid", recipientUserId).addValue("_title", title)
-				.addValue("_message", message).addValue("_ref_type", referenceType).addValue("_ref_id", referenceId);
+		var src = new MapSqlParameterSource("_uid", recipientUserId).addValue("_ntype", notificationType)
+				.addValue("_title", title).addValue("_message", message).addValue("_ref_type", referenceType)
+				.addValue("_ref_id", referenceId);
 		namedJdbc.update(sql, src);
 	}
 

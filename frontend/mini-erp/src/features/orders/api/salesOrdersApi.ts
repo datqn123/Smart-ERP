@@ -1,5 +1,5 @@
 import { apiJson } from "@/lib/api/http"
-import type { Order } from "../types"
+import type { Order, OrderItem } from "../types"
 
 /** Task054 — `GET /api/v1/sales-orders` — `SalesOrderJdbcRepository.resolveListOrderBy` */
 export const SALES_ORDER_LIST_SORT_WHITELIST = [
@@ -41,6 +41,33 @@ export function getSalesOrderListSortLabel(sort: SalesOrderListSort): string {
 export type SalesOrderChannel = "Retail" | "Wholesale" | "Return"
 
 export const SALES_ORDER_LIST_QUERY_KEY = ["orders", "sales-orders", "list"] as const
+
+/** Task102 — `GET /api/v1/sales-orders/retail/history` */
+export const RETAIL_SALES_HISTORY_LIST_QUERY_KEY = ["orders", "sales-orders", "retail-history"] as const
+
+export const RETAIL_HISTORY_SORT_WHITELIST = [
+  "createdAt:asc",
+  "createdAt:desc",
+  "finalAmount:asc",
+  "finalAmount:desc",
+] as const
+
+export type RetailHistoryListSort = (typeof RETAIL_HISTORY_SORT_WHITELIST)[number]
+
+export function getRetailHistoryListSortLabel(sort: RetailHistoryListSort): string {
+  switch (sort) {
+    case "createdAt:desc":
+      return "Ngày tạo (mới nhất)"
+    case "createdAt:asc":
+      return "Ngày tạo (cũ nhất)"
+    case "finalAmount:desc":
+      return "Thành tiền (cao → thấp)"
+    case "finalAmount:asc":
+      return "Thành tiền (thấp → cao)"
+    default:
+      return sort
+  }
+}
 
 export type SalesOrderListItemDto = {
   id: number
@@ -138,6 +165,36 @@ export function getSalesOrderList(params: GetSalesOrderListParams = {}) {
   return apiJson<SalesOrderListPageDto>(`/api/v1/sales-orders?${q.toString()}`, { method: "GET", auth: true })
 }
 
+export type GetRetailSalesHistoryListParams = {
+  search?: string
+  dateFrom?: string
+  dateTo?: string
+  page?: number
+  limit?: number
+  sort?: RetailHistoryListSort
+}
+
+/** Task102 — lịch sử hóa đơn bán lẻ (Retail Delivered/Cancelled). */
+export function getRetailSalesHistoryList(params: GetRetailSalesHistoryListParams = {}) {
+  const q = new URLSearchParams()
+  if (params.search?.trim()) {
+    q.set("search", params.search.trim())
+  }
+  if (params.dateFrom?.trim()) {
+    q.set("dateFrom", params.dateFrom.trim())
+  }
+  if (params.dateTo?.trim()) {
+    q.set("dateTo", params.dateTo.trim())
+  }
+  q.set("page", String(params.page ?? 1))
+  q.set("limit", String(params.limit ?? 20))
+  q.set("sort", params.sort ?? "createdAt:desc")
+  return apiJson<SalesOrderListPageDto>(`/api/v1/sales-orders/retail/history?${q.toString()}`, {
+    method: "GET",
+    auth: true,
+  })
+}
+
 /** Task056 — `POST /api/v1/sales-orders` — `API_Task056_sales_orders_post.md` */
 export type SalesOrderCreateLineBody = {
   productId: number
@@ -215,6 +272,21 @@ export type SalesOrderDetailDto = {
 /** Chi tiết đơn — `GET /api/v1/sales-orders/{id}` (cần quyền quản lý đơn). */
 export function getSalesOrderDetail(id: number) {
   return apiJson<SalesOrderDetailDto>(`/api/v1/sales-orders/${id}`, { method: "GET", auth: true })
+}
+
+export function mapSalesOrderDetailLineDtoToOrderItem(d: SalesOrderDetailLineDto): OrderItem {
+  const uid = d.unitId ?? 0
+  return {
+    id: d.id,
+    productId: d.productId,
+    unitId: uid,
+    productName: d.productName,
+    skuCode: d.skuCode,
+    quantity: d.quantity,
+    unitName: d.unitName,
+    unitPrice: num(d.unitPrice),
+    lineTotal: num(d.lineTotal),
+  }
 }
 
 export function postSalesOrder(body: SalesOrderCreateBody) {

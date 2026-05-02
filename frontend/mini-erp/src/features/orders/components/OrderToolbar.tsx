@@ -13,6 +13,12 @@ interface OrderToolbarProps {
   selectedIds: number[]
   onAction: (action: string) => void
   showCreate?: boolean
+  /** Task102 — chỉ tìm kiếm + lọc ngày; không thao tác sửa/xóa/tạo. */
+  variant?: "default" | "retailHistory"
+  dateFrom?: string
+  dateTo?: string
+  onDateFromChange?: (val: string) => void
+  onDateToChange?: (val: string) => void
 }
 
 export function OrderToolbar({
@@ -25,8 +31,47 @@ export function OrderToolbar({
   selectedIds,
   onAction,
   showCreate = true,
+  variant = "default",
+  dateFrom = "",
+  dateTo = "",
+  onDateFromChange,
+  onDateToChange,
 }: OrderToolbarProps) {
-  const hasSelection = selectedIds.length > 0;
+  const hasSelection = selectedIds.length > 0
+
+  if (variant === "retailHistory") {
+    return (
+      <div className="bg-white p-4 space-y-3 border-b md:border border-slate-200 md:rounded-t-md shrink-0">
+        <div className="flex flex-col lg:flex-row gap-3 w-full flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input
+              placeholder="Tìm theo mã đơn hoặc tên KH..."
+              value={searchStr}
+              onChange={(e) => onSearch(e.target.value)}
+              className="pl-9 min-h-[44px] sm:min-h-[36px] w-full"
+            />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <label className="text-xs text-slate-500 sm:sr-only">Từ ngày</label>
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => onDateFromChange?.(e.target.value)}
+              className="min-h-[44px] sm:min-h-[36px] w-full sm:w-[160px] border-slate-200"
+            />
+            <label className="text-xs text-slate-500 sm:sr-only">Đến ngày</label>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => onDateToChange?.(e.target.value)}
+              className="min-h-[44px] sm:min-h-[36px] w-full sm:w-[160px] border-slate-200"
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="bg-white p-4 space-y-3 border-b md:border border-slate-200 md:rounded-t-md shrink-0">

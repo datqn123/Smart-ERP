@@ -53,6 +53,22 @@ class SalesOrdersControllerWebMvcTest {
 	private SalesOrderService salesOrderService;
 
 	@Test
+	void retailHistory_returns200() throws Exception {
+		var item = new SalesOrderListItemData(501, "SO-2026-0501", 2, "Khách lẻ", BigDecimal.valueOf(200_000),
+				BigDecimal.ZERO, BigDecimal.valueOf(185_000), "Delivered", "Retail", "Paid", 3, null,
+				Instant.parse("2026-05-02T08:15:00Z"), Instant.parse("2026-05-02T08:15:00Z"));
+		when(salesOrderService.listRetailHistory(any(), any(), any(), anyInt(), anyInt(), any()))
+				.thenReturn(new SalesOrderListPageData(List.of(item), 1, 20, 1L));
+
+		mockMvc.perform(get("/api/v1/sales-orders/retail/history").param("page", "1").param("limit", "20")
+				.with(Objects.requireNonNull(jwt().authorities(new SimpleGrantedAuthority("can_manage_orders"))
+						.jwt(j -> j.subject("1").claim("role", "Staff")))))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.items[0].orderChannel").value("Retail"));
+		verify(salesOrderService).listRetailHistory(any(), any(), any(), eq(1), eq(20), any());
+	}
+
+	@Test
 	void list_returns200() throws Exception {
 		var item = new SalesOrderListItemData(1, "SO-2026-000001", 2, "ACME", BigDecimal.valueOf(1000),
 				BigDecimal.ZERO, BigDecimal.valueOf(1000), "Pending", "Wholesale", "Unpaid", 1, null,

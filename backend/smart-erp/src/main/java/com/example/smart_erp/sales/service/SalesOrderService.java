@@ -2,9 +2,11 @@ package com.example.smart_erp.sales.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.Year;
 import java.time.ZoneId;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -43,6 +45,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 @Service
 public class SalesOrderService {
+
+	private static final ZoneId RETAIL_HISTORY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
 	private static final BigDecimal PRICE_TOLERANCE = new BigDecimal("0.10");
 
@@ -95,6 +99,66 @@ public class SalesOrderService {
 		var items = salesOrderJdbcRepository.findListPage(orderChannel, search, status, paymentStatus, orderBy, limit,
 				offset);
 		return new SalesOrderListPageData(items, page, limit, total);
+	}
+
+	/**
+	 * Task102 — lịch sử hóa đơn bán lẻ (Retail, Delivered/Cancelled), có lọc ngày theo
+	 * {@value #RETAIL_HISTORY_ZONE}.
+	 */
+	@Transactional(readOnly = true)
+	public SalesOrderListPageData listRetailHistory(String searchRaw, String dateFromRaw, String dateToRaw, int page,
+			int limit, String sortRaw) {
+		if (page < 1 || limit < 1 || limit > 100) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Tham số phân trang không hợp lệ",
+					Map.of("page", "page >= 1", "limit", "1–100"));
+		}
+		String orderBy;
+		try {
+			orderBy = SalesOrderJdbcRepository.resolveRetailHistoryOrderBy(sortRaw);
+		}
+		catch (IllegalArgumentException e) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Tham số sort không hợp lệ",
+					Map.of("sort", "Giá trị không nằm trong whitelist"));
+		}
+		String search = normalizeRetailHistorySearch(searchRaw);
+		LocalDate dateFrom = parseIsoDateOrNull(dateFromRaw, "dateFrom");
+		LocalDate dateTo = parseIsoDateOrNull(dateToRaw, "dateTo");
+		if (dateFrom != null && dateTo != null && dateFrom.isAfter(dateTo)) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Dữ liệu không hợp lệ",
+					Map.of("dateTo", "Ngày kết thúc phải sau hoặc bằng ngày bắt đầu"));
+		}
+		Instant createdFrom = dateFrom == null ? null : dateFrom.atStartOfDay(RETAIL_HISTORY_ZONE).toInstant();
+		Instant createdToExclusive = dateTo == null ? null : dateTo.plusDays(1).atStartOfDay(RETAIL_HISTORY_ZONE).toInstant();
+		long total = salesOrderJdbcRepository.countRetailHistory(search, createdFrom, createdToExclusive);
+		int offset = (page - 1) * limit;
+		var items = salesOrderJdbcRepository.findRetailHistoryPage(search, createdFrom, createdToExclusive, orderBy,
+				limit, offset);
+		return new SalesOrderListPageData(items, page, limit, total);
+	}
+
+	private static String normalizeRetailHistorySearch(String searchRaw) {
+		if (searchRaw == null || searchRaw.isBlank()) {
+			return null;
+		}
+		String t = searchRaw.trim();
+		if (t.length() > 100) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Dữ liệu không hợp lệ",
+					Map.of("search", "Tối đa 100 ký tự"));
+		}
+		return t;
+	}
+
+	private static LocalDate parseIsoDateOrNull(String raw, String fieldName) {
+		if (raw == null || raw.isBlank()) {
+			return null;
+		}
+		try {
+			return LocalDate.parse(raw.trim());
+		}
+		catch (DateTimeException e) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Dữ liệu không hợp lệ",
+					Map.of(fieldName, "Định dạng ngày phải là yyyy-MM-dd"));
+		}
 	}
 
 	private static String normalizeListStatus(String statusRaw) {

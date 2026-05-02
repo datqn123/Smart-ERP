@@ -22,7 +22,7 @@
 | `/products/suppliers` | `SuppliersPage` | `product-management/pages/SuppliersPage.tsx` |
 | `/products/customers` | `CustomersPage` | `product-management/pages/CustomersPage.tsx` |
 | `/orders/retail` | `RetailPage` | `orders/pages/RetailPage.tsx` |
-| `/orders/wholesale` | `WholesalePage` | `orders/pages/WholesalePage.tsx` |
+| `/orders/wholesale` | `WholesalePage` | `orders/pages/WholesalePage.tsx` — **Lịch sử hóa đơn bán lẻ** (Task102; API `GET …/retail/history`; URL giữ `/orders/wholesale`) |
 | `/orders/returns` | `ReturnsPage` | `orders/pages/ReturnsPage.tsx` |
 | `/approvals/pending` | `PendingApprovalsPage` (default export) | `approvals/pages/PendingApprovalsPage.tsx` |
 | `/approvals/history` | `ApprovalHistoryPage` | `approvals/pages/ApprovalHistoryPage.tsx` |
@@ -39,9 +39,18 @@
 
 **Ghi chú:** `inventory/pages/CategoriesPage.tsx` **tồn tại** nhưng **không** có `<Route>` trong `App.tsx` (trùng tên với PM categories — chỉ PM route `/products/categories`).
 
+**Thông báo (global, không route riêng):** chuông trên `Header` — [`components/shared/layout/Header.tsx`](../components/shared/layout/Header.tsx); API [`features/notifications/api/notificationsApi.ts`](notifications/api/notificationsApi.ts); click mở `ReceiptDetailDialog` / `DispatchDetailDialog` theo SRS PRD admin-notifications.
+
 ---
 
 ## 2. Feature → component UI chính (không liệt kê `*.test.tsx`)
+
+### `notifications/`
+
+| Loại | File |
+| :--- | :--- |
+| API (nối BE) | `api/notificationsApi.ts` — `GET /api/v1/notifications`, `PATCH …/{id}`, `POST …/mark-all-read` |
+| Định dạng thời gian | `lib/formatRelativePastVi.ts` |
 
 ### `auth/`
 
@@ -80,9 +89,9 @@
 
 | Loại | File |
 | :--- | :--- |
-| API | `api/salesOrdersApi.ts` — Task054 list; **Task056** `POST /api/v1/sales-orders`; Task060 `postRetailCheckout`; **Task092** `postRetailVoucherPreview`; Task058 cancel; `api/posProductsApi.ts` — Task059; **`api/vouchersApi.ts`** — Task092 `getVouchersList`, `getVoucherById`; `hooks/useSalesOrdersListQuery.ts` — OQ-8a |
+| API | `api/salesOrdersApi.ts` — Task054 list; **Task102** `GET /api/v1/sales-orders/retail/history`; **Task056** `POST /api/v1/sales-orders`; Task060 `postRetailCheckout`; **Task092** `postRetailVoucherPreview`; Task058 cancel; `api/posProductsApi.ts` — Task059; **`api/vouchersApi.ts`** — Task092 `getVouchersList`, `getVoucherById`; `hooks/useSalesOrdersListQuery.ts` — OQ-8a |
 | POS / đơn | `pages/RetailPage.tsx`; `POSCartPanel.tsx` (Task060 checkout; **Task092** danh sách voucher + “Xem thêm”, preview, **409** checkout); `POSProductSelector.tsx` (Task059 `searchPosProducts`); `OrderTable.tsx`, `OrderToolbar.tsx`, `OrderDetailPanel.tsx`, `OrderDetailDialog.tsx`, `OrderFormDialog.tsx` |
-| Trang danh sách | `pages/WholesalePage.tsx`, `pages/ReturnsPage.tsx` — list API + phân trang/sort/lọc |
+| Trang danh sách | `pages/WholesalePage.tsx` — **Task102** `GET /sales-orders/retail/history`; `pages/ReturnsPage.tsx` — Task054 list + phân trang/sort/lọc |
 | Trả hàng | `components/ReturnFormDialog.tsx` |
 
 ### `approvals/`

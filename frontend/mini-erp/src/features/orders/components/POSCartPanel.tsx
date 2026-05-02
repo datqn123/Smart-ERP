@@ -12,6 +12,7 @@ import {
   buildRetailCheckoutBody,
   postRetailCheckout,
   postRetailVoucherPreview,
+  RETAIL_SALES_HISTORY_LIST_QUERY_KEY,
   SALES_ORDER_LIST_QUERY_KEY,
 } from "../api/salesOrdersApi"
 import { getVoucherById, getVouchersList, VOUCHERS_LIST_QUERY_KEY, type VoucherListItemDto } from "../api/vouchersApi"
@@ -130,6 +131,7 @@ export function POSCartPanel() {
       clearCart()
       setSelectedVoucherId(null)
       void queryClient.invalidateQueries({ queryKey: [...SALES_ORDER_LIST_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [...RETAIL_SALES_HISTORY_LIST_QUERY_KEY] })
       void queryClient.invalidateQueries({ queryKey: [...POS_PRODUCTS_SEARCH_QUERY_KEY] })
       void queryClient.invalidateQueries({ queryKey: [...VOUCHERS_LIST_QUERY_KEY] })
       toast.success(`Thanh toán thành công — ${data.orderCode}`)

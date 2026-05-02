@@ -14,11 +14,18 @@
 | :--- | :--- |
 | Requirement (User) | “Tại giao diện đơn bán lẻ (POS) xem lịch sử các đơn hàng đã bán; mỗi đơn hàng phải đầy đủ thông tin giấy tờ” |
 | UI index | [`../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md`](../../../frontend/mini-erp/src/features/FEATURES_UI_INDEX.md) — route `/orders/retail` |
-| API list đơn | [`../../../frontend/docs/api/API_Task054_sales_orders_get_list.md`](../../../frontend/docs/api/API_Task054_sales_orders_get_list.md) — `GET /api/v1/sales-orders` (có `orderChannel=Retail`) |
+| API list đơn (màn `/orders/wholesale` / lịch sử) | **Task102** [`../../../frontend/docs/api/API_Task102_sales_orders_retail_history_get_list.md`](../../../frontend/docs/api/API_Task102_sales_orders_retail_history_get_list.md) — `GET /api/v1/sales-orders/retail/history` (thay thế list qua Task054 cho use case này — xem §0.1) |
 | API chi tiết đơn | [`../../../frontend/docs/api/API_Task055_sales_orders_get_by_id.md`](../../../frontend/docs/api/API_Task055_sales_orders_get_by_id.md) — `GET /api/v1/sales-orders/{id}` (dùng cho Retail) |
 | Checkout POS | [`../../../frontend/docs/api/API_Task060_sales_orders_retail_checkout.md`](../../../frontend/docs/api/API_Task060_sales_orders_retail_checkout.md) — tạo đơn bán lẻ một lần |
 | UC / DB spec | [`../../../frontend/docs/UC/Database_Specification.md`](../../../frontend/docs/UC/Database_Specification.md) — §19 `SalesOrders`, §20 `OrderDetails` (tham chiếu) |
 | Flyway thực tế | `backend/smart-erp/src/main/resources/db/migration/V*.sql` (cần đối chiếu tên bảng/cột khi triển khai/verify) |
+
+### 0.1 Thu hồi / thay thế (Task102 — 02/05/2026)
+
+**Nguồn list lịch sử hóa đơn bán lẻ** (màn menu **Lịch sử hóa đơn**, route `/orders/wholesale`) được **chốt** tại [`SRS_Task102_retail-invoice-history.md`](SRS_Task102_retail-invoice-history.md) — **Approved** — endpoint **`GET /api/v1/sales-orders/retail/history`** ([`API_Task102_sales_orders_retail_history_get_list.md`](../../../frontend/docs/api/API_Task102_sales_orders_retail_history_get_list.md)).
+
+- **C1** và mục **§3.1** (list qua Task054 + `orderChannel=Retail`) **không còn** là hướng triển khai cho màn lịch sử đó; dùng Task102.
+- Task091 **vẫn** hữu ích cho: **chi tiết chứng từ** (Task055), định nghĩa “giấy tờ đầy đủ” (**§4 OQ-1**), và kịch bản **tab lịch sử trong `RetailPage`** nếu PO vẫn muốn (đối chiếu Task102 để tránh trùng scope).
 
 ---
 
@@ -36,7 +43,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | Đơn bán lẻ (POS) | `/orders/retail` | `RetailPage` | POS selector + giỏ hàng + (GAP) vùng lịch sử | `orders/pages/RetailPage.tsx`; (tham chiếu) `orders/components/OrderDetailDialog.tsx` |
 
-> **GAP UI:** index hiện không có route riêng cho “Lịch sử bán lẻ”. Nếu PO muốn tách màn, cần chốt route mới (vd. `/orders/retail/history`) và cập nhật `FEATURES_UI_INDEX.md`.
+> **Cập nhật Task102:** màn **Lịch sử hóa đơn** dùng route **`/orders/wholesale`** (giữ URL) — xem `FEATURES_UI_INDEX.md` / Sidebar. Tab lịch sử trong `RetailPage` (nếu làm) có thể tái sử dụng cùng API Task102.
 
 ---
 
@@ -44,7 +51,7 @@
 
 | # | Capability | Kích hoạt bởi | Kết quả mong đợi | Ghi chú |
 | :---: | :--- | :--- | :--- | :--- |
-| C1 | Xem danh sách lịch sử đơn bán lẻ | User mở màn (tab/section) “Lịch sử” từ POS hoặc route riêng | `200` + danh sách phân trang các đơn `orderChannel=Retail` | Tái sử dụng `GET /sales-orders` (Task054) nếu đủ filter |
+| C1 | Xem danh sách lịch sử đơn bán lẻ | User mở màn (tab/section) “Lịch sử” từ POS hoặc route riêng | `200` + danh sách phân trang các đơn `orderChannel=Retail` | **Task102:** `GET /sales-orders/retail/history` cho màn `/orders/wholesale`; tab trong POS có thể dùng cùng API |
 | C2 | Tra cứu nhanh lịch sử | User nhập mã đơn / tên KH / filter | Danh sách thay đổi theo filter | Tối thiểu: `search` + phân trang; filter ngày là OQ |
 | C3 | Xem chi tiết chứng từ của 1 đơn | User chọn một đơn trong lịch sử | `200` + header + `lines` + các trường “giấy tờ” cần hiển thị | Tái sử dụng `GET /sales-orders/{id}` (Task055) |
 | C4 | RBAC xem lịch sử | Sau xác thực JWT | 403 khi không đủ quyền | PO chốt policy: xem mọi đơn hay chỉ đơn mình tạo/ca |
@@ -56,7 +63,7 @@
 
 ### 3.1 In-scope (v1 đề xuất)
 
-- **List lịch sử bán lẻ** dựa trên `GET /api/v1/sales-orders` với `orderChannel=Retail`.
+- **List lịch sử bán lẻ** — **đã chuyển** sang Task102: `GET /api/v1/sales-orders/retail/history` (không dùng `GET /sales-orders?orderChannel=Retail` cho màn menu lịch sử tại `/orders/wholesale`).
 - **Xem chứng từ đầy đủ** dựa trên `GET /api/v1/sales-orders/{id}`.
 - Chuẩn hóa “đầy đủ thông tin giấy tờ” thành tập field tối thiểu (PO chốt ở §4).
 - Các lỗi chuẩn: 400/401/403/404/500 theo envelope.

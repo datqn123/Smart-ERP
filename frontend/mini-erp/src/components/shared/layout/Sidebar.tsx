@@ -7,7 +7,6 @@ import {
   Banknote, 
   Settings, 
   LogOut,
-  FileInput,
   Brain,
   ChevronDown
 } from "lucide-react"
@@ -87,17 +86,7 @@ const navConfig: NavItemConfig[] = [
     allSubsPerm: "can_manage_orders",
     subItems: [
       { label: "Đơn bán lẻ", path: "/orders/retail" },
-      { label: "Đơn bán sỉ", path: "/orders/wholesale" },
-    ],
-  },
-  {
-    id: "approvals",
-    label: "Phê duyệt",
-    icon: <FileInput className="h-[18px] w-[18px]" />,
-    allSubsPerm: "can_approve",
-    subItems: [
-      { label: "Chờ phê duyệt", path: "/approvals/pending" },
-      { label: "Lịch sử phê duyệt", path: "/approvals/history" },
+      { label: "Lịch sử hóa đơn", path: "/orders/wholesale" },
     ],
   },
   {

@@ -19,13 +19,13 @@ public class StockDispatchNotifier {
 		this.notificationRepo = notificationRepo;
 	}
 
-	/** Phiếu xuất tay mới (đủ tồn, chờ duyệt). */
+	/** Phiếu xuất tay mới (đủ tồn, chờ duyệt) — Admin khác người tạo. */
 	public void notifyManualDispatchCreated(int actorUserId, long dispatchId, String dispatchCode, String referenceLabel) {
 		String title = "Phiếu xuất kho mới";
 		String refSuffix = StringUtils.hasText(referenceLabel) ? " — tham chiếu: " + referenceLabel.trim() : "";
 		String message = "Đã tạo phiếu xuất tay " + dispatchCode + refSuffix
 				+ " — Admin vui lòng kiểm tra và duyệt khi đủ điều kiện.";
-		sendToActiveAdmins(actorUserId, dispatchId, title, message);
+		sendToActiveAdmins(actorUserId, dispatchId, "StockDispatchPendingApproval", title, message);
 	}
 
 	/**
@@ -37,16 +37,17 @@ public class StockDispatchNotifier {
 		}
 		String title = "Phiếu xuất thiếu tồn";
 		String message = dispatchCode + ": " + String.join(" · ", shortageLines);
-		sendToActiveAdmins(actorUserId, dispatchId, title, message);
+		sendToActiveAdmins(actorUserId, dispatchId, "StockDispatchShortage", title, message);
 	}
 
-	private void sendToActiveAdmins(int actorUserId, long dispatchId, String title, String message) {
+	private void sendToActiveAdmins(int actorUserId, long dispatchId, String notificationType, String title,
+			String message) {
 		int refId = Math.toIntExact(dispatchId);
 		for (int recipientId : notificationRepo.findActiveAdminUserIds()) {
 			if (recipientId == actorUserId) {
 				continue;
 			}
-			notificationRepo.insertSystemAlert(recipientId, title, message, "StockDispatch", refId);
+			notificationRepo.insertTyped(recipientId, notificationType, title, message, "StockDispatch", refId);
 		}
 	}
 }

@@ -5,6 +5,8 @@ package com.example.smart_erp.inventory.dispatch;
  */
 public final class ManualDispatchStatuses {
 
+	public static final String PENDING = "Pending";
+	public static final String PARTIAL = "Partial";
 	public static final String WAITING_DISPATCH = "WaitingDispatch";
 	public static final String DELIVERING = "Delivering";
 	public static final String DELIVERED = "Delivered";

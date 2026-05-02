@@ -67,7 +67,6 @@ const navConfig: NavItemConfig[] = [
       { label: "Tồn kho", path: "/inventory/stock" },
       { label: "Phiếu nhập kho", path: "/inventory/inbound" },
       { label: "Xuất kho & Điều phối", path: "/inventory/dispatch" },
-      { label: "Kiểm kê kho", path: "/inventory/audit" },
     ],
   },
   {

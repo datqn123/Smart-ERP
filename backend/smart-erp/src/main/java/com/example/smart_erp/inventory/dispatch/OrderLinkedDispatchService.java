@@ -1,7 +1,9 @@
 package com.example.smart_erp.inventory.dispatch;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -9,6 +11,7 @@ import java.util.UUID;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.exception.BusinessException;
@@ -23,12 +26,15 @@ public class OrderLinkedDispatchService {
 	private final StockDispatchJdbcRepository dispatchRepo;
 	private final SalesOrderJdbcRepository salesOrderRepo;
 	private final NotificationJdbcRepository notificationRepo;
+	private final StockDispatchNotifier dispatchNotifier;
 
 	public OrderLinkedDispatchService(StockDispatchJdbcRepository dispatchRepo,
-			SalesOrderJdbcRepository salesOrderRepo, NotificationJdbcRepository notificationRepo) {
+			SalesOrderJdbcRepository salesOrderRepo, NotificationJdbcRepository notificationRepo,
+			StockDispatchNotifier dispatchNotifier) {
 		this.dispatchRepo = dispatchRepo;
 		this.salesOrderRepo = salesOrderRepo;
 		this.notificationRepo = notificationRepo;
+		this.dispatchNotifier = dispatchNotifier;
 	}
 
 	@Transactional
@@ -62,17 +68,21 @@ public class OrderLinkedDispatchService {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Đơn hàng đã hủy — không lập phiếu xuất.");
 		}
 
-		boolean anyShortage = false;
+		List<String> shortageLines = new ArrayList<>();
 		for (var line : req.lines()) {
 			var lockedInv = dispatchRepo.lockInventoryRowForUpdate(line.inventoryId())
 					.orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND,
 							"Không tìm thấy dòng tồn kho id=" + line.inventoryId()));
 			if (line.quantity() > lockedInv.quantity()) {
-				anyShortage = true;
+				int miss = line.quantity() - lockedInv.quantity();
+				String pname = StringUtils.hasText(lockedInv.productName()) ? lockedInv.productName() : "—";
+				String sku = StringUtils.hasText(lockedInv.skuCode()) ? lockedInv.skuCode() : "—";
+				shortageLines.add(pname + " (" + sku + "): yêu cầu " + line.quantity() + ", tồn "
+						+ lockedInv.quantity() + " (thiếu " + miss + ")");
 			}
 		}
 
-		String initialStatus = anyShortage ? "Partial" : "Pending";
+		String initialStatus = shortageLines.isEmpty() ? "Pending" : "Partial";
 		String tmpCode = "TMP-" + UUID.randomUUID().toString().replace("-", "");
 		String notes = req.notes() == null ? "" : req.notes().trim();
 		long dispatchId = dispatchRepo.insertDispatchHeader(tmpCode, Integer.valueOf(req.orderId()), userId,
@@ -86,20 +96,19 @@ public class OrderLinkedDispatchService {
 		dispatchRepo.updateDispatchCode(dispatchId, finalCode);
 
 		String orderCode = salesOrderRepo.findOrderCode(req.orderId()).orElse("đơn #" + req.orderId());
-		notifyDispatchStakeholders(jwt, userId, dispatchId, orderCode, initialStatus, anyShortage);
+		if (!shortageLines.isEmpty()) {
+			dispatchNotifier.notifyDispatchShortage(userId, dispatchId, finalCode, shortageLines);
+		}
+		else {
+			notifyDispatchWaitingApproval(userId, dispatchId, orderCode);
+		}
 
 		return new StockDispatchCreatedData(dispatchId, finalCode, req.dispatchDate(), initialStatus, null);
 	}
 
-	private void notifyDispatchStakeholders(Jwt jwt, int actorUserId, long dispatchId, String orderCode, String status,
-			boolean shortage) {
-		if (StockDispatchAccessPolicy.isElevatedDispatchManager(jwt)) {
-			return;
-		}
-		String title = shortage ? "Phiếu xuất thiếu hàng cần xử lý" : "Phiếu xuất chờ duyệt";
-		String message = shortage
-				? ("Đơn " + orderCode + ": phiếu #" + dispatchId + " có dòng vượt tồn — cần Owner/Admin xử lý.")
-				: ("Đơn " + orderCode + ": phiếu #" + dispatchId + " đủ tồn — chờ Owner/Admin duyệt.");
+	private void notifyDispatchWaitingApproval(int actorUserId, long dispatchId, String orderCode) {
+		String title = "Phiếu xuất chờ duyệt";
+		String message = "Đơn " + orderCode + ": phiếu đã tạo — đủ tồn, chờ Owner/Admin duyệt.";
 		int refId = Math.toIntExact(dispatchId);
 		for (int recipientId : notificationRepo.findActiveOwnerAdminUserIds()) {
 			if (recipientId == actorUserId) {

@@ -3,8 +3,9 @@ import { mockInventory, mockInventoryKPIs } from './mockData';
 
 describe('Mock Data - Inventory (Task004)', () => {
   describe('Inventory Items', () => {
-    it('nên có đủ 8 sản phẩm mock', () => {
-      expect(mockInventory).toHaveLength(8);
+    it('nên có mock tồn kho (đồng bộ KPI)', () => {
+      expect(mockInventory.length).toBeGreaterThan(0);
+      expect(mockInventoryKPIs.totalSKUs).toBe(mockInventory.length);
     });
 
     it('nên có computed fields isLowStock và isExpiringSoon', () => {

@@ -72,6 +72,40 @@ export type GetInventoryListParams = {
   sort?: string
 }
 
+/** Khớp `InventoryListQuery.MAX_LIMIT` (BE) — vượt sẽ 400 "Giá trị phải từ 1 đến 100". */
+export const INVENTORY_LIST_API_MAX_LIMIT = 100
+
+/**
+ * Tải mọi dòng tồn cho một sản phẩm (phân trang nội bộ, mỗi trang ≤ {@link INVENTORY_LIST_API_MAX_LIMIT}).
+ * Dùng cho dropdown chọn lô khi một SP có nhiều vị trí/lô.
+ */
+export async function getInventoryListAllForProduct(
+  productId: number,
+  opts?: Pick<GetInventoryListParams, "stockLevel" | "sort">,
+): Promise<InventoryListItemResponse[]> {
+  const limit = INVENTORY_LIST_API_MAX_LIMIT
+  const stockLevel = opts?.stockLevel ?? "all"
+  const sort = opts?.sort
+  const out: InventoryListItemResponse[] = []
+  let page = 1
+  const maxPages = 500
+  while (page <= maxPages) {
+    const data = await getInventoryList({
+      productId,
+      page,
+      limit,
+      stockLevel,
+      ...(sort != null ? { sort } : {}),
+    })
+    out.push(...data.items)
+    if (data.items.length < limit || out.length >= data.total) {
+      break
+    }
+    page += 1
+  }
+  return out
+}
+
 /** Tham số lọc giống Task005 — KPI-only (Task009). */
 export type GetInventorySummaryParams = Pick<
   GetInventoryListParams,

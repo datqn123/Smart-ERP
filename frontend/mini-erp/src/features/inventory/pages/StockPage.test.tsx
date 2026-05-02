@@ -1,28 +1,58 @@
-import { render } from "@testing-library/react"
+import type { ReactElement } from "react"
+import { render, waitFor } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { MemoryRouter } from "react-router-dom"
 import { StockPage } from "./StockPage"
 import { describe, it, expect, vi } from "vitest"
 import { PageTitleProvider } from "@/context/PageTitleContext"
 
-// Mock lucide-react
-vi.mock("lucide-react", () => ({
-  Package: () => <div data-testid="package-icon" />,
-  AlertTriangle: () => <div data-testid="alert-icon" />,
-  CalendarClock: () => <div data-testid="calendar-clock-icon" />,
-  TrendingUp: () => <div data-testid="trending-up-icon" />,
-  Search: () => <div data-testid="search-icon" />,
-  Filter: () => <div data-testid="filter-icon" />,
-  Check: () => <div data-testid="check-icon" />,
-  CheckIcon: () => <div data-testid="check-icon" />,
-  ChevronDown: () => <div data-testid="chevron-down-icon" />,
-  MoreHorizontal: () => <div data-testid="more-icon" />,
-  Plus: () => <div data-testid="plus-icon" />,
-  Upload: () => <div data-testid="upload-icon" />,
-  Download: () => <div data-testid="download-icon" />,
-  Eye: () => <div data-testid="eye-icon" />,
-  Edit: () => <div data-testid="edit-icon" />,
-  Trash2: () => <div data-testid="trash-icon" />,
-  ArrowRightLeft: () => <div data-testid="transfer-icon" />,
+const inventoryApiMocks = vi.hoisted(() => {
+  const emptySummary = {
+    totalSkus: 0,
+    totalValue: 0,
+    lowStockCount: 0,
+    expiringSoonCount: 0,
+  }
+  const emptyListPage = {
+    summary: emptySummary,
+    items: [] as [],
+    page: 1,
+    limit: 20,
+    total: 0,
+  }
+  return { emptySummary, emptyListPage }
+})
+
+vi.mock("../api/inventoryApi", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/inventoryApi")>()
+  const { emptySummary, emptyListPage } = inventoryApiMocks
+  return {
+    ...actual,
+    getInventoryList: vi.fn().mockResolvedValue(emptyListPage),
+    getInventorySummary: vi.fn().mockResolvedValue(emptySummary),
+  }
+})
+
+vi.mock("../api/stockReceiptsApi", () => ({
+  postStockReceipt: vi.fn(),
 }))
+
+vi.mock("../api/dispatchApi", () => ({
+  postStockDispatch: vi.fn(),
+}))
+
+function renderWithProviders(ui: ReactElement) {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter>
+        <PageTitleProvider>{ui}</PageTitleProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
 
 // Mock IntersectionObserver
 vi.stubGlobal("IntersectionObserver", class {
@@ -41,33 +71,26 @@ vi.mock("../components/StockBatchDetailsDialog", () => ({
 }))
 
 describe("StockPage Layout Test", () => {
-  it("should render one scrollable stock table (thead + tbody aligned)", () => {
-    const { container } = render(
-      <PageTitleProvider>
-        <StockPage />
-      </PageTitleProvider>
-    )
+  it("should render one scrollable stock table (thead + tbody aligned)", async () => {
+    const { container } = renderWithProviders(<StockPage />)
 
     const mainContainer = container.firstChild as HTMLElement
     expect(mainContainer.className).toContain("h-full")
     expect(mainContainer.className).toContain("flex-col")
 
-    const tableWrapper = container.querySelector(".shadow-md.rounded-xl")
-    expect(tableWrapper).toBeTruthy()
-
-    const scroll = tableWrapper?.querySelector(".overflow-y-auto")
-    expect(scroll).toBeTruthy()
-    expect(scroll?.querySelector("thead")).toBeTruthy()
-    expect(scroll?.querySelector('[data-testid="stock-table"]')).toBeTruthy()
+    await waitFor(() => {
+      const tableWrapper = container.querySelector(".shadow-md.rounded-xl")
+      expect(tableWrapper).toBeTruthy()
+      const scroll = tableWrapper?.querySelector(".overflow-y-auto")
+      expect(scroll).toBeTruthy()
+      expect(scroll?.querySelector("thead")).toBeTruthy()
+      expect(scroll?.querySelector('[data-testid="stock-table"]')).toBeTruthy()
+    })
   })
 
   // AC3: Filter bar should NOT have shadow-sm
   it("should have filter bar without shadow", () => {
-    const { container } = render(
-      <PageTitleProvider>
-        <StockPage />
-      </PageTitleProvider>
-    )
+    const { container } = renderWithProviders(<StockPage />)
     
     // Filter Bar is the 3rd child (after Header section and KPI section)
     // It should be a div with class "bg-white border border-slate-200 rounded-lg p-4 shrink-0"

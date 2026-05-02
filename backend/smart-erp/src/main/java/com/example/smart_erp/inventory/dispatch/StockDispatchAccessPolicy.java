@@ -19,6 +19,21 @@ public final class StockDispatchAccessPolicy {
 		return StringUtils.hasText(role) && ADMIN_ROLE_NAME.equalsIgnoreCase(role);
 	}
 
+	/** PRD phiếu xuất: một số thao tác chỉ người tạo hoặc Admin (không gồm Owner nếu không phải Admin). */
+	public static boolean isCreatorOrAdmin(int dispatchCreatorUserId, Jwt jwt) {
+		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
+		if (uid == dispatchCreatorUserId) {
+			return true;
+		}
+		return isAdmin(jwt);
+	}
+
+	public static void assertCreatorOrAdmin(int dispatchCreatorUserId, Jwt jwt) {
+		if (!isCreatorOrAdmin(dispatchCreatorUserId, jwt)) {
+			throw new BusinessException(ApiErrorCode.FORBIDDEN, "Chỉ người tạo phiếu hoặc Admin.");
+		}
+	}
+
 	/**
 	 * Owner hoặc Admin — cùng claim {@code role} trên access JWT (đăng nhập / refresh).
 	 * User seed {@code admin} trong V1 gắn {@code role_id} của Owner (id=1), không phải bản ghi role tên "Admin".

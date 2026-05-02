@@ -3,7 +3,7 @@ import { mockInventory, mockInventoryKPIs, mockStockReceipts, mockStockDispatchs
 
 describe('Layout Tests - KPI Cards (Task004)', () => {
   it('nên hiển thị đúng KPI tổng SKUs', () => {
-    expect(mockInventoryKPIs.totalSKUs).toBe(8);
+    expect(mockInventoryKPIs.totalSKUs).toBe(mockInventory.length);
   });
 
   it('nên hiển thị đúng KPI giá trị tồn kho', () => {

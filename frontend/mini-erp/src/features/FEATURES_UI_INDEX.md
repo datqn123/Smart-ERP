@@ -16,7 +16,7 @@
 | `/inventory/locations` | `WarehouseLocationsPage` | `inventory/pages/WarehouseLocationsPage.tsx` |
 | `/inventory/inbound` | `InboundPage` | `inventory/pages/InboundPage.tsx` |
 | `/inventory/dispatch` | `DispatchPage` | `inventory/pages/DispatchPage.tsx` |
-| `/inventory/audit` | `AuditPage` | `inventory/pages/AuditPage.tsx` |
+| `/inventory/audit` | *Redirect* → `/inventory/stock` | `App.tsx` (không còn màn Kiểm kê trong menu) |
 | `/products/categories` | `CategoriesPage` | `product-management/pages/CategoriesPage.tsx` |
 | `/products/list` | `ProductsPage` | `product-management/pages/ProductsPage.tsx` |
 | `/products/suppliers` | `SuppliersPage` | `product-management/pages/SuppliersPage.tsx` |
@@ -64,7 +64,6 @@
 | Bảng / toolbar tồn | `components/StockTable.tsx`, `StockToolbar.tsx`, …; `pages/StockPage` — KPI qua Task009 (`getInventorySummary`); 20 bản ghi lần đầu, tải thêm khi **cuộn tới gần cuối** (`useInfiniteQuery`) |
 | Nhập kho | `pages/InboundPage.tsx` — list phiếu Task013 (`useInfiniteQuery` + `getStockReceiptList`); `components/ReceiptForm.tsx`, `ReceiptTable.tsx`, `ReceiptDetailPanel.tsx`, `ReceiptDetailDialog.tsx` |
 | Xuất / điều phối | `components/DispatchForm.tsx`, `DispatchTable.tsx`, `DispatchDetailDialog.tsx`, `DispatchDetailPanel.tsx` |
-| Kiểm kê | `components/AuditSessionsTable.tsx` (Task027), `components/AuditSessionCancelDialog.tsx` (Task027), `components/AuditSessionCreateForm.tsx` (Task022), `components/AuditSessionDetailDialog.tsx` (Task023–026 + **Owner** Duyệt/Từ chối/Xóa mềm GAP SRS §8.1), `components/AuditSessionPatchDialog.tsx` (Task024) |
 | Kho vị trí | `components/LocationTable.tsx`, `LocationToolbar.tsx` |
 | Badge trạng thái | `components/StatusBadge.tsx` |
 

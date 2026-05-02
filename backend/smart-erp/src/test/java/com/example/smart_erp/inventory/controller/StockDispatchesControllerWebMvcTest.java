@@ -1,6 +1,7 @@
 package com.example.smart_erp.inventory.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,7 +54,8 @@ class StockDispatchesControllerWebMvcTest {
 		var row = new StockDispatchListItemData(1L, "PX-1", "—", "K", LocalDate.of(2026, 1, 15), "U", 1,
 				"WaitingDispatch", 42, true, true, false, true, false);
 		var data = new StockDispatchListPageData(List.of(row), 1, 20, 1L);
-		when(manualStockDispatchService.list(any(), any(), any(), any(), eq(1), eq(20), any())).thenReturn(data);
+		when(manualStockDispatchService.list(any(), any(), any(), any(), anyBoolean(), eq(1), eq(20), any()))
+				.thenReturn(data);
 
 		mockMvc.perform(get("/api/v1/stock-dispatches").param("page", "1").param("limit", "20")
 				.with(Objects.requireNonNull(jwt().authorities(new SimpleGrantedAuthority("can_manage_inventory"))

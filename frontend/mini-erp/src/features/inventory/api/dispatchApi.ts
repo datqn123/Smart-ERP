@@ -4,6 +4,8 @@ import type { DispatchStatus, StockDispatch } from "../types"
 export type StockDispatchCreateLineBody = {
   inventoryId: number
   quantity: number
+  /** Snapshot giá bán (đơn vị cơ sở) — optional; BE ghi `unit_price_snapshot`. */
+  unitPriceSnapshot?: number | null
 }
 
 export type StockDispatchCreateBody = {
@@ -62,6 +64,8 @@ export type StockDispatchListPageResponse = {
 export type StockDispatchDetailLineResponse = {
   lineId: number
   inventoryId: number
+  /** Dùng để tải các lô tồn cùng sản phẩm khi đổi lô xuất (BE mới). */
+  productId?: number
   quantity: number
   availableQuantity: number
   shortageLine: boolean
@@ -110,6 +114,8 @@ export type GetStockDispatchListParams = {
   status?: string
   dateFrom?: string
   dateTo?: string
+  /** Chỉ phiếu do user đang đăng nhập tạo (theo JWT, server-side). */
+  mine?: boolean
 }
 
 export function postStockDispatch(body: StockDispatchCreateBody) {
@@ -200,6 +206,9 @@ export function getStockDispatchList(params: GetStockDispatchListParams = {}) {
   }
   if (params.dateTo?.trim()) {
     q.set("dateTo", params.dateTo.trim())
+  }
+  if (params.mine === true) {
+    q.set("mine", "true")
   }
   const qs = q.toString()
   return apiJson<StockDispatchListPageResponse>(

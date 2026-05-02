@@ -8,7 +8,6 @@ import { MainLayout } from "./components/shared/layout/MainLayout"
 
 // Inventory
 import { InboundPage } from "./features/inventory/pages/InboundPage"
-import { AuditPage } from "./features/inventory/pages/AuditPage"
 import { StockPage } from "./features/inventory/pages/StockPage"
 import { DispatchPage } from "./features/inventory/pages/DispatchPage"
 
@@ -81,7 +80,7 @@ function App() {
           <Route path="/inventory/locations" element={<WarehouseLocationsPage />} />
           <Route path="/inventory/inbound" element={<InboundPage />} />
           <Route path="/inventory/dispatch" element={<DispatchPage />} />
-          <Route path="/inventory/audit" element={<AuditPage />} />
+          <Route path="/inventory/audit" element={<Navigate to="/inventory/stock" replace />} />
 
           {/* Products Routes */}
           <Route path="/products/categories" element={<CategoriesPage />} />

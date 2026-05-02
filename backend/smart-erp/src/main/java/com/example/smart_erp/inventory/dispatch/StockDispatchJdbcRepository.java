@@ -31,6 +31,8 @@ public class StockDispatchJdbcRepository {
 	public record LockedInventoryRow(
 			long id,
 			int productId,
+			String productName,
+			String skuCode,
 			int locationId,
 			int quantity,
 			int lineUnitId,
@@ -40,7 +42,7 @@ public class StockDispatchJdbcRepository {
 
 	public Optional<LockedInventoryRow> lockInventoryRowForUpdate(long inventoryId) {
 		String sql = """
-				SELECT i.id, i.product_id, i.location_id, i.quantity,
+				SELECT i.id, i.product_id, p.name AS product_name, p.sku_code, i.location_id, i.quantity,
 				       COALESCE(i.unit_id, pub.id) AS line_unit_id,
 				       pub.id AS base_unit_id,
 				       COALESCE(pud.conversion_rate, 1) AS line_rate
@@ -58,6 +60,8 @@ public class StockDispatchJdbcRepository {
 			return Optional.of(new LockedInventoryRow(
 					rs.getLong("id"),
 					rs.getInt("product_id"),
+					rs.getString("product_name"),
+					rs.getString("sku_code"),
 					rs.getInt("location_id"),
 					rs.getInt("quantity"),
 					rs.getInt("line_unit_id"),
@@ -149,8 +153,14 @@ public class StockDispatchJdbcRepository {
 	}
 
 	private static void appendFilters(StringBuilder where, MapSqlParameterSource src, String search, String status,
-			String dateFrom, String dateTo) {
+			String dateFrom, String dateTo, Integer creatorUserId) {
 		boolean first = where.length() == 0;
+		if (creatorUserId != null) {
+			// Trailing space after :cb so concatenation never yields ":cbORDER..." (NamedParameterJdbcTemplate).
+			where.append(first ? " WHERE " : " AND ").append("sd.user_id = :cb ");
+			src.addValue("cb", creatorUserId);
+			first = false;
+		}
 		if (search != null && !search.isBlank()) {
 			where.append(first ? " WHERE " : " AND ").append("""
 					(sd.dispatch_code ILIKE :s
@@ -179,10 +189,10 @@ public class StockDispatchJdbcRepository {
 
 	private static final String ACTIVE_DISPATCH_FILTER = " WHERE sd.deleted_at IS NULL ";
 
-	public long countDispatches(String search, String status, String dateFrom, String dateTo) {
+	public long countDispatches(String search, String status, String dateFrom, String dateTo, Integer creatorUserId) {
 		StringBuilder where = new StringBuilder(ACTIVE_DISPATCH_FILTER);
 		MapSqlParameterSource src = new MapSqlParameterSource();
-		appendFilters(where, src, search, status, dateFrom, dateTo);
+		appendFilters(where, src, search, status, dateFrom, dateTo, creatorUserId);
 		String sql = "SELECT COUNT(*)::bigint FROM stockdispatches sd LEFT JOIN salesorders so ON so.id = sd.order_id "
 				+ where;
 		Long n = namedJdbc.queryForObject(sql, src, Long.class);
@@ -190,10 +200,10 @@ public class StockDispatchJdbcRepository {
 	}
 
 	public List<StockDispatchListItemData> listDispatches(String search, String status, String dateFrom, String dateTo,
-			int limit, int offset) {
+			Integer creatorUserId, int limit, int offset) {
 		StringBuilder where = new StringBuilder(ACTIVE_DISPATCH_FILTER);
 		MapSqlParameterSource src = new MapSqlParameterSource("lim", limit).addValue("off", offset);
-		appendFilters(where, src, search, status, dateFrom, dateTo);
+		appendFilters(where, src, search, status, dateFrom, dateTo, creatorUserId);
 		String sql = """
 				SELECT sd.id,
 				       sd.dispatch_code,
@@ -386,6 +396,7 @@ public class StockDispatchJdbcRepository {
 		String sql = """
 				SELECT sdl.id AS line_id,
 				       sdl.inventory_id,
+				       i.product_id AS product_id,
 				       sdl.quantity,
 				       i.quantity AS available_qty,
 				       p.name AS product_name,
@@ -404,6 +415,7 @@ public class StockDispatchJdbcRepository {
 				(rs, rn) -> new StockDispatchDetailLineData(
 						rs.getLong("line_id"),
 						rs.getLong("inventory_id"),
+						rs.getLong("product_id"),
 						rs.getInt("quantity"),
 						rs.getInt("available_qty"),
 						rs.getInt("quantity") > rs.getInt("available_qty"),
@@ -419,6 +431,7 @@ public class StockDispatchJdbcRepository {
 		String sql = """
 				SELECT il.id AS line_id,
 				       0::bigint AS inventory_id,
+				       il.product_id AS product_id,
 				       ABS(il.quantity_change)::int AS quantity,
 				       0 AS available_qty,
 				       p.name AS product_name,
@@ -433,6 +446,7 @@ public class StockDispatchJdbcRepository {
 				""";
 		return namedJdbc.query(sql, Map.of("id", dispatchId),
 				(rs, rn) -> new StockDispatchDetailLineData(rs.getLong("line_id"), rs.getLong("inventory_id"),
+						rs.getLong("product_id"),
 						rs.getInt("quantity"), rs.getInt("available_qty"), false, rs.getString("product_name"),
 						rs.getString("sku_code"),
 						rs.getString("warehouse_code") == null ? "—" : rs.getString("warehouse_code"),

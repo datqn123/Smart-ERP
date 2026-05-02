@@ -135,11 +135,12 @@ export const mockInventory: InventoryItem[] = [
   },
 ];
 
+/** Luôn khớp `mockInventory` (tránh lệch khi mở rộng mock). */
 export const mockInventoryKPIs = {
-  totalSKUs: 8,
-  totalValue: 13805000,
-  lowStockCount: 3,
-  expiringSoonCount: 2,
+  totalSKUs: mockInventory.length,
+  totalValue: mockInventory.reduce((sum, item) => sum + item.totalValue, 0),
+  lowStockCount: mockInventory.filter((i) => i.isLowStock).length,
+  expiringSoonCount: mockInventory.filter((i) => i.isExpiringSoon).length,
 };
 
 // ==========================================

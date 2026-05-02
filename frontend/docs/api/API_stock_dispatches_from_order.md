@@ -1,5 +1,10 @@
 # API: Tạo phiếu xuất gắn đơn & duyệt
 
+## `POST /api/v1/stock-dispatches` (xuất tay — màn Dispatch)
+
+- **UI mini-ERP**: dialog **Tạo phiếu xuất** trên trang Xuất kho gọi endpoint này (không dùng `/from-order`).
+- **Body** (JSON): `dispatchDate`, `referenceLabel` / `notes` (optional), `lines[]`: `inventoryId`, `quantity`, `unitPriceSnapshot` (optional trên hợp đồng API; form Dispatch gửi snapshot giá bán đơn vị cơ sở).
+
 ## `POST /api/v1/stock-dispatches/from-order`
 
 - **Quyền**: `can_manage_inventory`

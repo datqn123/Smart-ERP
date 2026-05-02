@@ -44,6 +44,19 @@ public class NotificationJdbcRepository {
 		return namedJdbc.query(sql, new MapSqlParameterSource(), (rs, row) -> rs.getInt("id"));
 	}
 
+	/** Chỉ role Admin (không gồm Owner) — thông báo chi tiết thiếu hàng phiếu xuất tay. */
+	public List<Integer> findActiveAdminUserIds() {
+		String sql = """
+				SELECT u.id
+				FROM users u
+				INNER JOIN roles r ON r.id = u.role_id
+				WHERE r.name = 'Admin'
+				  AND u.status = 'Active'
+				ORDER BY u.id ASC
+				""";
+		return namedJdbc.query(sql, new MapSqlParameterSource(), (rs, row) -> rs.getInt("id"));
+	}
+
 	public void insertSystemAlert(int recipientUserId, String title, String message, String referenceType,
 			int referenceId) {
 		String sql = """

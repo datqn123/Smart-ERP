@@ -55,11 +55,12 @@ public class StockDispatchesController {
 			@RequestParam(name = "status", required = false) String status,
 			@RequestParam(name = "dateFrom", required = false) String dateFrom,
 			@RequestParam(name = "dateTo", required = false) String dateTo,
+			@RequestParam(name = "mine", required = false, defaultValue = "false") boolean mine,
 			@RequestParam(name = "page", required = false, defaultValue = "1") int page,
 			@RequestParam(name = "limit", required = false, defaultValue = "20") int limit) {
 		Jwt jwt = requireJwt(authentication);
-		StockDispatchListPageData data = manualStockDispatchService.list(search, status, dateFrom, dateTo, page, limit,
-				jwt);
+		StockDispatchListPageData data = manualStockDispatchService.list(search, status, dateFrom, dateTo, mine, page,
+				limit, jwt);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
 	}
 

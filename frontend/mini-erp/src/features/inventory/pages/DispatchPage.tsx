@@ -3,7 +3,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useAuthStore } from "@/features/auth/store/useAuthStore"
 import { usePageTitle } from "@/context/PageTitleContext"
-import { Truck, Search, Calendar, Download, Upload, Plus } from "lucide-react"
+import { Truck, Search, Calendar, Plus, Check } from "lucide-react"
 import type { StockDispatch } from "../types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,10 +21,11 @@ import {
   getStockDispatchDetail,
   getStockDispatchList,
   mapStockDispatchListItemToUi,
-  postStockDispatchFromOrder,
+  postStockDispatch,
   softDeleteStockDispatch,
 } from "../api/dispatchApi"
 import { ApiRequestError } from "@/lib/api/http"
+import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 400
@@ -45,15 +46,16 @@ export function DispatchPage() {
   const navigate = useNavigate()
   const role = useAuthStore((s) => s.user?.role)
   const isElevated = role === "Owner" || role === "Admin"
+  const isAdmin = role === "Admin"
   const [searchParams, setSearchParams] = useSearchParams()
   const { setTitle } = usePageTitle()
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [onlyMine, setOnlyMine] = useState(false)
 
   const [selectedDispatch, setSelectedDispatch] = useState<StockDispatch | null>(null)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
@@ -90,8 +92,18 @@ export function DispatchPage() {
 
   const listQueryKey = useMemo(
     () =>
-      ["stock-dispatches", "v1", "list", debouncedSearch, statusFilter, dateFrom, dateTo, PAGE_SIZE] as const,
-    [debouncedSearch, statusFilter, dateFrom, dateTo],
+      [
+        "stock-dispatches",
+        "v1",
+        "list",
+        debouncedSearch,
+        statusFilter,
+        dateFrom,
+        dateTo,
+        onlyMine,
+        PAGE_SIZE,
+      ] as const,
+    [debouncedSearch, statusFilter, dateFrom, dateTo, onlyMine],
   )
 
   const panelDetailQuery = useQuery({
@@ -154,6 +166,7 @@ export function DispatchPage() {
           status: statusFilter === "all" ? undefined : statusFilter,
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
+          mine: onlyMine ? true : undefined,
         })
       },
       getNextPageParam: (lastPage) => {
@@ -203,19 +216,6 @@ export function DispatchPage() {
     }
   }, [isError, error])
 
-  const handleExportExcel = () => {
-    toast.info("Đang xuất dữ liệu Excel...")
-  }
-  const handleImportExcel = () => {
-    fileInputRef.current?.click()
-  }
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      toast.success(`Đã chọn file: ${file.name}. Đang xử lý import...`)
-    }
-  }
-
   const handleCreateDispatch = () => {
     setEditingDispatch(undefined)
     setIsFormOpen(true)
@@ -223,10 +223,10 @@ export function DispatchPage() {
 
   const handleFormSubmit = async (data: DispatchFormData) => {
     try {
-      const created = await postStockDispatchFromOrder({
-        orderId: data.orderId,
+      const created = await postStockDispatch({
         dispatchDate: data.dispatchDate,
-        notes: data.notes?.trim() || null,
+        referenceLabel: data.referenceLabel?.trim() || undefined,
+        notes: data.notes?.trim() || undefined,
         lines: data.items.map((it) => ({
           inventoryId: it.inventoryId,
           quantity: it.dispatchQty,
@@ -263,13 +263,6 @@ export function DispatchPage() {
           <Button onClick={handleCreateDispatch} className="h-11 bg-slate-900 hover:bg-slate-800 text-white">
             <Plus className="h-4 w-4 mr-2" /> Tạo phiếu xuất
           </Button>
-          <Button onClick={handleExportExcel} variant="outline" className="h-11">
-            <Download className="h-4 w-4 mr-2" /> Export
-          </Button>
-          <Button onClick={handleImportExcel} variant="outline" className="h-11">
-            <Upload className="h-4 w-4 mr-2" /> Import
-          </Button>
-          <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
         </div>
       </div>
 
@@ -317,6 +310,28 @@ export function DispatchPage() {
                 className="h-9 px-2 border border-slate-200 text-sm rounded bg-slate-50/50"
               />
             </div>
+            <button
+              type="button"
+              onClick={() => setOnlyMine((v) => !v)}
+              aria-pressed={onlyMine}
+              className={cn(
+                "inline-flex items-center gap-2 h-9 px-3 rounded-md border text-sm font-semibold transition-colors shrink-0",
+                onlyMine
+                  ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+              )}
+            >
+              <span
+                className={cn(
+                  "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                  onlyMine ? "border-white bg-white" : "border-slate-300 bg-white",
+                )}
+                aria-hidden
+              >
+                {onlyMine ? <Check className="h-3 w-3 text-slate-900" strokeWidth={3} /> : null}
+              </span>
+              Phiếu của tôi
+            </button>
           </div>
           <p className="text-xs font-medium text-slate-500 flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
@@ -344,6 +359,7 @@ export function DispatchPage() {
                   setStatusFilter("all")
                   setDateFrom("")
                   setDateTo("")
+                  setOnlyMine(false)
                 }}
                 variant="link"
                 className="mt-2 text-slate-900"
@@ -389,7 +405,7 @@ export function DispatchPage() {
         isOpen={isPanelOpen}
         onClose={() => setIsPanelOpen(false)}
         canApprove={true}
-        canApproveStockLines={isElevated}
+        canApproveStockLines={isAdmin}
         onApproveStockDispatch={() => approveStockDispatchMutation.mutate()}
         approveStockDispatchPending={approveStockDispatchMutation.isPending}
         detailFromApi={panelDetailQuery.data ?? null}

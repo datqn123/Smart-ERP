@@ -21,7 +21,7 @@ interface DispatchDetailDialogProps {
   isOpen: boolean;
   onClose: () => void;
   canApprove?: boolean;
-  /** Owner/Admin — duyệt phiếu gắn đơn (Pending → chờ xuất). */
+  /** Admin — duyệt phiếu có stockdispatch_lines (Pending/Partial → chờ xuất). */
   canApproveStockLines?: boolean;
   onApproveStockDispatch?: () => void;
   approveStockDispatchPending?: boolean;
@@ -99,7 +99,7 @@ export function DispatchDetailDialog({
           ) : null}
           {detailFromApi?.shortageWarning && !detailFromApi?.deleteReason ? (
             <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 text-amber-950 text-sm p-3">
-              Cảnh báo thiếu hàng: có dòng yêu cầu vượt tồn khả dụng.
+              Cảnh báo thiếu hàng
             </div>
           ) : null}
           {/* Progress Tracker (Premium Feel) */}
@@ -236,7 +236,8 @@ export function DispatchDetailDialog({
               <Button variant="outline" onClick={onClose} className="border-slate-300 h-10 px-6">Đóng</Button>
               {canApproveStockLines &&
                 onApproveStockDispatch &&
-                detailFromApi?.status === "Pending" &&
+                detailFromApi &&
+                (detailFromApi.status === "Pending" || detailFromApi.status === "Partial") &&
                 detailFromApi.stockLinesFulfillment &&
                 !detailFromApi.shortageWarning &&
                 !detailFromApi.deleteReason && (

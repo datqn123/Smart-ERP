@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react"
 import { useForm, useFieldArray, FormProvider } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Plus, X, Save, Send, ShoppingCart, Info, Trash2, CheckCircle2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,11 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatCurrency, formatDate } from "../utils"
 import type { StockReceipt } from "../types"
 import { calculateReceiptTotal } from "../inboundLogic"
-import {
-  RECEIPT_FORM_PRODUCTS,
-  type ReceiptFormProductOption,
-  catalogUnitForProduct,
-} from "../receiptFormCatalog"
+import { type ReceiptFormProductOption, catalogUnitForProduct } from "../receiptFormCatalog"
 import {
   approveStockReceipt,
   rejectStockReceipt,
@@ -41,7 +37,11 @@ import {
   TABLE_CELL_MONO_CLASS,
   TABLE_CELL_NUMBER_CLASS,
 } from "@/lib/data-table-layout"
-import { getProductById } from "@/features/product-management/api/productsApi"
+import {
+  getProductById,
+  getProductListAllPages,
+  type ProductListItemDto,
+} from "@/features/product-management/api/productsApi"
 import { receiptSchema, type ReceiptFormData } from "../receiptFormSchema"
 import { catalogCostForReceiptUnit } from "../receiptFormProductCost"
 import { ReceiptLineBatchExpiryFields } from "./ReceiptLineBatchExpiryFields"
@@ -98,12 +98,25 @@ function buildReceiptFormDefaultValues(receipt: StockReceipt | undefined): Recei
   }
 }
 
+function mapProductListItemToOption(item: ProductListItemDto): ReceiptFormProductOption {
+  return {
+    productId: item.id,
+    unitId: 0,
+    name: item.name,
+    sku: item.skuCode,
+    unitName: "—",
+  }
+}
+
 /**
- * Radix Select chỉ hiện label khi có `SelectItem` cùng `value`. Catalog tĩnh có id 1..8;
- * phiếu từ API có thể có sản phẩm ngoài bảng này — bổ sung từ `receipt.details` (tên, SKU, ĐVT từ BE).
+ * Radix Select chỉ hiện label khi có `SelectItem` cùng `value`.
+ * Danh sách sản phẩm từ API; phiếu cũ có thể tham chiếu SP đã xóa/không còn trong list — bổ sung từ `receipt.details`.
  */
-function mergeProductSelectOptions(receipt: StockReceipt | undefined): ReceiptFormProductOption[] {
-  const base = RECEIPT_FORM_PRODUCTS
+function mergeProductSelectOptions(
+  fromApi: ReceiptFormProductOption[],
+  receipt: StockReceipt | undefined,
+): ReceiptFormProductOption[] {
+  const base = fromApi
   if (!receipt?.details?.length) {
     return base
   }
@@ -167,13 +180,34 @@ export function ReceiptForm({
     }
   }, [open, receipt?.id])
 
+  const productsCatalogQ = useQuery({
+    queryKey: ["products", "receipt-form", "all-pages"],
+    queryFn: () => getProductListAllPages({ sort: "name:asc" }),
+    enabled: open,
+    staleTime: 60_000,
+  })
+
+  useEffect(() => {
+    if (!open || !productsCatalogQ.isError) {
+      return
+    }
+    toast.error("Không tải được danh sách sản phẩm")
+  }, [open, productsCatalogQ.isError])
+
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "details"
   })
 
   const formValues = form.watch()
-  const productSelectOptions = useMemo(() => mergeProductSelectOptions(receipt), [receipt])
+  const apiProductOptions = useMemo(
+    () => (productsCatalogQ.data ?? []).map(mapProductListItemToOption),
+    [productsCatalogQ.data],
+  )
+  const productSelectOptions = useMemo(
+    () => mergeProductSelectOptions(apiProductOptions, receipt),
+    [apiProductOptions, receipt],
+  )
   const totalAmount = useMemo(() => calculateReceiptTotal(formValues.details || []), [formValues.details])
 
   const submitWithMode = (saveMode: "draft" | "pending") =>
@@ -481,7 +515,7 @@ export function ReceiptForm({
                                   }
                                 })()
                               }}
-                              disabled={!isEditable}
+                              disabled={!isEditable || productsCatalogQ.isLoading}
                             >
                               <SelectTrigger
                                 className={cn(
@@ -490,7 +524,11 @@ export function ReceiptForm({
                                   FORM_FIELD_DISABLED_OPAQUE,
                                 )}
                               >
-                                <SelectValue placeholder="Chọn sản phẩm..." />
+                                <SelectValue
+                                  placeholder={
+                                    productsCatalogQ.isLoading ? "Đang tải danh sách sản phẩm…" : "Chọn sản phẩm…"
+                                  }
+                                />
                               </SelectTrigger>
                               <SelectContent>
                                 {productSelectOptions.map((p) => (

@@ -88,6 +88,23 @@ export function getProductList(params: GetProductListParams = {}) {
   return apiJson<ProductListPageDto>(`/api/v1/products?${q.toString()}`, { method: "GET", auth: true })
 }
 
+const PRODUCT_LIST_MAX_PAGE_SIZE = 100
+
+/** Lấy toàn bộ sản phẩm (lặp trang) cho dropdown form — `limit` tối đa 100 theo API Task034. */
+export async function getProductListAllPages(
+  params: Omit<GetProductListParams, "page" | "limit"> = {},
+): Promise<ProductListItemDto[]> {
+  const sort = params.sort ?? "name:asc"
+  const first = await getProductList({ ...params, page: 1, limit: PRODUCT_LIST_MAX_PAGE_SIZE, sort })
+  const items = [...first.items]
+  const totalPages = Math.max(1, Math.ceil(first.total / PRODUCT_LIST_MAX_PAGE_SIZE))
+  for (let page = 2; page <= totalPages; page++) {
+    const next = await getProductList({ ...params, page, limit: PRODUCT_LIST_MAX_PAGE_SIZE, sort })
+    items.push(...next.items)
+  }
+  return items
+}
+
 // --- Task036 — `GET /api/v1/products/{id}` + Task037 — `PATCH /api/v1/products/{id}`
 
 export type ProductUnitRowDto = {

@@ -48,11 +48,11 @@ export const RECEIPT_TABLE_COL = {
 export const DISPATCH_TABLE_COL = {
   dispatchCode: "w-[116px]",
   orderCode: "w-[116px] min-w-0",
-  customerName: "min-w-[200px]",
+  customerName: "w-[140px] min-w-0",
   dispatchDate: "w-[100px]",
-  userName: "w-[152px]",
+  userName: "w-[188px] min-w-0",
   itemCount: "w-[72px]",
-  status: "w-[112px]",
+  status: "w-[144px]",
 } as const
 
 /** Tồn kho (danh sách SKU) — có cột checkbox */

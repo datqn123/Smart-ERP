@@ -79,7 +79,7 @@ describe('Sorting Tests (Task004)', () => {
       let comparison = 0;
       switch (sortBy) {
         case 'productName':
-          comparison = a.productName.localeCompare(b.productName);
+          comparison = a.productName.localeCompare(b.productName, "vi");
           break;
         case 'quantity':
           comparison = a.quantity - b.quantity;
@@ -101,14 +101,14 @@ describe('Sorting Tests (Task004)', () => {
   it('nên sắp xếp đúng theo tên (asc)', () => {
     const result = sortInventory(mockInventory, 'productName', 'asc');
     for (let i = 0; i < result.length - 1; i++) {
-      expect(result[i].productName <= result[i + 1].productName).toBe(true);
+      expect(result[i].productName.localeCompare(result[i + 1].productName, "vi")).toBeLessThanOrEqual(0);
     }
   });
 
   it('nên sắp xếp đúng theo tên (desc)', () => {
     const result = sortInventory(mockInventory, 'productName', 'desc');
     for (let i = 0; i < result.length - 1; i++) {
-      expect(result[i].productName >= result[i + 1].productName).toBe(true);
+      expect(result[i].productName.localeCompare(result[i + 1].productName, "vi")).toBeGreaterThanOrEqual(0);
     }
   });
 
@@ -147,13 +147,13 @@ describe('Pagination Tests (Task004)', () => {
 
   it('nên phân trang đúng trang 2', () => {
     const result = paginate(mockInventory, 2, 5);
-    expect(result.data.length).toBe(3);
+    expect(result.data.length).toBe(5);
     expect(result.currentPage).toBe(2);
   });
 
   it('nên tính đúng totalPages', () => {
     const result = paginate(mockInventory, 1, 5);
-    expect(result.totalPages).toBe(2);
+    expect(result.totalPages).toBe(Math.ceil(mockInventory.length / 5));
   });
 
   it('nên trả về đúng limit items', () => {

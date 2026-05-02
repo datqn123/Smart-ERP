@@ -91,17 +91,18 @@ describe('Partial Dispatch Logic (Task006)', () => {
 });
 
 describe('Dispatch Validation (Task006)', () => {
-  interface DispatchFormData {
-    orderId: number;
-    items: { productId: number; dispatchQty: number; availableStock: number }[];
+  /** Mock validator giữ tinh thần form xuất tay: ngày + dòng có SP/lô/SL so với tồn dòng đã chọn */
+  interface ManualDispatchFormLike {
+    dispatchDate: string;
+    items: { productId: number; inventoryId: number; dispatchQty: number; availableStock: number }[];
     notes?: string;
   }
 
-  const validateDispatchForm = (data: DispatchFormData): string[] => {
+  const validateDispatchForm = (data: ManualDispatchFormLike): string[] => {
     const errors: string[] = [];
 
-    if (!data.orderId || data.orderId <= 0) {
-      errors.push('Đơn hàng là bắt buộc');
+    if (!data.dispatchDate?.trim()) {
+      errors.push('Ngày xuất là bắt buộc');
     }
 
     if (!data.items || data.items.length === 0) {
@@ -109,6 +110,12 @@ describe('Dispatch Validation (Task006)', () => {
     }
 
     data.items.forEach((item, index) => {
+      if (!item.productId || item.productId <= 0) {
+        errors.push(`Dòng ${index + 1}: Chọn sản phẩm`);
+      }
+      if (!item.inventoryId || item.inventoryId <= 0) {
+        errors.push(`Dòng ${index + 1}: Chọn lô tồn`);
+      }
       if (item.dispatchQty < 0) {
         errors.push(`Dòng ${index + 1}: Số lượng xuất không được âm`);
       }
@@ -120,24 +127,24 @@ describe('Dispatch Validation (Task006)', () => {
     return errors;
   };
 
-  it('nên báo lỗi khi không chọn đơn hàng', () => {
-    const data: DispatchFormData = { orderId: 0, items: [] };
-    expect(validateDispatchForm(data)).toContain('Đơn hàng là bắt buộc');
+  it('nên báo lỗi khi thiếu ngày hoặc không có dòng', () => {
+    expect(validateDispatchForm({ dispatchDate: '', items: [] })).toContain('Ngày xuất là bắt buộc');
+    expect(validateDispatchForm({ dispatchDate: '2026-01-01', items: [] })).toContain('Phải có ít nhất 1 mặt hàng');
   });
 
   it('nên báo lỗi khi xuất vượt tồn kho', () => {
-    const data: DispatchFormData = {
-      orderId: 1,
-      items: [{ productId: 1, dispatchQty: 100, availableStock: 50 }],
+    const data: ManualDispatchFormLike = {
+      dispatchDate: '2026-01-01',
+      items: [{ productId: 1, inventoryId: 9, dispatchQty: 100, availableStock: 50 }],
     };
     const errors = validateDispatchForm(data);
     expect(errors.some(e => e.includes('Không đủ tồn kho'))).toBe(true);
   });
 
   it('nên hợp lệ khi dữ liệu đúng', () => {
-    const data: DispatchFormData = {
-      orderId: 1,
-      items: [{ productId: 1, dispatchQty: 10, availableStock: 50 }],
+    const data: ManualDispatchFormLike = {
+      dispatchDate: '2026-01-01',
+      items: [{ productId: 1, inventoryId: 9, dispatchQty: 10, availableStock: 50 }],
     };
     expect(validateDispatchForm(data).length).toBe(0);
   });

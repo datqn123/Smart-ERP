@@ -38,4 +38,12 @@ class StockDispatchAccessPolicyTest {
 		assertThat(StockDispatchAccessPolicy.isAdmin(jwt("1", "Owner"))).isFalse();
 		assertThat(StockDispatchAccessPolicy.isAdmin(jwt("1", "Staff"))).isFalse();
 	}
+
+	@Test
+	void isCreatorOrAdmin_acceptsMatchingSubjectOrAdmin() {
+		assertThat(StockDispatchAccessPolicy.isCreatorOrAdmin(5, jwt("5", "Staff"))).isTrue();
+		assertThat(StockDispatchAccessPolicy.isCreatorOrAdmin(5, jwt("5", "Owner"))).isTrue();
+		assertThat(StockDispatchAccessPolicy.isCreatorOrAdmin(5, jwt("6", "Admin"))).isTrue();
+		assertThat(StockDispatchAccessPolicy.isCreatorOrAdmin(5, jwt("6", "Owner"))).isFalse();
+	}
 }

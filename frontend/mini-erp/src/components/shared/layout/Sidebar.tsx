@@ -11,7 +11,7 @@ import {
   ChevronDown
 } from "lucide-react"
 import { useSidebarStore, type NavItemKey } from "@/store/sidebarStore"
-import { useAuthStore } from "@/features/auth/store/useAuthStore"
+import { useAuthStore, type UserRole } from "@/features/auth/store/useAuthStore"
 import { logoutAndGoToLogin } from "@/features/auth/lib/sessionAuth"
 import type { MenuPermissions } from "@/features/auth/types/menuPermissions"
 import { useUIStore } from "@/store/useUIStore"
@@ -28,6 +28,8 @@ type SubItemSpec = {
   path: string
   always?: boolean
   perm?: keyof MenuPermissions
+  /** Chỉ hiện khi `user.role === "Admin"` và đã thỏa quyền nhóm cha (`allSubsPerm` / `perm`). */
+  adminOnly?: boolean
 }
 
 interface NavItemConfig {
@@ -97,7 +99,7 @@ const navConfig: NavItemConfig[] = [
     subItems: [
       { label: "Giao dịch thu chi", path: "/cashflow/transactions" },
       { label: "Sổ nợ", path: "/cashflow/debt" },
-      { label: "Sổ cái tài chính", path: "/cashflow/ledger" },
+      { label: "Sổ cái tài chính", path: "/cashflow/ledger", adminOnly: true },
     ],
   },
   {
@@ -122,12 +124,20 @@ const navConfig: NavItemConfig[] = [
   },
 ]
 
-function subItemVisible(s: SubItemSpec, p: MenuPermissions, all?: keyof MenuPermissions): boolean {
-  if (all) {
-    return Boolean(p[all])
-  }
+function subItemVisible(
+  s: SubItemSpec,
+  p: MenuPermissions,
+  all?: keyof MenuPermissions,
+  role?: UserRole | null,
+): boolean {
   if (s.always) {
     return true
+  }
+  if (s.adminOnly) {
+    return role === "Admin" && (all ? Boolean(p[all]) : s.perm ? Boolean(p[s.perm]) : false)
+  }
+  if (all) {
+    return Boolean(p[all])
   }
   if (s.perm) {
     return Boolean(p[s.perm])
@@ -135,11 +145,11 @@ function subItemVisible(s: SubItemSpec, p: MenuPermissions, all?: keyof MenuPerm
   return false
 }
 
-function buildNavForPermissions(p: MenuPermissions): NavItem[] {
+function buildNavForPermissions(p: MenuPermissions, role: UserRole | null): NavItem[] {
   const out: NavItem[] = []
   for (const c of navConfig) {
     const subs = c.subItems
-      .filter((s) => subItemVisible(s, p, c.allSubsPerm))
+      .filter((s) => subItemVisible(s, p, c.allSubsPerm, role))
       .map((s) => ({ label: s.label, path: s.path }))
     if (subs.length === 0) {
       continue
@@ -157,11 +167,12 @@ export function Sidebar({ isMobile = false }: SidebarProps) {
   const isResizing = useRef(false)
   const zustandLogout = useAuthStore((state) => state.logout)
   const menuPermissions = useAuthStore((state) => state.menuPermissions)
+  const userRole = useAuthStore((state) => state.user?.role ?? null)
   const [loggingOut, setLoggingOut] = useState(false)
 
   const filteredNavItems = useMemo(
-    () => buildNavForPermissions(menuPermissions),
-    [menuPermissions],
+    () => buildNavForPermissions(menuPermissions, userRole),
+    [menuPermissions, userRole],
   )
 
   const isActiveRoute = (path: string) => location.pathname === path

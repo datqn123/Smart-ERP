@@ -53,7 +53,8 @@ class FinanceLedgerControllerWebMvcTest {
 		when(financeLedgerService.list(any(), any(), any(), any(), any(), any(), any())).thenReturn(data);
 
 		mockMvc.perform(get("/api/v1/finance-ledger").with(Objects.requireNonNull(
-				jwt().jwt(j -> j.subject("1").claim("mp", Map.of("can_view_finance", true)))))).andExpect(status().isOk())
+				jwt().jwt(j -> j.subject("1").claim("role", "Admin").claim("mp", Map.of("can_view_finance", true))))))
+				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.total").value(1))
 				.andExpect(jsonPath("$.data.items[0].transactionCode").value("SO-88"));
 
@@ -63,7 +64,16 @@ class FinanceLedgerControllerWebMvcTest {
 	@Test
 	void list_returns403WhenCannotViewFinance() throws Exception {
 		mockMvc.perform(get("/api/v1/finance-ledger").with(Objects.requireNonNull(
-				jwt().jwt(j -> j.subject("2").claim("mp", Map.of("can_view_finance", false)))))).andExpect(status().isForbidden());
+				jwt().jwt(j -> j.subject("2").claim("role", "Admin").claim("mp", Map.of("can_view_finance", false))))))
+				.andExpect(status().isForbidden());
+		verify(financeLedgerService, never()).list(any(), any(), any(), any(), any(), any(), any());
+	}
+
+	@Test
+	void list_returns403WhenOwnerWithFinanceButNotAdmin() throws Exception {
+		mockMvc.perform(get("/api/v1/finance-ledger").with(Objects.requireNonNull(
+				jwt().jwt(j -> j.subject("3").claim("role", "Owner").claim("mp", Map.of("can_view_finance", true))))))
+				.andExpect(status().isForbidden());
 		verify(financeLedgerService, never()).list(any(), any(), any(), any(), any(), any(), any());
 	}
 
@@ -73,7 +83,8 @@ class FinanceLedgerControllerWebMvcTest {
 				.thenThrow(new BusinessException(ApiErrorCode.BAD_REQUEST, "Ngày bắt đầu không được sau ngày kết thúc."));
 
 		mockMvc.perform(get("/api/v1/finance-ledger").param("dateFrom", "2026-04-10").param("dateTo", "2026-04-01")
-				.with(Objects.requireNonNull(jwt().jwt(j -> j.subject("1").claim("mp", Map.of("can_view_finance", true))))))
+				.with(Objects.requireNonNull(
+						jwt().jwt(j -> j.subject("1").claim("role", "Admin").claim("mp", Map.of("can_view_finance", true))))))
 				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false));
 	}
 }

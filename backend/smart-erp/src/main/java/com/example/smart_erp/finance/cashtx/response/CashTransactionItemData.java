@@ -11,5 +11,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record CashTransactionItemData(long id, String transactionCode, String direction, BigDecimal amount, String category,
 		String description, String paymentMethod, String status, String transactionDate, Long financeLedgerId, int createdBy,
-		String createdByName, int performedBy, String performedByName, Instant createdAt, Instant updatedAt) {
+		String createdByName, int performedBy, String performedByName, Instant createdAt, Instant updatedAt, Integer fundId,
+		String fundCode) {
 }

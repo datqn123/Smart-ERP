@@ -28,7 +28,8 @@ import {
   Save,
   ArrowUpCircle,
   ArrowDownCircle,
-  Activity
+  Activity,
+  Landmark,
 } from "lucide-react"
 import type { Transaction } from "../types"
 import { cn } from "@/lib/utils"
@@ -42,6 +43,7 @@ import {
   FORM_LABEL_CLASS,
   FORM_INPUT_CLASS,
 } from "@/lib/data-table-layout"
+import type { CashFundItem } from "../api/cashFundsApi"
 
 function mapTransactionToFormValues(t: Transaction) {
   const amt = typeof t.amount === "number" && !Number.isNaN(t.amount) ? t.amount : Number(t.amount)
@@ -54,6 +56,7 @@ function mapTransactionToFormValues(t: Transaction) {
     paymentMethod: t.paymentMethod ?? "Cash",
     status: t.status,
     description: t.description ?? "",
+    fundId: t.fundId != null && t.fundId > 0 ? t.fundId : undefined,
   }
 }
 
@@ -69,6 +72,9 @@ interface TransactionFormDialogProps {
   mode: "create" | "edit"
   /** Task066 — GET by id khi sửa (đủ read-model). */
   detailSourceId?: number | null
+  fundOptions?: CashFundItem[]
+  defaultFundId?: number | null
+  fundsLoading?: boolean
 }
 
 export function TransactionFormDialog({
@@ -78,8 +84,11 @@ export function TransactionFormDialog({
   initialData,
   mode,
   detailSourceId = null,
+  fundOptions = [],
+  defaultFundId = null,
+  fundsLoading = false,
 }: TransactionFormDialogProps) {
-  const { register, handleSubmit, reset, setValue, watch } = useForm({
+  const { register, handleSubmit, reset, setValue, watch } = useForm<Record<string, unknown>>({
     defaultValues: initialData || {
       transactionCode: `TRANS-${Math.floor(Date.now() / 1000)}`,
       direction: 'Income',
@@ -88,7 +97,8 @@ export function TransactionFormDialog({
       transactionDate: new Date().toISOString().split('T')[0],
       paymentMethod: 'Cash',
       status: "Pending",
-      description: ''
+      description: '',
+      fundId: defaultFundId ?? undefined,
     }
   })
 
@@ -121,6 +131,7 @@ export function TransactionFormDialog({
         paymentMethod: "Cash",
         status: "Pending",
         description: "",
+        fundId: defaultFundId ?? undefined,
       })
       return
     }
@@ -131,9 +142,18 @@ export function TransactionFormDialog({
     if (initialData) {
       reset(mapTransactionToFormValues(initialData))
     }
-  }, [isOpen, mode, initialData, detailQuery.data, reset])
+  }, [isOpen, mode, initialData, detailQuery.data, reset, defaultFundId])
 
   const directionValue = watch("direction")
+  const fundIdWatch = watch("fundId") as number | string | undefined
+  const fundSelectValue =
+    fundIdWatch != null && fundIdWatch !== ""
+      ? String(fundIdWatch)
+      : defaultFundId != null
+        ? String(defaultFundId)
+        : fundOptions[0]?.id != null
+          ? String(fundOptions[0].id)
+          : ""
   const editLoadingFresh = mode === "edit" && detailSourceId != null && detailQuery.isFetching && !detailQuery.data
 
   const serverRow = mode === "edit" ? (detailQuery.data ?? initialData ?? null) : null
@@ -157,7 +177,7 @@ export function TransactionFormDialog({
         ) : null}
         <DialogHeader className="p-8 pb-6 bg-slate-50/50 border-b border-slate-100">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl flex items-center justify-center bg-slate-900 text-white shadow-lg shadow-slate-200">
+            <div className="h-12 w-12 rounded-xl flex items-center justify-center bg-slate-800 text-white">
               {directionValue === 'Income' ? <ArrowUpCircle size={24} /> : <ArrowDownCircle size={24} />}
             </div>
             <div>
@@ -188,8 +208,8 @@ export function TransactionFormDialog({
                   <SelectValue placeholder="Chọn loại..." />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-slate-200 shadow-xl">
-                  <SelectItem value="Income" className="text-emerald-600 font-bold">Thu tiền (+)</SelectItem>
-                  <SelectItem value="Expense" className="text-rose-600 font-bold">Chi tiền (-)</SelectItem>
+                  <SelectItem value="Income" className="text-slate-800 font-medium">Thu tiền (+)</SelectItem>
+                  <SelectItem value="Expense" className="text-slate-800 font-medium">Chi tiền (-)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -231,6 +251,37 @@ export function TransactionFormDialog({
               />
             </div>
 
+            <div className="space-y-2">
+              <Label className={FORM_LABEL_CLASS}>
+                <Landmark size={12} className="inline mr-1" /> Quỹ tiền
+              </Label>
+              {mode === "edit" && lockMoneyFields ? (
+                <p className={cn(FORM_INPUT_CLASS, "h-14 flex items-center text-sm font-bold text-slate-800")}>
+                  {serverRow?.fundCode ?? serverRow?.fundId ?? "—"}
+                </p>
+              ) : (
+                <Select
+                  value={fundSelectValue}
+                  onValueChange={(val) => setValue("fundId", Number(val), { shouldValidate: true })}
+                  disabled={lockMoneyFields || fundsLoading || fundOptions.length === 0}
+                >
+                  <SelectTrigger
+                    disabled={lockMoneyFields || fundsLoading || fundOptions.length === 0}
+                    className={cn(FORM_INPUT_CLASS, "h-14 font-bold")}
+                  >
+                    <SelectValue placeholder={fundsLoading ? "Đang tải quỹ…" : "Chọn quỹ…"} />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                    {fundOptions.map((f) => (
+                      <SelectItem key={f.id} value={String(f.id)}>
+                        {f.name} ({f.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
             {/* Row 3 */}
             <div className="space-y-2">
               <Label className={FORM_LABEL_CLASS}>
@@ -261,7 +312,7 @@ export function TransactionFormDialog({
                   <Activity size={12} className="inline mr-1" /> Trạng thái
                 </Label>
                 <p className={cn(FORM_INPUT_CLASS, "h-14 flex items-center text-sm text-slate-600 font-medium")}>
-                  Phiếu mới: <span className="ml-1 font-bold text-amber-700">Chờ xử lý</span>
+                  Phiếu mới: <span className="ml-1 font-semibold text-slate-800">Chờ xử lý</span>
                   <span className="text-slate-400 font-normal ml-1">(server — hoàn tất sau khi lưu)</span>
                 </p>
               </div>
@@ -314,7 +365,8 @@ export function TransactionFormDialog({
               <Button variant="ghost" onClick={onClose} className="px-6 font-bold text-slate-400 hover:text-slate-900 rounded-xl">Hủy bỏ</Button>
               <Button 
                 onClick={handleSubmit(onFormSubmit)}
-                className="px-8 font-black uppercase tracking-widest bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-200 rounded-xl text-white"
+                disabled={mode === "create" && (fundsLoading || fundOptions.length === 0)}
+                className="px-8 font-semibold bg-slate-900 hover:bg-slate-800 rounded-lg text-white"
               >
                 {mode === 'edit' ? <Save className="mr-2" size={18} /> : <PlusCircle className="mr-2" size={18} />}
                 {mode === 'edit' ? "Lưu thay đổi" : "Lập phiếu"}

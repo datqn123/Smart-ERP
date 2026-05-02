@@ -1,7 +1,7 @@
 # 📄 API SPEC: `GET /api/v1/cash-transactions` — Danh sách giao dịch thu chi — Task064
 
-> **Trạng thái**: Approved (đồng bộ SRS Task064–068 — 30/04/2026)  
-> **SRS backend:** [`../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md`](../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md)  
+> **Trạng thái**: Approved (đồng bộ SRS Task064–068 + PRD quỹ — 02/05/2026)  
+> **SRS backend:** [`../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md`](../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md), [`../../../backend/docs/srs/SRS_PRD_cash-transactions-admin-unified-multi-fund.md`](../../../backend/docs/srs/SRS_PRD_cash-transactions-admin-unified-multi-fund.md)  
 > **Feature**: Cashflow — màn **Giao dịch thu chi** (`TransactionsPage`, `/cashflow/transactions`)  
 > **Tags**: RESTful, Finance, Pagination
 
@@ -50,6 +50,7 @@
 | `dateFrom` | date | — | `transaction_date >=` |
 | `dateTo` | date | — | `transaction_date <=` |
 | `search` | string | — | `ILIKE` trên `transaction_code`, `category`, `description`, **`full_name`** người tạo & người thực hiện (JOIN `users`) |
+| `fundId` | int | — | Lọc theo `cashtransactions.fund_id` (PRD quỹ) |
 | `page` | int | `1` | |
 | `limit` | int 1–100 | `20` | |
 
@@ -64,6 +65,7 @@
 | `transactionCode` | `transactionCode` |
 | Người tạo | `createdBy`, `createdByName` |
 | Người thực hiện gần nhất | `performedBy`, `performedByName` |
+| Quỹ | `fundId`, `fundCode` (JOIN `cash_funds`) |
 
 **Sắp xếp & lọc ngày (SRS §4 OQ-5 / BR-11):** Nếu **không** gửi cả `dateFrom` và `dateTo` → không lọc theo `transaction_date`, sort **`created_at DESC, id DESC`**. Nếu gửi **ít nhất một** mốc ngày → lọc `transaction_date` tương ứng, sort **`transaction_date DESC, id DESC`**.
 
@@ -92,7 +94,9 @@
         "performedBy": 3,
         "performedByName": "Nguyễn Văn A",
         "createdAt": "2026-04-22T10:00:00Z",
-        "updatedAt": "2026-04-22T10:00:00Z"
+        "updatedAt": "2026-04-22T10:00:00Z",
+        "fundId": 1,
+        "fundCode": "CASH"
       }
     ],
     "page": 1,
@@ -107,7 +111,7 @@
 
 ## 8. Database
 
-`SELECT` từ `cashtransactions` + JOIN `users` (tên người tạo / thực hiện) + `WHERE` theo filter + `ORDER BY` theo có/không mốc ngày (SRS **BR-11**) + `LIMIT/OFFSET`.
+`SELECT` từ `cashtransactions` + JOIN `users` (tên người tạo / thực hiện) + JOIN `cash_funds` (`fund_code`) + `WHERE` theo filter (gồm `fund_id` nếu có) + `ORDER BY` theo có/không mốc ngày (SRS **BR-11**) + `LIMIT/OFFSET`.
 
 ---
 
@@ -127,6 +131,7 @@ export const CashTransactionsListQuerySchema = z.object({
   status: z.enum(["Pending", "Completed", "Cancelled"]).optional(),
   dateFrom: z.string().date().optional(),
   dateTo: z.string().date().optional(),
+  fundId: z.coerce.number().int().positive().optional(),
   search: z.string().optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),

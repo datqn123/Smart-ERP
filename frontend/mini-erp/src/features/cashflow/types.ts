@@ -21,6 +21,8 @@ export interface CashTransaction {
   createdByName?: string
   performedBy?: number
   performedByName?: string
+  fundId?: number | null
+  fundCode?: string | null
 }
 
 /** Alias cũ — cùng kiểu với `CashTransaction` */

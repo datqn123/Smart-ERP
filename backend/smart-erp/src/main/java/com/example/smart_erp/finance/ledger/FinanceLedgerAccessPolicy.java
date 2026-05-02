@@ -9,8 +9,9 @@ import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.exception.BusinessException;
 
 /**
- * SRS Task063 §6 / OQ-2: chỉ kiểm tra claim {@code can_view_finance} (trong claim
- * {@code mp}) — không ngoại lệ theo role.
+ * SRS Task063 §6 / OQ-2: kiểm tra claim {@code can_view_finance} (trong claim
+ * {@code mp}). Riêng endpoint sổ cái tài chính: thêm yêu cầu JWT claim {@code role}
+ * là {@code Admin} (PRD bảo mật).
  */
 public final class FinanceLedgerAccessPolicy {
 
@@ -24,6 +25,18 @@ public final class FinanceLedgerAccessPolicy {
 		}
 		Object v = map.get("can_view_finance");
 		if (Boolean.TRUE.equals(v)) {
+			return;
+		}
+		throw new BusinessException(ApiErrorCode.FORBIDDEN, forbiddenMessage);
+	}
+
+	/**
+	 * Sổ cái tài chính: {@code can_view_finance} và chỉ vai trò {@code Admin}.
+	 */
+	public static void assertFinanceLedgerAdminOnly(Jwt jwt, String forbiddenMessage) {
+		assertCanViewFinanceLedger(jwt, forbiddenMessage);
+		Object role = jwt.getClaim("role");
+		if ("Admin".equals(role)) {
 			return;
 		}
 		throw new BusinessException(ApiErrorCode.FORBIDDEN, forbiddenMessage);

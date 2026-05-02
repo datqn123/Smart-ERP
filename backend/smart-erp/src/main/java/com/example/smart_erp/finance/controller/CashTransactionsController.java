@@ -56,12 +56,13 @@ public class CashTransactionsController {
 			@RequestParam(name = "status", required = false) String status,
 			@RequestParam(name = "dateFrom", required = false) String dateFrom,
 			@RequestParam(name = "dateTo", required = false) String dateTo,
+			@RequestParam(name = "fundId", required = false) String fundId,
 			@RequestParam(name = "search", required = false) String search,
 			@RequestParam(name = "page", required = false) String page,
 			@RequestParam(name = "limit", required = false) String limit) {
 		Jwt jwt = requireJwt(authentication);
 		FinanceLedgerAccessPolicy.assertCanViewFinanceLedger(jwt, FORBIDDEN_FINANCE);
-		CashTransactionPageData data = service.list(type, status, dateFrom, dateTo, search, page, limit);
+		CashTransactionPageData data = service.list(type, status, dateFrom, dateTo, fundId, search, page, limit);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
 	}
 

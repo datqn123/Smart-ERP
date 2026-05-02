@@ -12,10 +12,12 @@ import org.springframework.util.StringUtils;
 
 import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.exception.BusinessException;
+import com.example.smart_erp.finance.cashfunds.CashFundJdbcRepository;
 import com.example.smart_erp.finance.cashtx.CashTransactionJdbcRepository.CashLockRow;
 import com.example.smart_erp.finance.cashtx.request.CashTransactionCreateRequest;
 import com.example.smart_erp.finance.cashtx.response.CashTransactionItemData;
 import com.example.smart_erp.finance.cashtx.response.CashTransactionPageData;
+import com.example.smart_erp.inventory.dispatch.StockDispatchAccessPolicy;
 import com.example.smart_erp.inventory.receipts.lifecycle.StockReceiptAccessPolicy;
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -35,18 +37,21 @@ public class CashTransactionService {
 	private static final String MSG_NOT_CREATOR = "Chỉ người tạo phiếu mới được thực hiện thao tác này.";
 	private static final String MSG_COMPLETED_LOCKED = "Không thể sửa giao dịch đã hoàn tất";
 	private static final String MSG_DELETE_CONFLICT = "Không thể xóa giao dịch đã hoàn tất hoặc đã liên kết sổ cái";
+	private static final String MSG_FUND_NOT_FOUND = "Không tìm thấy quỹ được chọn.";
 	private static final String MSG_PATCH_EMPTY = "Thông tin không hợp lệ: cần ít nhất một trường cập nhật";
 	private static final String MSG_BAD_STATUS_POST = "Thông tin không hợp lệ: trạng thái không hợp lệ";
 	private static final String MSG_CANCELLED_PATCH = "Không thể sửa giao dịch đã huỷ ngoài trường mô tả";
 
 	private final CashTransactionJdbcRepository repo;
+	private final CashFundJdbcRepository cashFundRepo;
 
-	public CashTransactionService(CashTransactionJdbcRepository repo) {
+	public CashTransactionService(CashTransactionJdbcRepository repo, CashFundJdbcRepository cashFundRepo) {
 		this.repo = repo;
+		this.cashFundRepo = cashFundRepo;
 	}
 
-	public CashTransactionPageData list(String type, String status, String dateFromRaw, String dateToRaw, String searchRaw,
-			String pageRaw, String limitRaw) {
+	public CashTransactionPageData list(String type, String status, String dateFromRaw, String dateToRaw, String fundIdRaw,
+			String searchRaw, String pageRaw, String limitRaw) {
 		String direction = mapTypeToDirection(type);
 		LocalDate dateFrom = parseDateOrNull(dateFromRaw, "dateFrom");
 		LocalDate dateTo = parseDateOrNull(dateToRaw, "dateTo");
@@ -54,12 +59,14 @@ public class CashTransactionService {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Thông tin không hợp lệ: khoảng ngày không đúng");
 		}
 		boolean sortByCreatedAt = dateFrom == null && dateTo == null;
+		Integer fundId = parseOptionalFundId(fundIdRaw);
 		int page = parsePositiveInt(pageRaw, 1, 1, 1_000_000, "page");
 		int limit = parsePositiveInt(limitRaw, 20, 1, 100, "limit");
-		long total = repo.countList(direction, status, dateFrom, dateTo, CashTransactionJdbcRepository.toSearchPatternOrNull(searchRaw));
+		long total = repo.countList(direction, status, dateFrom, dateTo, fundId,
+				CashTransactionJdbcRepository.toSearchPatternOrNull(searchRaw));
 		int offset = (page - 1) * limit;
-		var items = repo.loadPage(direction, status, dateFrom, dateTo, CashTransactionJdbcRepository.toSearchPatternOrNull(searchRaw),
-				limit, offset, sortByCreatedAt);
+		var items = repo.loadPage(direction, status, dateFrom, dateTo, fundId,
+				CashTransactionJdbcRepository.toSearchPatternOrNull(searchRaw), limit, offset, sortByCreatedAt);
 		return new CashTransactionPageData(items, page, limit, total);
 	}
 
@@ -74,6 +81,10 @@ public class CashTransactionService {
 		if (req.status() != null && !req.status().isBlank() && !"Pending".equalsIgnoreCase(req.status().trim())) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, MSG_BAD_STATUS_POST);
 		}
+		int fundId = req.fundId();
+		if (!cashFundRepo.existsActiveById(fundId)) {
+			throw new BusinessException(ApiErrorCode.NOT_FOUND, MSG_FUND_NOT_FOUND);
+		}
 		String pm = StringUtils.hasText(req.paymentMethod()) ? req.paymentMethod().trim() : "Cash";
 		if (pm.length() > 30) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Thông tin không hợp lệ: paymentMethod quá dài");
@@ -84,7 +95,7 @@ public class CashTransactionService {
 		int next = repo.nextCodeSequenceSuffix(year, prefix) + 1;
 		String code = String.format("%s-%d-%04d", prefix, year, next);
 		String desc = req.description() != null ? req.description() : null;
-		long id = repo.insert(code, dir, amt, req.category().trim(), desc, pm, req.transactionDate(), uid);
+		long id = repo.insert(code, dir, amt, req.category().trim(), desc, pm, req.transactionDate(), fundId, uid);
 		return repo.findItemById(id).orElseThrow(() -> new IllegalStateException("Không load được bản ghi vừa tạo"));
 	}
 
@@ -95,9 +106,7 @@ public class CashTransactionService {
 		}
 		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
 		CashLockRow row = repo.lockForUpdate(id).orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND, MSG_NOT_FOUND));
-		if (row.createdBy() != uid) {
-			throw new BusinessException(ApiErrorCode.FORBIDDEN, MSG_NOT_CREATOR);
-		}
+		assertCanMutateCashTx(row.createdBy(), uid, jwt);
 		Iterator<String> names = body.fieldNames();
 		while (names.hasNext()) {
 			String k = names.next();
@@ -150,7 +159,7 @@ public class CashTransactionService {
 		}
 		String category = row.category();
 		if (body.has("category")) {
-			category = readNonBlankText(body.get("category"), "category", 100);
+			category = readNonBlankText(body.get("category"), "category", 500);
 		}
 		String description = row.description();
 		if (body.has("description")) {
@@ -191,7 +200,8 @@ public class CashTransactionService {
 		BigDecimal signed = "Income".equals(dir) ? amount : amount.negate();
 		String ledgerType = "Income".equals(dir) ? "SalesRevenue" : "OperatingExpense";
 		String descLedger = StringUtils.hasText(description) ? description : category;
-		int ledgerId = repo.insertFinanceLedgerAndReturnId(td, ledgerType, Math.toIntExact(row.id()), signed, descLedger, uid);
+		int ledgerId = repo.insertFinanceLedgerAndReturnId(td, ledgerType, Math.toIntExact(row.id()), signed, descLedger, row.fundId(),
+				uid);
 		repo.updateRowAfterPatch(row.id(), amount, category, description, paymentMethod, td, "Completed", ledgerId, uid);
 		return repo.findItemById(row.id()).orElseThrow();
 	}
@@ -200,9 +210,7 @@ public class CashTransactionService {
 	public void delete(long id, Jwt jwt) {
 		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
 		CashLockRow row = repo.lockForUpdate(id).orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND, MSG_NOT_FOUND));
-		if (row.createdBy() != uid) {
-			throw new BusinessException(ApiErrorCode.FORBIDDEN, MSG_NOT_CREATOR);
-		}
+		assertCanMutateCashTx(row.createdBy(), uid, jwt);
 		if (row.financeLedgerId() != null || "Completed".equals(row.status())) {
 			throw new BusinessException(ApiErrorCode.CONFLICT, MSG_DELETE_CONFLICT);
 		}
@@ -299,6 +307,28 @@ public class CashTransactionService {
 		}
 		catch (Exception e) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Thông tin không hợp lệ: " + name);
+		}
+	}
+
+	private static void assertCanMutateCashTx(int createdBy, int currentUserId, Jwt jwt) {
+		if (createdBy == currentUserId) {
+			return;
+		}
+		if (StockDispatchAccessPolicy.isAdmin(jwt)) {
+			return;
+		}
+		throw new BusinessException(ApiErrorCode.FORBIDDEN, MSG_NOT_CREATOR);
+	}
+
+	private static Integer parseOptionalFundId(String raw) {
+		if (!StringUtils.hasText(raw)) {
+			return null;
+		}
+		try {
+			return Integer.parseInt(raw.trim());
+		}
+		catch (NumberFormatException e) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Thông tin không hợp lệ: fundId");
 		}
 	}
 

@@ -18,6 +18,7 @@ import {
   CreditCard,
   Activity,
   User,
+  Landmark,
 } from "lucide-react"
 import type { Transaction } from "../types"
 import { paymentMethodLabel } from "../utils"
@@ -91,12 +92,7 @@ function DetailBody({ transaction, onClose }: { transaction: Transaction; onClos
             <div className="flex items-center gap-3 mb-2">
               <span
                 className={cn(
-                  "px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border",
-                  transaction.status === "Completed"
-                    ? "bg-green-50 text-green-700 border-green-200"
-                    : transaction.status === "Pending"
-                      ? "bg-amber-50 text-amber-700 border-amber-200"
-                      : "bg-red-50 text-red-700 border-red-200",
+                  "px-2.5 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide border border-slate-200 bg-slate-50 text-slate-700",
                 )}
               >
                 {transaction.status === "Completed"
@@ -118,7 +114,7 @@ function DetailBody({ transaction, onClose }: { transaction: Transaction; onClos
             </div>
             <div className="text-right">
               <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black">Giá trị biến động</p>
-              <p className={cn("text-xl font-black tracking-tight", isIncome ? "text-emerald-600" : "text-rose-600")}>
+              <p className="text-xl font-semibold tabular-nums tracking-tight text-slate-900">
                 {isIncome ? "+" : "-"}
                 {formatCurrency(transaction.amount)}
               </p>
@@ -157,6 +153,16 @@ function DetailBody({ transaction, onClose }: { transaction: Transaction; onClos
           </div>
 
           <div className="space-y-2">
+            <Label className={FORM_LABEL_CLASS}>
+              <Landmark size={12} className="inline mr-1" /> Quỹ tiền
+            </Label>
+            <div className="h-14 bg-white border border-slate-100 rounded-2xl flex items-center px-5 font-bold text-slate-900 shadow-sm">
+              {transaction.fundCode?.trim() ||
+                (transaction.fundId != null && transaction.fundId > 0 ? `Quỹ #${transaction.fundId}` : "—")}
+            </div>
+          </div>
+
+          <div className="col-span-2 space-y-2">
             <Label className={FORM_LABEL_CLASS}>
               <Activity size={12} className="inline mr-1" /> Tình trạng phiếu
             </Label>

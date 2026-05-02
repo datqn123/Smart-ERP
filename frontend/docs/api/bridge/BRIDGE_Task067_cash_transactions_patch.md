@@ -3,12 +3,12 @@
 - Task: **Task067**
 - Path: **`PATCH /api/v1/cash-transactions/{id}`**
 - Mode: **wire-fe**
-- Date: **2026-04-30**
+- Date: **2026-05-02**
 - Đã đọc `FE_API_CONNECTION_GUIDE.md`: **Y**
 
 | Hạng mục | API doc (mục) | Backend (file) | Frontend (`api/*.ts` + UI) | Khớp (Y/N) | Hành động |
 | :--- | :--- | :--- | :--- | :---: | :--- |
-| PATCH | `API_Task067_cash_transactions_patch.md` §5–§7 | `CashTransactionsController.patch` + `CashTransactionService.patch` | `cashTransactionsApi.ts` — `patchCashTransaction` | **Y** | — |
+| PATCH | `API_Task067_cash_transactions_patch.md` §5–§7 | `CashTransactionsController.patch` + `CashTransactionService.patch` (`assertCanMutateCashTx`: người tạo **hoặc** Admin) | `cashTransactionsApi.ts` — `patchCashTransaction` | **Y** | — |
 | Body theo BR | §5, BR-10 | Pending / Completed / Cancelled rules | `TransactionsPage` — `buildCashTransactionPatchBody` + `handleFormSubmit` (ctx `source` từ Task066) | **Y** | — |
 | Form UX | §10 | — | `TransactionFormDialog` — khóa hướng khi edit; khóa thuộc tính khi Completed/Cancelled (chỉ mô tả khi Cancelled) | **Y** | — |
 | Invalidate | §1 + Task063 | — | Sau PATCH thành công: list + detail cash tx; nếu `updated.status === "Completed"` → `FINANCE_LEDGER_LIST_QUERY_KEY` | **Y** | — |

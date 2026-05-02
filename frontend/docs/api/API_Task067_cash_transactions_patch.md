@@ -1,7 +1,7 @@
 # 📄 API SPEC: `PATCH /api/v1/cash-transactions/{id}` — Cập nhật / hoàn tất thu chi — Task067
 
-> **Trạng thái**: Approved (đồng bộ SRS Task064–068 — 30/04/2026)  
-> **SRS backend:** [`../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md`](../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md)  
+> **Trạng thái**: Approved (đồng bộ SRS Task064–068 + PRD quỹ — 02/05/2026)  
+> **SRS backend:** [`../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md`](../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md), [`../../../backend/docs/srs/SRS_PRD_cash-transactions-admin-unified-multi-fund.md`](../../../backend/docs/srs/SRS_PRD_cash-transactions-admin-unified-multi-fund.md)  
 > **Feature**: Cashflow — **Giao dịch thu chi**
 
 ---
@@ -30,7 +30,7 @@
 | Thuộc tính | Giá trị |
 | :--------- | :------ |
 | **Authentication** | `Bearer` |
-| **RBAC** | **`mp.can_view_finance === true`** và **`created_by` = user hiện tại** (người khác tạo → **403** — SRS **BR-9**) |
+| **RBAC** | **`mp.can_view_finance === true`** và (**`created_by` = user hiện tại** **hoặc** user là **Admin** JWT) — PRD / SRS cập nhật |
 
 ---
 
@@ -41,7 +41,7 @@ Tất cả trường **optional**; chỉ cập nhật field được gửi.
 | Trường | Kiểu | Ghi chú |
 | :----- | :--- | :------ |
 | `amount` | number > 0 | Chỉ khi `Pending` |
-| `category` | string | |
+| `category` | string 1–500 | Khi `Pending` |
 | `description` | string | |
 | `paymentMethod` | string | |
 | `transactionDate` | date | |
@@ -76,7 +76,7 @@ Trả về bản ghi sau cập nhật (cùng shape Task066).
 | :--- | :----------- |
 | 400 | Validation partial fail |
 | 401 | |
-| 403 | Thiếu `can_view_finance` **hoặc** không phải người tạo phiếu (`created_by`) |
+| 403 | Thiếu `can_view_finance` **hoặc** (không phải người tạo **và** không phải Admin) |
 | 404 | Không có `id` |
 | 409 | Conflict: đã Completed, hoặc chuyển trạng thái không hợp lệ |
 | 500 | |

@@ -29,14 +29,17 @@ interface TransactionTableProps {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === 'Completed') return <Badge className="bg-green-50 text-green-700 text-xs border-none font-normal">Hoàn thành</Badge>;
-  if (status === 'Pending') return <Badge className="bg-amber-50 text-amber-700 text-xs border-none font-normal">Chờ xử lý</Badge>;
-  return <Badge className="bg-red-50 text-red-700 text-xs border-none font-normal">Đã huỷ</Badge>;
+  const base = "text-xs font-medium border border-slate-200 bg-slate-50 text-slate-700 shadow-none"
+  if (status === "Completed") return <Badge className={base}>Hoàn thành</Badge>
+  if (status === "Pending") return <Badge className={base}>Chờ xử lý</Badge>
+  return <Badge className={base}>Đã huỷ</Badge>
 }
 
 function DirectionBadge({ direction }: { direction: string }) {
-  if (direction === 'Income') return <Badge className="bg-emerald-50 text-emerald-700 text-[10px] font-bold border-emerald-200 h-5 px-1.5 uppercase tracking-tight">Thu tiền</Badge>;
-  return <Badge className="bg-rose-50 text-rose-700 text-[10px] font-bold border-rose-200 h-5 px-1.5 uppercase tracking-tight">Chi tiền</Badge>;
+  const base =
+    "text-[10px] font-semibold border border-slate-200 bg-white text-slate-700 h-5 px-1.5 uppercase tracking-tight shadow-none"
+  if (direction === "Income") return <Badge className={base}>Thu tiền</Badge>
+  return <Badge className={base}>Chi tiền</Badge>
 }
 
 export function TransactionTable({ data, selectedIds, onSelect, onSelectAll, onView, onEdit, onDelete }: TransactionTableProps) {
@@ -51,7 +54,7 @@ export function TransactionTable({ data, selectedIds, onSelect, onSelectAll, onV
             <Checkbox 
               checked={allSelected ? true : someSelected ? "indeterminate" : false} 
               onCheckedChange={(checked) => onSelectAll(checked as boolean)}
-              className="border-slate-300 data-[state=checked]:bg-white data-[state=checked]:text-blue-600 data-[state=checked]:border-blue-600"
+              className="border-slate-300 data-[state=checked]:bg-slate-800 data-[state=checked]:text-white data-[state=checked]:border-slate-800"
             />
           </TableHead>
           <TableHead className={cn(TRANSACTION_TABLE_COL.code, TABLE_HEAD_CLASS, "px-4")}>Mã GD</TableHead>
@@ -81,7 +84,7 @@ export function TransactionTable({ data, selectedIds, onSelect, onSelectAll, onV
                   <Checkbox 
                     checked={isSelected}
                     onCheckedChange={() => onSelect(item.id)}
-                    className="border-slate-300 data-[state=checked]:bg-white data-[state=checked]:text-blue-600 data-[state=checked]:border-blue-600"
+                    className="border-slate-300 data-[state=checked]:bg-slate-800 data-[state=checked]:text-white data-[state=checked]:border-slate-800"
                   />
                 </TableCell>
                 <TableCell className={cn(TRANSACTION_TABLE_COL.code, TABLE_CELL_MONO_CLASS, "px-4")}>{item.transactionCode}</TableCell>
@@ -94,7 +97,7 @@ export function TransactionTable({ data, selectedIds, onSelect, onSelectAll, onV
                     <span className={cn(TABLE_CELL_SECONDARY_CLASS, "text-xs truncate max-w-[140px]")}>{item.description ?? ""}</span>
                   </div>
                 </TableCell>
-                <TableCell className={cn(TRANSACTION_TABLE_COL.amount, TABLE_CELL_NUMBER_CLASS, "text-right px-4", item.direction === 'Income' ? 'text-emerald-600' : 'text-rose-600')}>
+                <TableCell className={cn(TRANSACTION_TABLE_COL.amount, TABLE_CELL_NUMBER_CLASS, "text-right px-4 text-slate-900")}>
                   {item.direction === 'Income' ? '+' : '-'}{formatCurrency(item.amount)}
                 </TableCell>
                 <TableCell className={cn(TRANSACTION_TABLE_COL.date, TABLE_CELL_SECONDARY_CLASS, "px-4")}>
@@ -108,10 +111,10 @@ export function TransactionTable({ data, selectedIds, onSelect, onSelectAll, onV
                     <Button variant="ghost" size="icon" onClick={() => onView(item)} title="Xem chi tiết" className="h-8 w-8 text-slate-400 hover:text-slate-900 transition-colors">
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => onEdit(item)} title="Chỉnh sửa" className="h-8 w-8 text-slate-400 hover:text-blue-600 transition-colors">
+                    <Button variant="ghost" size="icon" onClick={() => onEdit(item)} title="Chỉnh sửa" className="h-8 w-8 text-slate-400 hover:text-slate-900 transition-colors">
                       <Edit2 className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => onDelete(item)} title="Xóa giao dịch" className="h-8 w-8 text-slate-400 hover:text-red-600 transition-colors">
+                    <Button variant="ghost" size="icon" onClick={() => onDelete(item)} title="Xóa giao dịch" className="h-8 w-8 text-slate-400 hover:text-slate-700 transition-colors">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>

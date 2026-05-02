@@ -16,6 +16,7 @@ export type GetCashTransactionsListParams = {
   status?: "Pending" | "Completed" | "Cancelled"
   dateFrom?: string
   dateTo?: string
+  fundId?: number
   search?: string
   page?: number
   limit?: number
@@ -27,6 +28,7 @@ export function getCashTransactionsList(params: GetCashTransactionsListParams = 
   if (params.status) q.set("status", params.status)
   if (params.dateFrom?.trim()) q.set("dateFrom", params.dateFrom.trim())
   if (params.dateTo?.trim()) q.set("dateTo", params.dateTo.trim())
+  if (params.fundId != null && params.fundId > 0) q.set("fundId", String(params.fundId))
   if (params.search?.trim()) q.set("search", params.search.trim())
   q.set("page", String(params.page ?? 1))
   q.set("limit", String(params.limit ?? 20))
@@ -46,6 +48,7 @@ export type CashTransactionCreateBody = {
   description?: string | null
   paymentMethod?: string
   transactionDate: string
+  fundId: number
 }
 
 export function postCashTransaction(body: CashTransactionCreateBody) {

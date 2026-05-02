@@ -1,7 +1,7 @@
 # 📄 API SPEC: `DELETE /api/v1/cash-transactions/{id}` — Xóa giao dịch thu chi — Task068
 
-> **Trạng thái**: Approved (đồng bộ SRS Task064–068 — 30/04/2026)  
-> **SRS backend:** [`../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md`](../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md)  
+> **Trạng thái**: Approved (đồng bộ SRS Task064–068 + PRD quỹ — 02/05/2026)  
+> **SRS backend:** [`../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md`](../../../backend/docs/srs/SRS_Task064-068_cash-transactions-api.md), [`../../../backend/docs/srs/SRS_PRD_cash-transactions-admin-unified-multi-fund.md`](../../../backend/docs/srs/SRS_PRD_cash-transactions-admin-unified-multi-fund.md)  
 > **Feature**: Cashflow — **Giao dịch thu chi**
 
 ---
@@ -29,7 +29,7 @@ Xóa cứng bản ghi **`cash_transactions`** chỉ khi **`Pending`** hoặc **`
 | Thuộc tính | Giá trị |
 | :--------- | :------ |
 | **Authentication** | `Bearer` |
-| **RBAC** | **`mp.can_view_finance === true`** và **`created_by` = user hiện tại** (SRS **BR-9**) |
+| **RBAC** | **`mp.can_view_finance === true`** và (**`created_by` = user hiện tại** **hoặc** **Admin**) |
 
 ---
 
@@ -65,7 +65,7 @@ Không body.
 
 ## 8. Lỗi
 
-- **401**, **403** (thiếu quyền tài chính **hoặc** không phải người tạo phiếu), **404**, **409**, **500**
+- **401**, **403** (thiếu quyền tài chính **hoặc** không phải người tạo **và** không phải Admin), **404**, **409**, **500**
 
 Ví dụ **409**:
 

@@ -31,7 +31,7 @@ public class FinanceLedgerController {
 	private static final String UNAUTHORIZED_NO_JWT_PRINCIPAL = "Không có JWT hợp lệ trong phiên bảo mật. "
 			+ "Kiểm tra Header Authorization: Bearer <accessToken>; nếu đã bật jwt-api, access token có thể đã hết hạn — đăng nhập hoặc refresh lại.";
 
-	private static final String FORBIDDEN_VIEW_FINANCE = "Bạn không có quyền xem sổ cái tài chính.";
+	private static final String FORBIDDEN_VIEW_FINANCE = "Chỉ tài khoản Admin (và đã được quyền xem tài chính) mới được xem sổ cái tài chính.";
 
 	private final FinanceLedgerService service;
 
@@ -49,7 +49,7 @@ public class FinanceLedgerController {
 			@RequestParam(name = "page", required = false) String page,
 			@RequestParam(name = "limit", required = false) String limit) {
 		Jwt jwt = requireJwt(authentication);
-		FinanceLedgerAccessPolicy.assertCanViewFinanceLedger(jwt, FORBIDDEN_VIEW_FINANCE);
+		FinanceLedgerAccessPolicy.assertFinanceLedgerAdminOnly(jwt, FORBIDDEN_VIEW_FINANCE);
 		FinanceLedgerPageData data = service.list(dateFrom, dateTo, transactionType, referenceType, search, page, limit);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Thành công"));
 	}

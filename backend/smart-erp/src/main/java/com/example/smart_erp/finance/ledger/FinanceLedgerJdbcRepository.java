@@ -97,8 +97,8 @@ public class FinanceLedgerJdbcRepository {
 				  balance
 				FROM with_bal
 				ORDER BY transaction_date ASC, id ASC
-				LIMIT """
-				+ limit + " OFFSET " + offset;
+				"""
+				+ "LIMIT " + limit + " OFFSET " + offset;
 
 		return namedJdbc.query(sql, f.source, ROW);
 	}

@@ -171,12 +171,15 @@ export const DEBT_TABLE_COL = {
 
 /** Sổ cái */
 export const LEDGER_TABLE_COL = {
-  date: "w-[112px]",
+  date: "w-[104px]",
+  type: "w-[148px]",
+  reference: "w-[168px]",
   code: "w-[116px]",
-  description: "min-w-[200px]",
-  debit: "w-[124px]",
-  credit: "w-[124px]",
-  balance: "w-[140px]",
+  description: "min-w-[180px]",
+  amount: "w-[120px]",
+  debit: "w-[112px]",
+  credit: "w-[112px]",
+  balance: "w-[128px]",
 } as const
 
 /**

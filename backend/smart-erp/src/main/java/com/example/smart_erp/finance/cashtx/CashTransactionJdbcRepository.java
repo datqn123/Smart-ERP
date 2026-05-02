@@ -24,7 +24,7 @@ public class CashTransactionJdbcRepository {
 
 	public record CashLockRow(long id, String transactionCode, String direction, BigDecimal amount, String category,
 			String description, String paymentMethod, String status, LocalDate transactionDate, Integer financeLedgerId,
-			int createdBy, int performedBy) {
+			int createdBy, int performedBy, int fundId) {
 	}
 
 	private static final String ITEM_SELECT = """
@@ -32,10 +32,11 @@ public class CashTransactionJdbcRepository {
 			  ct.payment_method, ct.status, ct.transaction_date, ct.finance_ledger_id,
 			  ct.created_by, COALESCE(uc.full_name, '') AS created_by_name,
 			  ct.performed_by, COALESCE(up.full_name, '') AS performed_by_name,
-			  ct.created_at, ct.updated_at
+			  ct.created_at, ct.updated_at, ct.fund_id, cf.code AS fund_code
 			FROM cashtransactions ct
 			LEFT JOIN users uc ON uc.id = ct.created_by
 			LEFT JOIN users up ON up.id = ct.performed_by
+			LEFT JOIN cash_funds cf ON cf.id = ct.fund_id
 			""";
 
 	private static final RowMapper<CashTransactionItemData> ITEM_ROW = (rs, i) -> mapItem(rs);
@@ -48,11 +49,13 @@ public class CashTransactionJdbcRepository {
 		}
 		Timestamp ca = rs.getTimestamp("created_at");
 		Timestamp ua = rs.getTimestamp("updated_at");
+		Integer fundId = (Integer) rs.getObject("fund_id", Integer.class);
+		String fundCode = rs.getString("fund_code");
 		return new CashTransactionItemData(rs.getLong("id"), rs.getString("transaction_code"), rs.getString("direction"),
 				rs.getBigDecimal("amount"), rs.getString("category"), rs.getString("description"), rs.getString("payment_method"),
 				rs.getString("status"), rs.getObject("transaction_date", LocalDate.class).toString(), fld, rs.getInt("created_by"),
 				rs.getString("created_by_name"), rs.getInt("performed_by"), rs.getString("performed_by_name"),
-				ca != null ? ca.toInstant() : null, ua != null ? ua.toInstant() : null);
+				ca != null ? ca.toInstant() : null, ua != null ? ua.toInstant() : null, fundId, fundCode);
 	}
 
 	private static final RowMapper<CashLockRow> LOCK_ROW = (rs, i) -> {
@@ -60,7 +63,8 @@ public class CashTransactionJdbcRepository {
 		Integer fldInt = fld instanceof Number n ? n.intValue() : null;
 		return new CashLockRow(rs.getLong("id"), rs.getString("transaction_code"), rs.getString("direction"), rs.getBigDecimal("amount"),
 				rs.getString("category"), rs.getString("description"), rs.getString("payment_method"), rs.getString("status"),
-				rs.getObject("transaction_date", LocalDate.class), fldInt, rs.getInt("created_by"), rs.getInt("performed_by"));
+				rs.getObject("transaction_date", LocalDate.class), fldInt, rs.getInt("created_by"), rs.getInt("performed_by"),
+				rs.getInt("fund_id"));
 	};
 
 	private final NamedParameterJdbcTemplate namedJdbc;
@@ -75,10 +79,11 @@ public class CashTransactionJdbcRepository {
 		return list.isEmpty() ? Optional.empty() : Optional.of(list.getFirst());
 	}
 
-	public long countList(String direction, String status, LocalDate dateFrom, LocalDate dateTo, String searchPattern) {
+	public long countList(String direction, String status, LocalDate dateFrom, LocalDate dateTo, Integer fundId,
+			String searchPattern) {
 		StringBuilder where = new StringBuilder(" WHERE 1=1 ");
 		var src = new MapSqlParameterSource();
-		appendFilters(where, src, direction, status, dateFrom, dateTo, searchPattern);
+		appendFilters(where, src, direction, status, dateFrom, dateTo, fundId, searchPattern);
 		String sql = "SELECT COUNT(*) FROM cashtransactions ct LEFT JOIN users uc ON uc.id = ct.created_by "
 				+ "LEFT JOIN users up ON up.id = ct.performed_by " + where;
 		Long c = namedJdbc.queryForObject(sql, src, Long.class);
@@ -86,10 +91,10 @@ public class CashTransactionJdbcRepository {
 	}
 
 	public List<CashTransactionItemData> loadPage(String direction, String status, LocalDate dateFrom, LocalDate dateTo,
-			String searchPattern, int limit, int offset, boolean sortByCreatedAt) {
+			Integer fundId, String searchPattern, int limit, int offset, boolean sortByCreatedAt) {
 		StringBuilder where = new StringBuilder(" WHERE 1=1 ");
 		var src = new MapSqlParameterSource();
-		appendFilters(where, src, direction, status, dateFrom, dateTo, searchPattern);
+		appendFilters(where, src, direction, status, dateFrom, dateTo, fundId, searchPattern);
 		String orderBy = sortByCreatedAt ? "ct.created_at DESC, ct.id DESC" : "ct.transaction_date DESC, ct.id DESC";
 		String sql = ITEM_SELECT + where + " ORDER BY " + orderBy + " LIMIT :lim OFFSET :off";
 		src.addValue("lim", limit).addValue("off", offset);
@@ -97,7 +102,7 @@ public class CashTransactionJdbcRepository {
 	}
 
 	private static void appendFilters(StringBuilder where, MapSqlParameterSource src, String direction, String status,
-			LocalDate dateFrom, LocalDate dateTo, String searchPattern) {
+			LocalDate dateFrom, LocalDate dateTo, Integer fundId, String searchPattern) {
 		if (direction != null && !direction.isBlank()) {
 			where.append(" AND ct.direction = :dir ");
 			src.addValue("dir", direction.trim());
@@ -112,6 +117,10 @@ public class CashTransactionJdbcRepository {
 			where.append(" AND (:dt IS NULL OR ct.transaction_date <= :dt) ");
 			src.addValue("df", dateFrom != null ? java.sql.Date.valueOf(dateFrom) : null, Types.DATE);
 			src.addValue("dt", dateTo != null ? java.sql.Date.valueOf(dateTo) : null, Types.DATE);
+		}
+		if (fundId != null) {
+			where.append(" AND ct.fund_id = :fundId ");
+			src.addValue("fundId", fundId);
 		}
 		if (searchPattern != null) {
 			where.append(
@@ -132,17 +141,18 @@ public class CashTransactionJdbcRepository {
 	}
 
 	public long insert(String transactionCode, String direction, BigDecimal amount, String category, String description,
-			String paymentMethod, LocalDate transactionDate, int createdBy) {
+			String paymentMethod, LocalDate transactionDate, int fundId, int createdBy) {
 		String sql = """
 				INSERT INTO cashtransactions (transaction_code, direction, amount, category, description, payment_method,
-				  status, transaction_date, finance_ledger_id, created_by, performed_by)
-				VALUES (:code, :dir, :amt, :cat, :desc, :pm, 'Pending', :td, NULL, :cb, :pb)
+				  status, transaction_date, finance_ledger_id, fund_id, created_by, performed_by)
+				VALUES (:code, :dir, :amt, :cat, :desc, :pm, 'Pending', :td, NULL, :fid, :cb, :pb)
 				RETURNING id
 				""";
 		Long id = namedJdbc.queryForObject(sql,
 				new MapSqlParameterSource("code", transactionCode).addValue("dir", direction).addValue("amt", amount)
 						.addValue("cat", category).addValue("desc", description, Types.VARCHAR).addValue("pm", paymentMethod)
-						.addValue("td", java.sql.Date.valueOf(transactionDate)).addValue("cb", createdBy).addValue("pb", createdBy),
+						.addValue("td", java.sql.Date.valueOf(transactionDate)).addValue("fid", fundId).addValue("cb", createdBy)
+						.addValue("pb", createdBy),
 				Long.class);
 		if (id == null) {
 			throw new IllegalStateException("INSERT cashtransactions không trả id");
@@ -153,7 +163,7 @@ public class CashTransactionJdbcRepository {
 	public Optional<CashLockRow> lockForUpdate(long id) {
 		String sql = """
 				SELECT ct.id, ct.transaction_code, ct.direction, ct.amount, ct.category, ct.description, ct.payment_method,
-				  ct.status, ct.transaction_date, ct.finance_ledger_id, ct.created_by, ct.performed_by
+				  ct.status, ct.transaction_date, ct.finance_ledger_id, ct.created_by, ct.performed_by, ct.fund_id
 				FROM cashtransactions ct WHERE ct.id = :id FOR UPDATE
 				""";
 		var list = namedJdbc.query(sql, new MapSqlParameterSource("id", id), LOCK_ROW);
@@ -161,16 +171,16 @@ public class CashTransactionJdbcRepository {
 	}
 
 	public int insertFinanceLedgerAndReturnId(LocalDate transactionDate, String transactionType, int cashTxId,
-			BigDecimal signedAmount, String description, int createdBy) {
+			BigDecimal signedAmount, String description, int fundId, int createdBy) {
 		String sql = """
-				INSERT INTO financeledger (transaction_date, transaction_type, reference_type, reference_id, amount, description, created_by)
-				VALUES (:td, :ttype, 'CashTransaction', :rid, :amt, :desc, :cb)
+				INSERT INTO financeledger (transaction_date, transaction_type, reference_type, reference_id, amount, description, created_by, fund_id)
+				VALUES (:td, :ttype, 'CashTransaction', :rid, :amt, :desc, :cb, :fid)
 				RETURNING id
 				""";
 		Integer id = namedJdbc.queryForObject(sql,
 				new MapSqlParameterSource("td", java.sql.Date.valueOf(transactionDate)).addValue("ttype", transactionType)
 						.addValue("rid", cashTxId).addValue("amt", signedAmount).addValue("desc", description, Types.VARCHAR)
-						.addValue("cb", createdBy),
+						.addValue("cb", createdBy).addValue("fid", fundId),
 				Integer.class);
 		if (id == null) {
 			throw new IllegalStateException("INSERT financeledger không trả id");

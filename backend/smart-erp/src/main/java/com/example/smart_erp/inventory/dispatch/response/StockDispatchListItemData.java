@@ -15,6 +15,7 @@ public record StockDispatchListItemData(
 		@JsonProperty("status") String status,
 		@JsonProperty("createdByUserId") int createdByUserId,
 		@JsonProperty("manualDispatch") boolean manualDispatch,
+		@JsonProperty("hasStockDispatchLines") boolean hasStockDispatchLines,
 		@JsonProperty("shortageWarning") boolean shortageWarning,
 		@JsonProperty("canEdit") boolean canEdit,
 		@JsonProperty("canDelete") boolean canDelete) {

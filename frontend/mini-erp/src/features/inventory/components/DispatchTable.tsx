@@ -84,7 +84,7 @@ export function DispatchTable({ dispatches, onAction, onEdit, onDelete }: Dispat
                     <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" aria-hidden />
                   </span>
                 )}
-                <StatusBadge status={dispatch.status} type="dispatch" />
+                <StatusBadge status={dispatch.status} type="dispatch" shortageWarning={dispatch.shortageWarning} />
               </div>
             </TableCell>
             <TableCell className={DATA_TABLE_ACTION_CELL_CLASS} onClick={(e) => e.stopPropagation()}>
@@ -113,7 +113,7 @@ export function DispatchTable({ dispatches, onAction, onEdit, onDelete }: Dispat
                     title={
                       dispatch.canEdit === true
                         ? "Sửa phiếu"
-                        : "Chỉ sửa được phiếu xuất tay (chờ xuất/đang giao) do bạn tạo hoặc nếu bạn là Owner/Admin."
+                        : "Chỉ người tạo hoặc Owner/Admin; không sửa khi đã giao (Delivered) / đã hoàn tất xuất (Full)."
                     }
                   >
                     <Edit2 className="h-4 w-4" />
@@ -134,7 +134,7 @@ export function DispatchTable({ dispatches, onAction, onEdit, onDelete }: Dispat
                     title={
                       dispatch.canDelete === true
                         ? "Xóa mềm phiếu"
-                        : "Chỉ xóa mềm được phiếu xuất tay (chờ xuất/đang giao) — người tạo hoặc Owner/Admin."
+                        : "Chỉ người tạo hoặc Owner/Admin; không xóa khi đã giao (Delivered) / đã hoàn tất xuất (Full)."
                     }
                   >
                     <Trash2 className="h-4 w-4" />

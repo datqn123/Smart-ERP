@@ -3,6 +3,8 @@ import { Badge } from "@/components/ui/badge";
 interface StatusBadgeProps {
   status: string;
   type?: "receipt" | "dispatch" | "audit" | "inventory";
+  /** Phiếu xuất: Partial kèm cảnh báo thiếu tồn → nhãn riêng. */
+  shortageWarning?: boolean;
 }
 
 const receiptConfig: Record<string, { label: string; bg: string; text: string }> = {
@@ -16,7 +18,7 @@ const dispatchConfig: Record<string, { label: string; bg: string; text: string }
   WaitingDispatch: { label: "Chờ xuất", bg: "bg-amber-50", text: "text-amber-700" },
   Delivering: { label: "Đang giao", bg: "bg-sky-50", text: "text-sky-800" },
   Delivered: { label: "Đã giao", bg: "bg-green-50", text: "text-green-800" },
-  Pending: { label: "Chờ xuất (đơn)", bg: "bg-amber-50", text: "text-amber-700" },
+  Pending: { label: "Chờ duyệt", bg: "bg-amber-50", text: "text-amber-700" },
   Full: { label: "Đủ hàng", bg: "bg-green-50", text: "text-green-700" },
   Partial: { label: "Một phần", bg: "bg-blue-50", text: "text-blue-700" },
   Cancelled: { label: "Đã hủy", bg: "bg-slate-100", text: "text-slate-600" },
@@ -38,7 +40,7 @@ const inventoryConfig: Record<string, { label: string; bg: string; text: string 
   "expiring-soon": { label: "Cận date", bg: "bg-amber-50", text: "text-amber-700" },
 };
 
-export function StatusBadge({ status, type = "receipt" }: StatusBadgeProps) {
+export function StatusBadge({ status, type = "receipt", shortageWarning }: StatusBadgeProps) {
   const configMap = {
     receipt: receiptConfig,
     dispatch: dispatchConfig,
@@ -46,7 +48,13 @@ export function StatusBadge({ status, type = "receipt" }: StatusBadgeProps) {
     inventory: inventoryConfig,
   };
 
-  const config = configMap[type][status] || { label: status, bg: "bg-slate-100", text: "text-slate-600" };
+  let config = configMap[type][status];
+  if (type === "dispatch" && status === "Partial" && shortageWarning) {
+    config = { label: "Chờ xử lý thiếu", bg: "bg-orange-50", text: "text-orange-800" };
+  }
+  if (!config) {
+    config = { label: status, bg: "bg-slate-100", text: "text-slate-600" };
+  }
 
   return (
     <Badge className={`${config.bg} ${config.text} font-medium text-xs px-2.5 py-1`}>

@@ -21,6 +21,10 @@ interface DispatchDetailDialogProps {
   isOpen: boolean;
   onClose: () => void;
   canApprove?: boolean;
+  /** Owner/Admin — duyệt phiếu gắn đơn (Pending → chờ xuất). */
+  canApproveStockLines?: boolean;
+  onApproveStockDispatch?: () => void;
+  approveStockDispatchPending?: boolean;
   /** Chi tiết REST (dòng thủ công, xóa mềm, thiếu hàng). */
   detailFromApi?: StockDispatchDetailResponse | null;
   detailLoading?: boolean;
@@ -31,6 +35,9 @@ export function DispatchDetailDialog({
   isOpen,
   onClose,
   canApprove = false,
+  canApproveStockLines = false,
+  onApproveStockDispatch,
+  approveStockDispatchPending = false,
   detailFromApi,
   detailLoading,
 }: DispatchDetailDialogProps) {
@@ -52,7 +59,7 @@ export function DispatchDetailDialog({
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
             <div className="text-left">
               <div className="flex items-center gap-3 mb-2">
-                <StatusBadge status={dispatch.status} type="dispatch" />
+                <StatusBadge status={dispatch.status} type="dispatch" shortageWarning={dispatch.shortageWarning} />
                 <span className="text-xs font-mono text-slate-400">Inventory ID: #{dispatch.id}</span>
               </div>
               <DialogTitle className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
@@ -227,7 +234,25 @@ export function DispatchDetailDialog({
            
            <div className="flex gap-3 ml-auto">
               <Button variant="outline" onClick={onClose} className="border-slate-300 h-10 px-6">Đóng</Button>
-              {canApprove && !detailFromApi?.manualDispatch && (dispatch.status === "Pending" || dispatch.status === "Partial") && (
+              {canApproveStockLines &&
+                onApproveStockDispatch &&
+                detailFromApi?.status === "Pending" &&
+                detailFromApi.stockLinesFulfillment &&
+                !detailFromApi.shortageWarning &&
+                !detailFromApi.deleteReason && (
+                  <Button
+                    type="button"
+                    className="bg-emerald-700 hover:bg-emerald-800 text-white h-10 px-6"
+                    disabled={approveStockDispatchPending}
+                    onClick={onApproveStockDispatch}
+                  >
+                    <CheckCircle2 className="w-4 h-4 mr-2" /> Duyệt phiếu (chờ xuất)
+                  </Button>
+                )}
+              {canApprove &&
+                !detailFromApi?.manualDispatch &&
+                !detailFromApi?.stockLinesFulfillment &&
+                (dispatch.status === "Pending" || dispatch.status === "Partial") && (
                 <>
                   <Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 h-10 px-6" onClick={handleCancel}>
                     <XCircle className="w-4 h-4 mr-2" /> Hủy phiếu

@@ -212,6 +212,11 @@ export type SalesOrderDetailDto = {
   lines: SalesOrderDetailLineDto[]
 }
 
+/** Chi tiết đơn — `GET /api/v1/sales-orders/{id}` (cần quyền quản lý đơn). */
+export function getSalesOrderDetail(id: number) {
+  return apiJson<SalesOrderDetailDto>(`/api/v1/sales-orders/${id}`, { method: "GET", auth: true })
+}
+
 export function postSalesOrder(body: SalesOrderCreateBody) {
   return apiJson<SalesOrderDetailDto>("/api/v1/sales-orders", {
     method: "POST",

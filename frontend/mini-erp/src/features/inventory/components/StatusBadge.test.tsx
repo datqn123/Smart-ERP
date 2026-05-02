@@ -63,6 +63,12 @@ describe('StatusBadge UI - Màu sắc & Layout (Task004-007)', () => {
       const { container } = render(<StatusBadge status="Partial" type="dispatch" />);
       expect(container.firstChild).toHaveClass('bg-blue-50');
     });
+
+    it('Partial + shortageWarning → nhãn thiếu hàng (cam)', () => {
+      const { container } = render(<StatusBadge status="Partial" type="dispatch" shortageWarning />);
+      expect(container.firstChild).toHaveClass('bg-orange-50');
+      expect(container.firstChild).toHaveClass('text-orange-800');
+    });
   });
 
   describe('Audit Status Colors (Task007)', () => {

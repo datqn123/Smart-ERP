@@ -13,13 +13,18 @@ public final class ManualDispatchStatuses {
 	}
 
 	public static boolean isManualLifecycle(String status) {
-		if (status == null) {
+		if (status == null || status.isBlank()) {
 			return false;
 		}
-		return WAITING_DISPATCH.equals(status) || DELIVERING.equals(status) || DELIVERED.equals(status);
+		String s = status.trim();
+		return WAITING_DISPATCH.equalsIgnoreCase(s) || DELIVERING.equalsIgnoreCase(s) || DELIVERED.equalsIgnoreCase(s);
 	}
 
 	public static boolean isEditable(String status) {
-		return WAITING_DISPATCH.equals(status) || DELIVERING.equals(status);
+		if (status == null || status.isBlank()) {
+			return false;
+		}
+		String s = status.trim();
+		return WAITING_DISPATCH.equalsIgnoreCase(s) || DELIVERING.equalsIgnoreCase(s);
 	}
 }

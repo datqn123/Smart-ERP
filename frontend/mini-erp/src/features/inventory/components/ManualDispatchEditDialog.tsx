@@ -87,14 +87,27 @@ export function ManualDispatchEditDialog({ open, onOpenChange, dispatchId }: Pro
   }, [detailQ.data])
 
   const patchM = useMutation({
-    mutationFn: () =>
-      patchStockDispatch(dispatchId!, {
+    mutationFn: () => {
+      const d = detailQ.data
+      if (!d || dispatchId == null) {
+        throw new Error("missing detail")
+      }
+      const base = {
         dispatchDate,
         notes: notes.trim() || null,
         referenceLabel: referenceLabel.trim() || null,
-        status,
-        lines: lines.map((l) => ({ inventoryId: l.inventoryId, quantity: l.quantity })),
-      }),
+      }
+      const fullManualFlow =
+        d.stockLinesFulfillment === true && (d.status === "WaitingDispatch" || d.status === "Delivering")
+      if (fullManualFlow) {
+        return patchStockDispatch(dispatchId, {
+          ...base,
+          status,
+          lines: lines.map((l) => ({ inventoryId: l.inventoryId, quantity: l.quantity })),
+        })
+      }
+      return patchStockDispatch(dispatchId, base)
+    },
     onSuccess: async () => {
       toast.success("Đã lưu phiếu xuất")
       await qc.invalidateQueries({ queryKey: ["stock-dispatches", "v1", "list"] })
@@ -115,14 +128,19 @@ export function ManualDispatchEditDialog({ open, onOpenChange, dispatchId }: Pro
 
   const busy = detailQ.isPending || patchM.isPending
   const editable = detailQ.data?.canEdit === true
+  const fullManualFlow =
+    detailQ.data?.stockLinesFulfillment === true &&
+    (detailQ.data.status === "WaitingDispatch" || detailQ.data.status === "Delivering")
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[720px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Sửa phiếu xuất thủ công</DialogTitle>
+          <DialogTitle>Sửa phiếu xuất kho</DialogTitle>
           <DialogDescription>
-            Chờ xuất / Đang giao: chỉnh dòng và trạng thái; khi Đã giao hệ thống trừ tồn theo các dòng hiện có.
+            {fullManualFlow
+              ? "Chờ xuất / Đang giao: chỉnh dòng và trạng thái; khi Đã giao hệ thống mới trừ tồn."
+              : "Giữ header (ngày/ghi chú/tham chiếu) hoặc phiếu đã khóa — không chỉnh dòng/trạng thái trên form này."}
           </DialogDescription>
         </DialogHeader>
 
@@ -130,7 +148,7 @@ export function ManualDispatchEditDialog({ open, onOpenChange, dispatchId }: Pro
           <p className="text-sm text-slate-500 py-8 text-center">Đang tải chi tiết…</p>
         )}
 
-        {detailQ.data && editable && detailQ.data.shortageWarning && (
+        {detailQ.data && editable && fullManualFlow && detailQ.data.shortageWarning && (
           <p className="text-sm rounded-md border border-amber-200 bg-amber-50 text-amber-900 px-3 py-2">
             Cảnh báo: có ít nhất một dòng yêu cầu quá số lượng tồn hiện tại — vui lòng điều chỉnh số lượng trước khi
             giao.
@@ -142,12 +160,14 @@ export function ManualDispatchEditDialog({ open, onOpenChange, dispatchId }: Pro
         )}
 
         {detailQ.data != null && !editable && (
-          <p className="text-sm text-slate-600">Phiếu đã khoá (đã giao hoặc bạn không phải người tạo).</p>
+          <p className="text-sm text-slate-600">
+            Phiếu đã khoá (đã giao / đã hoàn tất xuất) hoặc bạn không có quyền sửa (chỉ người tạo hoặc Owner/Admin).
+          </p>
         )}
 
         {editable && detailQ.data && (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className={`grid grid-cols-1 gap-4 ${fullManualFlow ? "sm:grid-cols-2" : ""}`}>
               <div className="space-y-2">
                 <Label className={FORM_LABEL_CLASS}>Ngày xuất</Label>
                 <Input
@@ -157,21 +177,23 @@ export function ManualDispatchEditDialog({ open, onOpenChange, dispatchId }: Pro
                   onChange={(e) => setDispatchDate(e.target.value)}
                 />
               </div>
-              <div className="space-y-2">
-                <Label className={FORM_LABEL_CLASS}>Trạng thái</Label>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger className={FORM_INPUT_CLASS}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MANUAL_STATUSES.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>
-                        {s.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {fullManualFlow && (
+                <div className="space-y-2">
+                  <Label className={FORM_LABEL_CLASS}>Trạng thái</Label>
+                  <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger className={FORM_INPUT_CLASS}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MANUAL_STATUSES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label className={FORM_LABEL_CLASS}>Nhãn tham chiếu</Label>
@@ -187,44 +209,46 @@ export function ManualDispatchEditDialog({ open, onOpenChange, dispatchId }: Pro
               <Textarea className={FORM_INPUT_CLASS} value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
             </div>
 
-            <div>
-              <Label className={FORM_LABEL_CLASS}>Dòng hàng (SL ≤ tồn)</Label>
-              <div className="mt-2 border border-slate-200 rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead>Sản phẩm</TableHead>
-                      <TableHead className="w-[100px] text-right">Tồn</TableHead>
-                      <TableHead className="w-[120px] text-right">SL xuất</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {lines.map((row, idx) => (
-                      <TableRow key={`${row.inventoryId}-${idx}`}>
-                        <TableCell className="text-sm">{row.productLabel}</TableCell>
-                        <TableCell className="text-right text-sm text-slate-500">{row.availableQuantity}</TableCell>
-                        <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            min={1}
-                            className="h-9 text-right"
-                            value={row.quantity}
-                            onChange={(e) => {
-                              const v = parseInt(e.target.value, 10)
-                              const next = Number.isNaN(v) ? 1 : v
-                              const capped = Math.min(Math.max(1, next), row.availableQuantity)
-                              setLines((prev) =>
-                                prev.map((p, i) => (i === idx ? { ...p, quantity: capped } : p)),
-                              )
-                            }}
-                          />
-                        </TableCell>
+            {fullManualFlow && (
+              <div>
+                <Label className={FORM_LABEL_CLASS}>Dòng hàng (SL ≤ tồn)</Label>
+                <div className="mt-2 border border-slate-200 rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>Sản phẩm</TableHead>
+                        <TableHead className="w-[100px] text-right">Tồn</TableHead>
+                        <TableHead className="w-[120px] text-right">SL xuất</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {lines.map((row, idx) => (
+                        <TableRow key={`${row.inventoryId}-${idx}`}>
+                          <TableCell className="text-sm">{row.productLabel}</TableCell>
+                          <TableCell className="text-right text-sm text-slate-500">{row.availableQuantity}</TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              type="number"
+                              min={1}
+                              className="h-9 text-right"
+                              value={row.quantity}
+                              onChange={(e) => {
+                                const v = parseInt(e.target.value, 10)
+                                const next = Number.isNaN(v) ? 1 : v
+                                const capped = Math.min(Math.max(1, next), row.availableQuantity)
+                                setLines((prev) =>
+                                  prev.map((p, i) => (i === idx ? { ...p, quantity: capped } : p)),
+                                )
+                              }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 

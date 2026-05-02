@@ -1,5 +1,6 @@
 package com.example.smart_erp.inventory.dispatch;
 
+import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Types;
 import java.time.Instant;
@@ -73,12 +74,18 @@ public class StockDispatchJdbcRepository {
 
 	public long insertManualDispatchHeader(String tempCode, int userId, LocalDate dispatchDate, String status,
 			String notes, String referenceLabel) {
+		return insertDispatchHeader(tempCode, null, userId, dispatchDate, status, notes, referenceLabel);
+	}
+
+	public long insertDispatchHeader(String tempCode, Integer orderId, int userId, LocalDate dispatchDate, String status,
+			String notes, String referenceLabel) {
 		KeyHolder kh = new GeneratedKeyHolder();
 		String sql = """
 				INSERT INTO stockdispatches (dispatch_code, order_id, user_id, dispatch_date, status, notes, reference_label)
-				VALUES (:code, NULL, :uid, :d, :st, :notes, :ref)
+				VALUES (:code, :oid, :uid, :d, :st, :notes, :ref)
 				""";
 		MapSqlParameterSource p = new MapSqlParameterSource("code", tempCode)
+				.addValue("oid", orderId, Types.INTEGER)
 				.addValue("uid", userId)
 				.addValue("d", Date.valueOf(dispatchDate))
 				.addValue("st", status)
@@ -93,11 +100,15 @@ public class StockDispatchJdbcRepository {
 	}
 
 	public void insertDispatchLine(long dispatchId, long inventoryId, int quantity) {
+		insertDispatchLine(dispatchId, inventoryId, quantity, null);
+	}
+
+	public void insertDispatchLine(long dispatchId, long inventoryId, int quantity, BigDecimal unitPriceSnapshot) {
 		MapSqlParameterSource src = new MapSqlParameterSource("did", dispatchId).addValue("inv", inventoryId)
-				.addValue("q", quantity);
+				.addValue("q", quantity).addValue("price", unitPriceSnapshot, Types.NUMERIC);
 		namedJdbc.update("""
-				INSERT INTO stockdispatch_lines (dispatch_id, inventory_id, quantity)
-				VALUES (:did, :inv, :q)
+				INSERT INTO stockdispatch_lines (dispatch_id, inventory_id, quantity, unit_price_snapshot)
+				VALUES (:did, :inv, :q, :price)
 				""", src);
 	}
 
@@ -198,6 +209,7 @@ public class StockDispatchJdbcRepository {
 				                          AND il.action_type = 'OUTBOUND'), 0)
 				       END AS item_count,
 				       sd.status,
+				       EXISTS (SELECT 1 FROM stockdispatch_lines sdlx WHERE sdlx.dispatch_id = sd.id) AS has_stockdispatch_lines,
 				       EXISTS (
 				         SELECT 1 FROM stockdispatch_lines sdl2
 				         INNER JOIN inventory i ON i.id = sdl2.inventory_id
@@ -222,6 +234,7 @@ public class StockDispatchJdbcRepository {
 				rs.getString("status"),
 				rs.getInt("creator_user_id"),
 				rs.getBoolean("manual_dispatch"),
+				rs.getBoolean("has_stockdispatch_lines"),
 				rs.getBoolean("has_shortage_warning"),
 				false,
 				false));
@@ -378,7 +391,8 @@ public class StockDispatchJdbcRepository {
 				       p.name AS product_name,
 				       p.sku_code,
 				       wl.warehouse_code,
-				       wl.shelf_code
+				       wl.shelf_code,
+				       sdl.unit_price_snapshot
 				FROM stockdispatch_lines sdl
 				INNER JOIN inventory i ON i.id = sdl.inventory_id
 				INNER JOIN products p ON p.id = i.product_id
@@ -396,6 +410,32 @@ public class StockDispatchJdbcRepository {
 						rs.getString("product_name"),
 						rs.getString("sku_code"),
 						rs.getString("warehouse_code") == null ? "—" : rs.getString("warehouse_code"),
-						rs.getString("shelf_code") == null ? "—" : rs.getString("shelf_code")));
+						rs.getString("shelf_code") == null ? "—" : rs.getString("shelf_code"),
+						rs.getBigDecimal("unit_price_snapshot")));
+	}
+
+	/** Chi tiết dòng từ log OUTBOUND (phiếu gắn đơn / đã trừ kho). */
+	public List<StockDispatchDetailLineData> loadOutboundLinesForDispatchDetail(long dispatchId) {
+		String sql = """
+				SELECT il.id AS line_id,
+				       0::bigint AS inventory_id,
+				       ABS(il.quantity_change)::int AS quantity,
+				       0 AS available_qty,
+				       p.name AS product_name,
+				       p.sku_code,
+				       COALESCE(wl.warehouse_code, '—') AS warehouse_code,
+				       COALESCE(wl.shelf_code, '—') AS shelf_code
+				FROM inventorylogs il
+				INNER JOIN products p ON p.id = il.product_id
+				LEFT JOIN warehouselocations wl ON wl.id = il.from_location_id
+				WHERE il.dispatch_id = :id AND il.action_type = 'OUTBOUND'
+				ORDER BY il.id
+				""";
+		return namedJdbc.query(sql, Map.of("id", dispatchId),
+				(rs, rn) -> new StockDispatchDetailLineData(rs.getLong("line_id"), rs.getLong("inventory_id"),
+						rs.getInt("quantity"), rs.getInt("available_qty"), false, rs.getString("product_name"),
+						rs.getString("sku_code"),
+						rs.getString("warehouse_code") == null ? "—" : rs.getString("warehouse_code"),
+						rs.getString("shelf_code") == null ? "—" : rs.getString("shelf_code"), null));
 	}
 }

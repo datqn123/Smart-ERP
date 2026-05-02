@@ -6,6 +6,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import * as dispatchApi from "../api/dispatchApi"
 
+vi.mock("@/features/auth/store/useAuthStore", () => ({
+  useAuthStore: vi.fn((fn: (s: { user: { role: string } | null }) => unknown) =>
+    fn({ user: { role: "Staff" } })),
+}))
+
 vi.mock("lucide-react", async (importOriginal) => {
   const mod = await importOriginal<typeof import("lucide-react")>()
   return { ...mod }

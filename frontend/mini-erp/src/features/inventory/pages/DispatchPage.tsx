@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
+import { useAuthStore } from "@/features/auth/store/useAuthStore"
 import { usePageTitle } from "@/context/PageTitleContext"
 import { Truck, Search, Calendar, Download, Upload, Plus } from "lucide-react"
 import type { StockDispatch } from "../types"
@@ -15,7 +16,14 @@ import { DispatchTable } from "../components/DispatchTable"
 import { DispatchDetailDialog } from "../components/DispatchDetailDialog"
 import { DispatchForm, type DispatchFormData } from "../components/DispatchForm"
 import { ManualDispatchEditDialog } from "../components/ManualDispatchEditDialog"
-import { getStockDispatchDetail, getStockDispatchList, mapStockDispatchListItemToUi, softDeleteStockDispatch } from "../api/dispatchApi"
+import {
+  approveStockDispatch,
+  getStockDispatchDetail,
+  getStockDispatchList,
+  mapStockDispatchListItemToUi,
+  postStockDispatchFromOrder,
+  softDeleteStockDispatch,
+} from "../api/dispatchApi"
 import { ApiRequestError } from "@/lib/api/http"
 
 const PAGE_SIZE = 20
@@ -26,7 +34,7 @@ const statusOptions = [
   { value: "WaitingDispatch", label: "Chờ xuất (xuất tay)" },
   { value: "Delivering", label: "Đang giao" },
   { value: "Delivered", label: "Đã giao" },
-  { value: "Pending", label: "Chờ xuất (đơn)" },
+  { value: "Pending", label: "Chờ duyệt (đơn)" },
   { value: "Full", label: "Đủ hàng" },
   { value: "Partial", label: "Một phần" },
   { value: "Cancelled", label: "Đã hủy" },
@@ -34,6 +42,9 @@ const statusOptions = [
 
 export function DispatchPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const role = useAuthStore((s) => s.user?.role)
+  const isElevated = role === "Owner" || role === "Admin"
   const [searchParams, setSearchParams] = useSearchParams()
   const { setTitle } = usePageTitle()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -87,6 +98,23 @@ export function DispatchPage() {
     queryKey: ["stock-dispatch-detail", selectedDispatch?.id ?? 0],
     queryFn: () => getStockDispatchDetail(selectedDispatch!.id),
     enabled: isPanelOpen && selectedDispatch != null && selectedDispatch.id > 0,
+  })
+
+  const approveStockDispatchMutation = useMutation({
+    mutationFn: async () => approveStockDispatch(selectedDispatch!.id),
+    onSuccess: async () => {
+      toast.success("Đã duyệt phiếu — chuyển chờ xuất")
+      await queryClient.invalidateQueries({ queryKey: ["stock-dispatch-detail", selectedDispatch!.id] })
+      await queryClient.invalidateQueries({ queryKey: ["stock-dispatches", "v1", "list"] })
+    },
+    onError: (e: unknown) => {
+      if (e instanceof ApiRequestError) {
+        toast.error(e.body?.message ?? "Không duyệt được phiếu")
+      }
+      else {
+        toast.error("Không duyệt được phiếu")
+      }
+    },
   })
 
   const softDeleteMutation = useMutation({
@@ -189,13 +217,35 @@ export function DispatchPage() {
   }
 
   const handleCreateDispatch = () => {
-    toast.info("Để tạo phiếu xuất ghi nhận trên hệ thống: mở Tồn kho, chọn dòng, bấm Xuất và điền form.")
     setEditingDispatch(undefined)
     setIsFormOpen(true)
   }
 
-  const handleFormSubmit = (_data: DispatchFormData) => {
-    void queryClient.invalidateQueries({ queryKey: ["stock-dispatches", "v1", "list"] })
+  const handleFormSubmit = async (data: DispatchFormData) => {
+    try {
+      const created = await postStockDispatchFromOrder({
+        orderId: data.orderId,
+        dispatchDate: data.dispatchDate,
+        notes: data.notes?.trim() || null,
+        lines: data.items.map((it) => ({
+          inventoryId: it.inventoryId,
+          quantity: it.dispatchQty,
+          unitPriceSnapshot: Number(it.unitPriceSnapshot),
+        })),
+      })
+      toast.success(`Đã tạo phiếu ${created.dispatchCode}`)
+      await queryClient.invalidateQueries({ queryKey: ["stock-dispatches", "v1", "list"] })
+      navigate(`/inventory/dispatch?highlight=${created.id}`)
+    }
+    catch (e) {
+      if (e instanceof ApiRequestError) {
+        toast.error(e.body?.message ?? "Không tạo được phiếu")
+      }
+      else {
+        toast.error("Không tạo được phiếu")
+      }
+      throw e
+    }
   }
 
   const total = data?.pages[0]?.total ?? 0
@@ -339,6 +389,9 @@ export function DispatchPage() {
         isOpen={isPanelOpen}
         onClose={() => setIsPanelOpen(false)}
         canApprove={true}
+        canApproveStockLines={isElevated}
+        onApproveStockDispatch={() => approveStockDispatchMutation.mutate()}
+        approveStockDispatchPending={approveStockDispatchMutation.isPending}
         detailFromApi={panelDetailQuery.data ?? null}
         detailLoading={panelDetailQuery.isFetching}
       />

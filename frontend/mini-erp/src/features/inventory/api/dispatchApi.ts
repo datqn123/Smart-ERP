@@ -13,6 +13,19 @@ export type StockDispatchCreateBody = {
   lines: StockDispatchCreateLineBody[]
 }
 
+export type StockDispatchFromOrderLineBody = {
+  inventoryId: number
+  quantity: number
+  unitPriceSnapshot: number
+}
+
+export type StockDispatchFromOrderBody = {
+  orderId: number
+  dispatchDate: string
+  notes?: string | null
+  lines: StockDispatchFromOrderLineBody[]
+}
+
 export type StockDispatchCreatedResponse = {
   id: number
   dispatchCode: string
@@ -32,6 +45,8 @@ export type StockDispatchListItemResponse = {
   status: DispatchStatus
   createdByUserId: number
   manualDispatch: boolean
+  /** Phiếu có dòng stockdispatch_lines (xuất tay / gắn đơn chờ xử lý). */
+  hasStockDispatchLines?: boolean
   shortageWarning: boolean
   canEdit: boolean
   canDelete: boolean
@@ -54,6 +69,7 @@ export type StockDispatchDetailLineResponse = {
   skuCode: string
   warehouseCode: string
   shelfCode: string
+  unitPriceSnapshot?: number | string | null
 }
 
 export type StockDispatchDetailResponse = {
@@ -68,6 +84,7 @@ export type StockDispatchDetailResponse = {
   notes?: string | null
   referenceLabel?: string | null
   manualDispatch: boolean
+  stockLinesFulfillment?: boolean
   shortageWarning: boolean
   lines: StockDispatchDetailLineResponse[]
   canEdit: boolean
@@ -100,6 +117,21 @@ export function postStockDispatch(body: StockDispatchCreateBody) {
     method: "POST",
     auth: true,
     body: JSON.stringify(body),
+  })
+}
+
+export function postStockDispatchFromOrder(body: StockDispatchFromOrderBody) {
+  return apiJson<StockDispatchCreatedResponse>("/api/v1/stock-dispatches/from-order", {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify(body),
+  })
+}
+
+export function approveStockDispatch(id: number) {
+  return apiJson<StockDispatchDetailResponse>(`/api/v1/stock-dispatches/${id}/approve`, {
+    method: "POST",
+    auth: true,
   })
 }
 

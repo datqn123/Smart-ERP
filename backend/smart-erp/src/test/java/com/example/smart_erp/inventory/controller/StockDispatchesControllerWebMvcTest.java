@@ -29,6 +29,7 @@ import com.example.smart_erp.config.MethodSecurityTestConfiguration;
 import com.example.smart_erp.config.PermitAllWebSecurityConfiguration;
 import com.example.smart_erp.config.SecurityBeansConfiguration;
 import com.example.smart_erp.inventory.dispatch.ManualStockDispatchService;
+import com.example.smart_erp.inventory.dispatch.OrderLinkedDispatchService;
 import com.example.smart_erp.inventory.dispatch.response.StockDispatchDetailData;
 import com.example.smart_erp.inventory.dispatch.response.StockDispatchListItemData;
 import com.example.smart_erp.inventory.dispatch.response.StockDispatchListPageData;
@@ -44,10 +45,13 @@ class StockDispatchesControllerWebMvcTest {
 	@MockitoBean
 	private ManualStockDispatchService manualStockDispatchService;
 
+	@MockitoBean
+	private OrderLinkedDispatchService orderLinkedDispatchService;
+
 	@Test
 	void list_returns200() throws Exception {
 		var row = new StockDispatchListItemData(1L, "PX-1", "—", "K", LocalDate.of(2026, 1, 15), "U", 1,
-				"WaitingDispatch", 42, true, false, true, false);
+				"WaitingDispatch", 42, true, true, false, true, false);
 		var data = new StockDispatchListPageData(List.of(row), 1, 20, 1L);
 		when(manualStockDispatchService.list(any(), any(), any(), any(), eq(1), eq(20), any())).thenReturn(data);
 
@@ -66,6 +70,7 @@ class StockDispatchesControllerWebMvcTest {
 				"Delivering",
 				"",
 				"REF",
+				true,
 				true,
 				false,
 				List.of(),
@@ -91,7 +96,7 @@ class StockDispatchesControllerWebMvcTest {
 	@Test
 	void getById_returns200() throws Exception {
 		var detail = new StockDispatchDetailData(10L, "PX-1", "—", "K", LocalDate.of(2026, 1, 15), 42, "U",
-				"WaitingDispatch", "", "", true, false, List.of(), true, true, null, null, null, null);
+				"WaitingDispatch", "", "", true, true, false, List.of(), true, true, null, null, null, null);
 		when(manualStockDispatchService.getDetail(eq(10L), any())).thenReturn(detail);
 
 		mockMvc.perform(get("/api/v1/stock-dispatches/10")

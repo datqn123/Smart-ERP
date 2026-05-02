@@ -21,7 +21,9 @@ import com.example.smart_erp.common.api.ApiErrorCode;
 import com.example.smart_erp.common.api.ApiSuccessResponse;
 import com.example.smart_erp.common.exception.BusinessException;
 import com.example.smart_erp.inventory.dispatch.ManualStockDispatchService;
+import com.example.smart_erp.inventory.dispatch.OrderLinkedDispatchService;
 import com.example.smart_erp.inventory.dispatch.StockDispatchCreateRequest;
+import com.example.smart_erp.inventory.dispatch.StockDispatchFromOrderRequest;
 import com.example.smart_erp.inventory.dispatch.StockDispatchPatchRequest;
 import com.example.smart_erp.inventory.dispatch.StockDispatchSoftDeleteRequest;
 import com.example.smart_erp.inventory.dispatch.response.StockDispatchCreatedData;
@@ -38,9 +40,12 @@ public class StockDispatchesController {
 	private static final String UNAUTHORIZED_NO_JWT_PRINCIPAL = "Không có JWT hợp lệ trong phiên bảo mật.";
 
 	private final ManualStockDispatchService manualStockDispatchService;
+	private final OrderLinkedDispatchService orderLinkedDispatchService;
 
-	public StockDispatchesController(ManualStockDispatchService manualStockDispatchService) {
+	public StockDispatchesController(ManualStockDispatchService manualStockDispatchService,
+			OrderLinkedDispatchService orderLinkedDispatchService) {
 		this.manualStockDispatchService = manualStockDispatchService;
+		this.orderLinkedDispatchService = orderLinkedDispatchService;
 	}
 
 	@GetMapping("/stock-dispatches")
@@ -75,6 +80,25 @@ public class StockDispatchesController {
 		Jwt jwt = requireJwt(authentication);
 		StockDispatchCreatedData data = manualStockDispatchService.createManual(body, jwt);
 		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã tạo phiếu xuất kho"));
+	}
+
+	/** Phiếu xuất gắn đơn hàng — Pending / Partial (thiếu tồn), chờ Owner/Admin duyệt hoặc xử lý. */
+	@PostMapping("/stock-dispatches/from-order")
+	@PreAuthorize("hasAuthority('can_manage_inventory')")
+	public ResponseEntity<ApiSuccessResponse<StockDispatchCreatedData>> createFromOrder(Authentication authentication,
+			@Valid @RequestBody StockDispatchFromOrderRequest body) {
+		Jwt jwt = requireJwt(authentication);
+		StockDispatchCreatedData data = orderLinkedDispatchService.createFromOrder(body, jwt);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã tạo phiếu xuất kho gắn đơn"));
+	}
+
+	@PostMapping("/stock-dispatches/{id:\\d+}/approve")
+	@PreAuthorize("hasAuthority('can_manage_inventory')")
+	public ResponseEntity<ApiSuccessResponse<StockDispatchDetailData>> approve(Authentication authentication,
+			@PathVariable long id) {
+		Jwt jwt = requireJwt(authentication);
+		StockDispatchDetailData data = manualStockDispatchService.approveOrderLinkedDispatch(id, jwt);
+		return ResponseEntity.ok(ApiSuccessResponse.of(data, "Đã duyệt phiếu — chuyển sang chờ xuất"));
 	}
 
 	@PatchMapping("/stock-dispatches/{id:\\d+}")

@@ -52,8 +52,8 @@ public final class StockDispatchAccessPolicy {
 		StockReceiptAccessPolicy.assertReceiptCreator(dispatchCreatorUserId, jwt);
 	}
 
-	/** PATCH phiếu xuất tay — người tạo hoặc Owner/Admin (cùng điều kiện trạng thái với soft-delete). */
-	public static void assertCreatorOrAdminForManualEdit(int dispatchCreatorUserId, Jwt jwt) {
+	/** PATCH — người tạo phiếu hoặc Owner/Admin (trạng thái chưa hoàn tất xử lý ở service). */
+	public static void assertCreatorOrElevatedForDispatchEdit(int dispatchCreatorUserId, Jwt jwt) {
 		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
 		if (uid == dispatchCreatorUserId) {
 			return;
@@ -62,10 +62,10 @@ public final class StockDispatchAccessPolicy {
 			return;
 		}
 		throw new BusinessException(ApiErrorCode.FORBIDDEN,
-				"Chỉ người tạo phiếu hoặc Owner/Admin mới được sửa phiếu xuất tay này");
+				"Chỉ người tạo phiếu hoặc Owner/Admin mới được sửa phiếu xuất kho này");
 	}
 
-	public static void assertCreatorOrAdminForSoftDelete(int dispatchCreatorUserId, Jwt jwt) {
+	public static void assertCreatorOrElevatedForSoftDelete(int dispatchCreatorUserId, Jwt jwt) {
 		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
 		if (uid == dispatchCreatorUserId) {
 			return;
@@ -74,6 +74,6 @@ public final class StockDispatchAccessPolicy {
 			return;
 		}
 		throw new BusinessException(ApiErrorCode.FORBIDDEN,
-				"Chỉ người tạo phiếu hoặc Owner/Admin mới được xóa mềm phiếu này");
+				"Chỉ người tạo phiếu hoặc Owner/Admin mới được xóa mềm phiếu xuất kho này");
 	}
 }

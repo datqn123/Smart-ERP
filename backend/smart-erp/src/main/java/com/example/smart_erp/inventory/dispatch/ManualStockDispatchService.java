@@ -58,14 +58,22 @@ public class ManualStockDispatchService {
 	private static StockDispatchListItemData applyListPolicies(Jwt jwt, StockDispatchListItemData row) {
 		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
 		boolean manual = row.manualDispatch();
-		boolean editableLife = manual && ManualDispatchStatuses.isEditable(row.status());
-		boolean canEdit = editableLife
-				&& (uid == row.createdByUserId() || StockDispatchAccessPolicy.isElevatedDispatchManager(jwt));
-		boolean canDelete = editableLife
-				&& (uid == row.createdByUserId() || StockDispatchAccessPolicy.isElevatedDispatchManager(jwt));
+		boolean locked = DispatchMutationPolicy.isCompletedLockedForMutation(row.status());
+		boolean awaitingOwner = orderAwaitingOwnerList(row);
+		boolean elevated = StockDispatchAccessPolicy.isElevatedDispatchManager(jwt);
+		boolean canMutate = !locked && ((!awaitingOwner && (uid == row.createdByUserId() || elevated))
+				|| (awaitingOwner && elevated));
 		return new StockDispatchListItemData(row.id(), row.dispatchCode(), row.orderCode(), row.customerName(),
 				row.dispatchDate(), row.userName(), row.itemCount(), row.status(), row.createdByUserId(), manual,
-				row.shortageWarning(), canEdit, canDelete);
+				row.hasStockDispatchLines(), row.shortageWarning(), canMutate, canMutate);
+	}
+
+	private static boolean orderAwaitingOwnerList(StockDispatchListItemData row) {
+		if (row.manualDispatch() || !row.hasStockDispatchLines()) {
+			return false;
+		}
+		String s = row.status();
+		return "Pending".equalsIgnoreCase(s) || "Partial".equalsIgnoreCase(s);
 	}
 
 	@Transactional(readOnly = true)
@@ -74,19 +82,38 @@ public class ManualStockDispatchService {
 				.orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND, "Không tìm thấy phiếu xuất."));
 		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
 		boolean manual = header.orderId() == null;
-		boolean editableLife = manual && ManualDispatchStatuses.isEditable(header.status());
-		boolean canEdit = editableLife
-				&& (uid == header.userId() || StockDispatchAccessPolicy.isElevatedDispatchManager(jwt));
-		boolean canDelete = editableLife
-				&& (uid == header.userId() || StockDispatchAccessPolicy.isElevatedDispatchManager(jwt));
-		boolean shortage = manual && dispatchRepo.detailHasShortage(dispatchId);
-		List<StockDispatchDetailLineData> lines = manual ? dispatchRepo.loadManualDetailLines(dispatchId)
-				: List.of();
+		boolean stockLinesFulfillment = dispatchRepo.dispatchHasPendingLines(dispatchId);
+		boolean locked = DispatchMutationPolicy.isCompletedLockedForMutation(header.status());
+		boolean elevated = StockDispatchAccessPolicy.isElevatedDispatchManager(jwt);
+		boolean awaitingOwner = orderAwaitingOwnerDetail(header.orderId(), dispatchId, header.status());
+		boolean canEdit = !locked && ((!awaitingOwner && (uid == header.userId() || elevated))
+				|| (awaitingOwner && elevated));
+		boolean canDelete = canEdit;
+		boolean shortage = dispatchRepo.detailHasShortage(dispatchId);
+		List<StockDispatchDetailLineData> lines = resolveDetailLines(dispatchId);
 		String deletedByName = StringUtils.hasText(header.deletedByDisplayName()) ? header.deletedByDisplayName() : null;
 		return new StockDispatchDetailData(header.id(), header.dispatchCode(), header.orderCode(),
 				header.customerName(), header.dispatchDate(), header.userId(), header.userName(), header.status(),
-				header.notes(), header.referenceLabel(), manual, shortage, lines, canEdit, canDelete,
-				header.deletedAt(), header.deletedByUserId(), deletedByName, header.deleteReason());
+				header.notes(), header.referenceLabel(), manual, stockLinesFulfillment, shortage, lines, canEdit,
+				canDelete, header.deletedAt(), header.deletedByUserId(), deletedByName, header.deleteReason());
+	}
+
+	private List<StockDispatchDetailLineData> resolveDetailLines(long dispatchId) {
+		List<StockDispatchDetailLineData> outbound = dispatchRepo.loadOutboundLinesForDispatchDetail(dispatchId);
+		if (!outbound.isEmpty()) {
+			return outbound;
+		}
+		if (dispatchRepo.dispatchHasPendingLines(dispatchId)) {
+			return dispatchRepo.loadManualDetailLines(dispatchId);
+		}
+		return List.of();
+	}
+
+	private boolean orderAwaitingOwnerDetail(Integer orderId, long dispatchId, String status) {
+		if (orderId == null || !dispatchRepo.dispatchHasPendingLines(dispatchId)) {
+			return false;
+		}
+		return "Pending".equalsIgnoreCase(status) || "Partial".equalsIgnoreCase(status);
 	}
 
 	@Transactional
@@ -122,7 +149,7 @@ public class ManualStockDispatchService {
 						+ ", trong kho " + lockedInv.quantity());
 				throw new BusinessException(ApiErrorCode.CONFLICT, "Không đủ tồn cho ít nhất một dòng.", errors);
 			}
-			dispatchRepo.insertDispatchLine(dispatchId, line.inventoryId(), line.quantity());
+			dispatchRepo.insertDispatchLine(dispatchId, line.inventoryId(), line.quantity(), line.unitPriceSnapshot());
 		}
 
 		String finalCode = buildDispatchCode(dispatchId);
@@ -141,19 +168,38 @@ public class ManualStockDispatchService {
 		if (locked.deletedAt() != null) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Phiếu đã bị xóa mềm.");
 		}
-		if (locked.orderId() != null) {
-			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Phiếu gắn đơn hàng không sửa qua API này.");
-		}
-		StockDispatchAccessPolicy.assertCreatorOrAdminForManualEdit(locked.creatorUserId(), jwt);
-		if (!ManualDispatchStatuses.isManualLifecycle(locked.status())) {
+		if (DispatchMutationPolicy.isCompletedLockedForMutation(locked.status())) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST,
-					"Phiếu xuất thủ công cũ không có luồng chờ giao / đang giao.");
+					"Phiếu đã giao hoặc đã hoàn tất xuất — không được sửa.");
 		}
-		if (ManualDispatchStatuses.DELIVERED.equalsIgnoreCase(locked.status())) {
-			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Đã giao — không được sửa phiếu.");
+		boolean awaitingOwner = orderAwaitingOwnerDetail(locked.orderId(), dispatchId, locked.status());
+		boolean elevated = StockDispatchAccessPolicy.isElevatedDispatchManager(jwt);
+		if (awaitingOwner) {
+			if (!elevated) {
+				throw new BusinessException(ApiErrorCode.FORBIDDEN,
+						"Phiếu chờ Owner/Admin duyệt hoặc xử lý thiếu hàng — bạn không được sửa.");
+			}
+			return patchAwaitingOwnerDispatch(dispatchId, patch, locked, jwt);
+		}
+
+		StockDispatchAccessPolicy.assertCreatorOrElevatedForDispatchEdit(locked.creatorUserId(), jwt);
+
+		if (locked.orderId() != null && !supportsFullManualWorkflow(locked)) {
+			patchDispatchHeaderOnly(dispatchId, patch, locked.status(),
+					"Phiếu gắn đơn hàng: chỉ sửa được ngày xuất, ghi chú và nhãn tham chiếu (không đổi trạng thái hay dòng qua API này).");
+			return getDetail(dispatchId, jwt);
+		}
+
+		if (!supportsFullManualWorkflow(locked)) {
+			patchDispatchHeaderOnly(dispatchId, patch, locked.status(),
+					"Phiếu xuất thủ công (dạng cũ): chỉ sửa được ngày xuất, ghi chú và nhãn tham chiếu.");
+			return getDetail(dispatchId, jwt);
 		}
 
 		String curr = locked.status();
+		if (!ManualDispatchStatuses.isManualLifecycle(curr)) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Trạng thái phiếu không hợp lệ cho luồng chờ giao.");
+		}
 		String requested = patch.getStatus();
 		String target = !StringUtils.hasText(requested) ? curr : requested.trim();
 		if (!isManualForwardAllowed(curr, target)) {
@@ -175,7 +221,7 @@ public class ManualStockDispatchService {
 			if (patch.getLines().isEmpty()) {
 				throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Danh sách dòng hàng không được rỗng.");
 			}
-			replaceManualLines(dispatchId, patch.getLines());
+			replaceDispatchLines(dispatchId, patch.getLines(), true);
 		}
 
 		if (ManualDispatchStatuses.DELIVERED.equals(target) && !ManualDispatchStatuses.DELIVERED.equals(curr)) {
@@ -188,12 +234,66 @@ public class ManualStockDispatchService {
 		return getDetail(dispatchId, jwt);
 	}
 
+	private boolean supportsFullManualWorkflow(StockDispatchJdbcRepository.LockedManualDispatchRow locked) {
+		if (!ManualDispatchStatuses.isManualLifecycle(locked.status())) {
+			return false;
+		}
+		if (locked.orderId() == null) {
+			return true;
+		}
+		return dispatchRepo.dispatchHasPendingLines(locked.id());
+	}
+
+	private StockDispatchDetailData patchAwaitingOwnerDispatch(long dispatchId, StockDispatchPatchRequest patch,
+			StockDispatchJdbcRepository.LockedManualDispatchRow locked, Jwt jwt) {
+		if (patch.getStatus() != null && !patch.getStatus().trim().equalsIgnoreCase(locked.status())) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST,
+					"Chờ duyệt / thiếu hàng: không đổi trạng thái qua PATCH — dùng API duyệt phiếu khi đủ điều kiện.");
+		}
+		if (patch.getDispatchDate() != null) {
+			dispatchRepo.updateDispatchDate(dispatchId, patch.getDispatchDate());
+		}
+		if (patch.getNotes() != null) {
+			dispatchRepo.updateDispatchNotes(dispatchId, patch.getNotes().trim());
+		}
+		if (patch.getReferenceLabel() != null) {
+			dispatchRepo.updateDispatchReference(dispatchId, patch.getReferenceLabel().trim());
+		}
+		if (patch.getLines() != null) {
+			if (patch.getLines().isEmpty()) {
+				throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Danh sách dòng hàng không được rỗng.");
+			}
+			replaceDispatchLines(dispatchId, patch.getLines(), false);
+		}
+		return getDetail(dispatchId, jwt);
+	}
+
+	private void patchDispatchHeaderOnly(long dispatchId, StockDispatchPatchRequest patch, String currentStatus,
+			String rejectLinesOrStatusHint) {
+		if (patch.getLines() != null) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, rejectLinesOrStatusHint);
+		}
+		if (patch.getStatus() != null && !patch.getStatus().trim().equalsIgnoreCase(currentStatus)) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, rejectLinesOrStatusHint);
+		}
+		if (patch.getDispatchDate() != null) {
+			dispatchRepo.updateDispatchDate(dispatchId, patch.getDispatchDate());
+		}
+		if (patch.getNotes() != null) {
+			dispatchRepo.updateDispatchNotes(dispatchId, patch.getNotes().trim());
+		}
+		if (patch.getReferenceLabel() != null) {
+			dispatchRepo.updateDispatchReference(dispatchId, patch.getReferenceLabel().trim());
+		}
+	}
+
 	private static boolean patchHasAny(StockDispatchPatchRequest p) {
 		return p.getDispatchDate() != null || p.getNotes() != null || p.getReferenceLabel() != null
 				|| StringUtils.hasText(p.getStatus()) || p.getLines() != null;
 	}
 
-	private void replaceManualLines(long dispatchId, List<StockDispatchLineRequest> lines) {
+	private void replaceDispatchLines(long dispatchId, List<StockDispatchLineRequest> lines,
+			boolean requireFullStockCoverage) {
 		Map<String, String> errors = new LinkedHashMap<>();
 		for (int i = 0; i < lines.size(); i++) {
 			var line = lines.get(i);
@@ -210,13 +310,13 @@ public class ManualStockDispatchService {
 			var lockedInv = dispatchRepo.lockInventoryRowForUpdate(line.inventoryId())
 					.orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND,
 							"Không tìm thấy dòng tồn kho id=" + line.inventoryId()));
-			if (line.quantity() > lockedInv.quantity()) {
+			if (requireFullStockCoverage && line.quantity() > lockedInv.quantity()) {
 				errors.put("inventoryId", "Thiếu hàng: inventory id=" + line.inventoryId() + " — yêu cầu "
 						+ line.quantity() + ", trong kho " + lockedInv.quantity());
 				throw new BusinessException(ApiErrorCode.CONFLICT,
 						"Không đủ tồn cho ít nhất một dòng (kiểm tra số lượng).", errors);
 			}
-			dispatchRepo.insertDispatchLine(dispatchId, line.inventoryId(), line.quantity());
+			dispatchRepo.insertDispatchLine(dispatchId, line.inventoryId(), line.quantity(), line.unitPriceSnapshot());
 		}
 	}
 
@@ -254,17 +354,18 @@ public class ManualStockDispatchService {
 		if (!StringUtils.hasText(next)) {
 			return true;
 		}
-		if (curr.equals(next)) {
+		if (curr.equalsIgnoreCase(next)) {
 			return true;
 		}
-		if (ManualDispatchStatuses.DELIVERED.equals(curr)) {
+		if (ManualDispatchStatuses.DELIVERED.equalsIgnoreCase(curr)) {
 			return false;
 		}
-		if (ManualDispatchStatuses.WAITING_DISPATCH.equals(curr)) {
-			return ManualDispatchStatuses.DELIVERING.equals(next) || ManualDispatchStatuses.DELIVERED.equals(next);
+		if (ManualDispatchStatuses.WAITING_DISPATCH.equalsIgnoreCase(curr)) {
+			return ManualDispatchStatuses.DELIVERING.equalsIgnoreCase(next)
+					|| ManualDispatchStatuses.DELIVERED.equalsIgnoreCase(next);
 		}
-		if (ManualDispatchStatuses.DELIVERING.equals(curr)) {
-			return ManualDispatchStatuses.DELIVERED.equals(next);
+		if (ManualDispatchStatuses.DELIVERING.equalsIgnoreCase(curr)) {
+			return ManualDispatchStatuses.DELIVERED.equalsIgnoreCase(next);
 		}
 		return false;
 	}
@@ -276,18 +377,41 @@ public class ManualStockDispatchService {
 		if (locked.deletedAt() != null) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Phiếu đã bị xóa mềm.");
 		}
-		if (locked.orderId() != null) {
-			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Phiếu gắn đơn hàng không xóa qua API này.");
+		if (DispatchMutationPolicy.isCompletedLockedForMutation(locked.status())) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST,
+					"Không xóa mềm phiếu đã giao hoặc đã hoàn tất xuất.");
 		}
-		StockDispatchAccessPolicy.assertCreatorOrAdminForSoftDelete(locked.creatorUserId(), jwt);
-		if (!ManualDispatchStatuses.isManualLifecycle(locked.status())) {
-			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Không xóa mềm phiếu loại cũ.");
+		boolean awaitingOwner = orderAwaitingOwnerDetail(locked.orderId(), dispatchId, locked.status());
+		if (awaitingOwner && !StockDispatchAccessPolicy.isElevatedDispatchManager(jwt)) {
+			throw new BusinessException(ApiErrorCode.FORBIDDEN,
+					"Phiếu chờ Owner/Admin — chỉ Owner/Admin được xóa mềm.");
 		}
-		if (!ManualDispatchStatuses.isEditable(locked.status())) {
-			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Chỉ xóa mềm khi phiếu còn ở trạng thái chờ xuất hoặc đang giao.");
-		}
+		StockDispatchAccessPolicy.assertCreatorOrElevatedForSoftDelete(locked.creatorUserId(), jwt);
 		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
 		dispatchRepo.markSoftDeleted(dispatchId, uid, body.reason().trim());
+	}
+
+	@Transactional
+	public StockDispatchDetailData approveOrderLinkedDispatch(long dispatchId, Jwt jwt) {
+		if (!StockDispatchAccessPolicy.isElevatedDispatchManager(jwt)) {
+			throw new BusinessException(ApiErrorCode.FORBIDDEN, "Chỉ Owner/Admin được duyệt phiếu xuất.");
+		}
+		var locked = dispatchRepo.lockManualDispatch(dispatchId)
+				.orElseThrow(() -> new BusinessException(ApiErrorCode.NOT_FOUND, "Không tìm thấy phiếu xuất."));
+		if (locked.deletedAt() != null) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Phiếu đã bị xóa mềm.");
+		}
+		if (locked.orderId() == null) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Chỉ áp dụng cho phiếu gắn đơn hàng.");
+		}
+		if (!"Pending".equalsIgnoreCase(locked.status())) {
+			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Chỉ duyệt khi phiếu đang Chờ duyệt (Pending).");
+		}
+		if (dispatchRepo.detailHasShortage(dispatchId)) {
+			throw new BusinessException(ApiErrorCode.CONFLICT, "Còn thiếu tồn — không duyệt được.");
+		}
+		dispatchRepo.updateDispatchStatus(dispatchId, ManualDispatchStatuses.WAITING_DISPATCH);
+		return getDetail(dispatchId, jwt);
 	}
 
 	private static String buildDispatchCode(long dispatchId) {

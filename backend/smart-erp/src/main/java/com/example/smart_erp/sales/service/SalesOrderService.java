@@ -237,6 +237,10 @@ public class SalesOrderService {
 			salesOrderJdbcRepository.insertOrderLine(id, line.productId(), line.unitId(), line.quantity(),
 					line.unitPrice());
 		}
+		if ("Paid".equalsIgnoreCase(payment)) {
+			String orderCode = salesOrderJdbcRepository.findOrderCode(id).orElseGet(() -> buildOrderCode(id));
+			postSalesOrderLedgerWhenMarkedPaid(id, ch, orderCode, subtotal, discount, uid);
+		}
 		return getById(id);
 	}
 
@@ -300,6 +304,12 @@ public class SalesOrderService {
 		if (voucherId != null) {
 			voucherJdbcRepository.incrementUsedCount(voucherId);
 			voucherJdbcRepository.insertRedemption(voucherId, id);
+		}
+		BigDecimal finalAmount = subtotal.subtract(totalDiscount).max(BigDecimal.ZERO);
+		if (finalAmount.signum() > 0) {
+			LocalDate td = LocalDate.now(RETAIL_HISTORY_ZONE);
+			salesOrderJdbcRepository.insertFinanceLedgerForSalesOrder(td, "SalesRevenue", id, finalAmount,
+					"Doanh thu bán lẻ " + orderCode, uid);
 		}
 		return getById(id);
 	}
@@ -386,7 +396,7 @@ public class SalesOrderService {
 
 	@Transactional
 	public SalesOrderDetailData patch(int id, JsonNode body, Jwt jwt) {
-		StockReceiptAccessPolicy.parseUserId(jwt);
+		int uid = StockReceiptAccessPolicy.parseUserId(jwt);
 		if (body == null) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "Body không được rỗng");
 		}
@@ -443,8 +453,16 @@ public class SalesOrderService {
 		if (newStatus == null && newPayment == null && !inclShip && !inclNotes && newDiscount == null) {
 			return getById(id);
 		}
+		String priorPayment = row.paymentStatus() != null ? row.paymentStatus() : "Unpaid";
 		salesOrderJdbcRepository.patchOrder(id, newStatus, newPayment, inclShip, shipVal, inclNotes, notesVal,
 				newDiscount);
+		if (newPayment != null && "Paid".equals(newPayment) && !"Paid".equalsIgnoreCase(priorPayment)) {
+			salesOrderJdbcRepository.loadOrderFinancialForLedger(id)
+					.ifPresent(finRow -> postSalesOrderLedgerWhenMarkedPaid(finRow.id(), finRow.orderChannel(),
+							finRow.orderCode() != null && !finRow.orderCode().isBlank() ? finRow.orderCode()
+									: buildOrderCode(finRow.id()),
+							finRow.totalAmount(), finRow.discountAmount(), uid));
+		}
 		return getById(id);
 	}
 
@@ -494,6 +512,16 @@ public class SalesOrderService {
 		}
 		if ("Retail".equalsIgnoreCase(row.orderChannel()) && row.voucherId() != null) {
 			voucherJdbcRepository.reverseRedemptionForOrder(id);
+		}
+		if ("Retail".equalsIgnoreCase(row.orderChannel()) && salesOrderJdbcRepository.existsSalesRevenueLedgerForSalesOrder(id)
+				&& !salesOrderJdbcRepository.existsRefundLedgerForSalesOrder(id)) {
+			BigDecimal fin = row.totalAmount().subtract(row.discountAmount());
+			if (fin.signum() > 0) {
+				LocalDate td = LocalDate.now(RETAIL_HISTORY_ZONE);
+				String code = row.orderCode() != null && !row.orderCode().isBlank() ? row.orderCode() : ("#" + id);
+				salesOrderJdbcRepository.insertFinanceLedgerForSalesOrder(td, "Refund", id, fin.negate(),
+						"Huỷ bán lẻ — đảo doanh thu " + code, uid);
+			}
 		}
 		salesOrderJdbcRepository.cancelOrder(id, uid);
 		SalesOrderDetailData d = getById(id);
@@ -566,6 +594,33 @@ public class SalesOrderService {
 		if (!"Pending".equals(s) && !"Processing".equals(s) && !"Partial".equals(s) && !"Shipped".equals(s)
 				&& !"Delivered".equals(s)) {
 			throw new BusinessException(ApiErrorCode.BAD_REQUEST, "status không hợp lệ");
+		}
+	}
+
+	/**
+	 * Ghi sổ cái khi đơn Wholesale/Return chuyển (hoặc tạo) trạng thái thanh toán Đã thanh toán — tránh trùng lần.
+	 */
+	private void postSalesOrderLedgerWhenMarkedPaid(int orderId, String orderChannel, String orderCode,
+			BigDecimal totalAmount, BigDecimal discountAmount, int userId) {
+		BigDecimal fin = totalAmount.subtract(discountAmount).max(BigDecimal.ZERO);
+		if (fin.signum() <= 0) {
+			return;
+		}
+		LocalDate td = LocalDate.now(RETAIL_HISTORY_ZONE);
+		String code = orderCode != null && !orderCode.isBlank() ? orderCode : buildOrderCode(orderId);
+		if ("Wholesale".equalsIgnoreCase(orderChannel)) {
+			if (salesOrderJdbcRepository.existsSalesRevenueLedgerForSalesOrder(orderId)) {
+				return;
+			}
+			salesOrderJdbcRepository.insertFinanceLedgerForSalesOrder(td, "SalesRevenue", orderId, fin,
+					"Thu tiền bán buôn " + code, userId);
+		}
+		else if ("Return".equalsIgnoreCase(orderChannel)) {
+			if (salesOrderJdbcRepository.existsRefundLedgerForSalesOrder(orderId)) {
+				return;
+			}
+			salesOrderJdbcRepository.insertFinanceLedgerForSalesOrder(td, "Refund", orderId, fin.negate(),
+					"Hoàn tiền đơn trả " + code, userId);
 		}
 	}
 

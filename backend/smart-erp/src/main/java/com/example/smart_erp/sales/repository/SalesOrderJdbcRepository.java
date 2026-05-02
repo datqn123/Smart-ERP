@@ -2,7 +2,9 @@ package com.example.smart_erp.sales.repository;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -292,15 +294,61 @@ public class SalesOrderJdbcRepository {
 
 	public Optional<OrderLockRow> lockOrderForUpdate(int id) {
 		String sql = """
-				SELECT id, status, order_channel, total_amount, discount_amount, cancelled_at, cancelled_by, voucher_id
+				SELECT id, status, order_channel, order_code, payment_status, total_amount, discount_amount,
+				  cancelled_at, cancelled_by, voucher_id
 				FROM salesorders WHERE id = :id FOR UPDATE
 				""";
 		List<OrderLockRow> rows = namedJdbc.query(sql, Map.of("id", id), (rs, rn) -> new OrderLockRow(rs.getInt("id"),
-				rs.getString("status"), rs.getString("order_channel"), rs.getBigDecimal("total_amount"),
-				rs.getBigDecimal("discount_amount"),
+				rs.getString("status"), rs.getString("order_channel"), rs.getString("order_code"),
+				rs.getString("payment_status"), rs.getBigDecimal("total_amount"), rs.getBigDecimal("discount_amount"),
 				tsToInstant(rs.getTimestamp("cancelled_at")), (Integer) rs.getObject("cancelled_by"),
 				(Integer) rs.getObject("voucher_id")));
 		return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
+	}
+
+	/** Sau PATCH — lấy số tiều và kênh để ghi sổ cái khớp DB. */
+	public Optional<OrderFinancialRow> loadOrderFinancialForLedger(int id) {
+		String sql = """
+				SELECT id, order_channel, order_code, payment_status, total_amount, discount_amount
+				FROM salesorders WHERE id = :id
+				""";
+		List<OrderFinancialRow> rows = namedJdbc.query(sql, Map.of("id", id), (rs, rn) -> new OrderFinancialRow(
+				rs.getInt("id"), rs.getString("order_channel"), rs.getString("order_code"),
+				rs.getString("payment_status"), rs.getBigDecimal("total_amount"), rs.getBigDecimal("discount_amount")));
+		return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
+	}
+
+	/**
+	 * Ghi {@code financeledger} cho đơn hàng (đa quỹ: quỹ mặc định). {@code amount} có dấu: dương = thu, âm = chi.
+	 * {@code transactionType} ∈ CHECK bảng: SalesRevenue, Refund, …
+	 */
+	public void insertFinanceLedgerForSalesOrder(LocalDate transactionDate, String transactionType, int salesOrderId,
+			BigDecimal amount, String description, int createdBy) {
+		String sql = """
+				INSERT INTO financeledger (transaction_date, transaction_type, reference_type, reference_id, amount, description, created_by, fund_id)
+				VALUES (:td, :ttype, 'SalesOrder', :rid, :amt, :desc, :cb,
+				  (SELECT cf.id FROM cash_funds cf WHERE cf.is_default = TRUE ORDER BY cf.id LIMIT 1))
+				""";
+		namedJdbc.update(sql,
+				new MapSqlParameterSource("td", java.sql.Date.valueOf(transactionDate)).addValue("ttype", transactionType)
+						.addValue("rid", salesOrderId).addValue("amt", amount).addValue("desc", description, Types.VARCHAR)
+						.addValue("cb", createdBy));
+	}
+
+	public boolean existsSalesRevenueLedgerForSalesOrder(int salesOrderId) {
+		Integer n = namedJdbc.queryForObject("""
+				SELECT COUNT(*)::int FROM financeledger
+				WHERE reference_type = 'SalesOrder' AND reference_id = :id AND transaction_type = 'SalesRevenue'
+				""", Map.of("id", salesOrderId), Integer.class);
+		return n != null && n > 0;
+	}
+
+	public boolean existsRefundLedgerForSalesOrder(int salesOrderId) {
+		Integer n = namedJdbc.queryForObject("""
+				SELECT COUNT(*)::int FROM financeledger
+				WHERE reference_type = 'SalesOrder' AND reference_id = :id AND transaction_type = 'Refund'
+				""", Map.of("id", salesOrderId), Integer.class);
+		return n != null && n > 0;
 	}
 
 	public void patchOrder(int id, String status, String paymentStatus, boolean includeShippingAddress,
@@ -361,8 +409,12 @@ public class SalesOrderJdbcRepository {
 		return !hit.isEmpty();
 	}
 
-	public record OrderLockRow(int id, String status, String orderChannel, BigDecimal totalAmount, BigDecimal discountAmount,
-			Instant cancelledAt, Integer cancelledBy, Integer voucherId) {
+	public record OrderLockRow(int id, String status, String orderChannel, String orderCode, String paymentStatus,
+			BigDecimal totalAmount, BigDecimal discountAmount, Instant cancelledAt, Integer cancelledBy, Integer voucherId) {
+	}
+
+	public record OrderFinancialRow(int id, String orderChannel, String orderCode, String paymentStatus,
+			BigDecimal totalAmount, BigDecimal discountAmount) {
 	}
 
 	private static Instant toInstant(Timestamp ts) {
